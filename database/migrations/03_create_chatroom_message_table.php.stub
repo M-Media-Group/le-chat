@@ -1,0 +1,37 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up()
+    {
+        Schema::create('chat_messages', function (Blueprint $table) {
+            $table->ulid('id')->primary();
+
+            $table->foreignIdFor(
+                \Mmedia\LaravelChat\Models\ChatParticipant::class,
+                'sender_id'
+            )
+                ->constrained()
+                ->cascadeOnDelete();
+
+            $table->foreignIdFor(
+                \Mmedia\LaravelChat\Models\Chatroom::class,
+                'chatroom_id'
+            )
+                ->constrained()
+                ->cascadeOnDelete();
+
+            // The message text
+            $table->text('message')->nullable();
+
+            // Soft delete
+            $table->softDeletes();
+
+            $table->timestamps();
+        });
+    }
+};

@@ -1,0 +1,40 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up()
+    {
+        Schema::create('chat_participants', function (Blueprint $table) {
+            $table->ulid('id')->primary();
+
+            // The chatroom this participant belongs to
+            $table->foreignIdFor(
+                \Mmedia\LaravelChat\Models\Chatroom::class,
+                'chatroom_id'
+            )
+                ->constrained()
+                ->cascadeOnDelete();
+
+            // Morphable participant
+            $table->morphs('participant');
+
+            // The participant's role in the chatroom
+            $table->enum('role', ['admin', 'member'])
+                ->default('member')
+                ->index();
+
+            // The participant may be non-related (e,g. a bot or external user), so we need to store a display name and a reference ID (could be a remote ID or a unique key)
+            $table->string('display_name')->nullable();
+            $table->string('reference_id')->nullable(); // e.g. `slackbot-1234`,
+
+            // Soft delete
+            $table->softDeletes();
+
+            $table->timestamps();
+        });
+    }
+};

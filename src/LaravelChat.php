@@ -1,5 +1,5 @@
 <?php
 
-namespace MMedia\LaravelChat;
+namespace Mmedia\LaravelChat;
 
 class LaravelChat {}

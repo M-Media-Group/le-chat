@@ -1,16 +1,16 @@
 <?php
 
-namespace MMedia\LaravelChat\Facades;
+namespace Mmedia\LaravelChat\Facades;
 
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @see \MMedia\LaravelChat\LaravelChat
+ * @see \Mmedia\LaravelChat\LaravelChat
  */
 class LaravelChat extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return \MMedia\LaravelChat\LaravelChat::class;
+        return \Mmedia\LaravelChat\LaravelChat::class;
     }
 }

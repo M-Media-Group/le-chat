@@ -1,5 +1,5 @@
 <?php
 
-use MMedia\LaravelChat\Tests\TestCase;
+use Mmedia\LaravelChat\Tests\TestCase;
 
 uses(TestCase::class)->in(__DIR__);

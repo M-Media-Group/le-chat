@@ -16,7 +16,7 @@
     backupStaticProperties="false"
 >
     <testsuites>
-        <testsuite name="MMedia Test Suite">
+        <testsuite name="Mmedia Test Suite">
             <directory>tests</directory>
         </testsuite>
     </testsuites>

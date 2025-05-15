@@ -6,7 +6,7 @@
         "laravel",
         "laravel-chat"
     ],
-    "homepage": "https://github.com//laravel-chat",
+    "homepage": "https://github.com/mmedia/laravel-chat",
     "license": "MIT",
     "authors": [
         {
@@ -35,13 +35,13 @@
     },
     "autoload": {
         "psr-4": {
-            "MMedia\\LaravelChat\\": "src/",
-            "MMedia\\LaravelChat\\Database\\Factories\\": "database/factories/"
+            "Mmedia\\LaravelChat\\": "src/",
+            "Mmedia\\LaravelChat\\Database\\Factories\\": "database/factories/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "MMedia\\LaravelChat\\Tests\\": "tests/",
+            "Mmedia\\LaravelChat\\Tests\\": "tests/",
             "Workbench\\App\\": "workbench/app/"
         }
     },
@@ -63,10 +63,10 @@
     "extra": {
         "laravel": {
             "providers": [
-                "MMedia\\LaravelChat\\LaravelChatServiceProvider"
+                "Mmedia\\LaravelChat\\LaravelChatServiceProvider"
             ],
             "aliases": {
-                "LaravelChat": "MMedia\\LaravelChat\\Facades\\LaravelChat"
+                "LaravelChat": "Mmedia\\LaravelChat\\Facades\\LaravelChat"
             }
         }
     },

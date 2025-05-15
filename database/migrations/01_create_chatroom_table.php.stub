@@ -1,0 +1,29 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up()
+    {
+        Schema::create('chatrooms', function (Blueprint $table) {
+            $table->ulid('id')->primary();
+
+            // Name of the chatroom
+            $table->string('name')->nullable();
+
+            // Description of the chatroom
+            $table->text('description')->nullable();
+
+            // Custom metadata
+            $table->json('metadata')->nullable();
+
+            // Soft delete
+            $table->softDeletes();
+
+            $table->timestamps();
+        });
+    }
+};

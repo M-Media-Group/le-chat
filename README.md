@@ -1,9 +1,9 @@
 # This is my package laravel-chat
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v//laravel-chat.svg?style=flat-square)](https://packagist.org/packages//laravel-chat)
-[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status//laravel-chat/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com//laravel-chat/actions?query=workflow%3Arun-tests+branch%3Amain)
-[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status//laravel-chat/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com//laravel-chat/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
-[![Total Downloads](https://img.shields.io/packagist/dt//laravel-chat.svg?style=flat-square)](https://packagist.org/packages//laravel-chat)
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/mmedia/laravel-chat.svg?style=flat-square)](https://packagist.org/packages/mmedia/laravel-chat)
+[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/mmedia/laravel-chat/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/mmedia/laravel-chat/actions?query=workflow%3Arun-tests+branch%3Amain)
+[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/mmedia/laravel-chat/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/mmedia/laravel-chat/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
+[![Total Downloads](https://img.shields.io/packagist/dt/mmedia/laravel-chat.svg?style=flat-square)](https://packagist.org/packages/mmedia/laravel-chat)
 
 This is where your description should go. Limit it to a paragraph or two. Consider adding a small example.
 
@@ -20,7 +20,7 @@ We highly appreciate you sending us a postcard from your hometown, mentioning wh
 You can install the package via composer:
 
 ```bash
-composer require /laravel-chat
+composer require mmedia/laravel-chat
 ```
 
 You can publish and run the migrations with:
@@ -52,8 +52,8 @@ php artisan vendor:publish --tag="laravel-chat-views"
 ## Usage
 
 ```php
-$laravelChat = new MMedia\LaravelChat();
-echo $laravelChat->echoPhrase('Hello, MMedia!');
+$laravelChat = new Mmedia\LaravelChat();
+echo $laravelChat->echoPhrase('Hello, Mmedia!');
 ```
 
 ## Testing

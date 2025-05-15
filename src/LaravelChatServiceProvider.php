@@ -1,6 +1,6 @@
 <?php
 
-namespace MMedia\LaravelChat;
+namespace Mmedia\LaravelChat;
 
 use MMedia\LaravelChat\Commands\LaravelChatCommand;
 use Spatie\LaravelPackageTools\Package;
@@ -19,7 +19,7 @@ class LaravelChatServiceProvider extends PackageServiceProvider
             ->name('laravel-chat')
             ->hasConfigFile()
             ->hasViews()
-            ->hasMigration('create_laravel_chat_table')
+            ->discoversMigrations()
             ->hasCommand(LaravelChatCommand::class);
     }
 }

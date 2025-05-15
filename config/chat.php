@@ -1,6 +1,4 @@
 <?php
 
-// config for MMedia/LaravelChat
-return [
-
-];
+// config for Mmedia/LaravelChat
+return [];

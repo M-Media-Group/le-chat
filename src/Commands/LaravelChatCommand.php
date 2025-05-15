@@ -1,6 +1,6 @@
 <?php
 
-namespace MMedia\LaravelChat\Commands;
+namespace Mmedia\LaravelChat\Commands;
 
 use Illuminate\Console\Command;
 

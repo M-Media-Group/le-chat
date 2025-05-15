@@ -1,6 +1,6 @@
 <?php
 
-namespace MMedia\LaravelChat\Tests;
+namespace Mmedia\LaravelChat\Tests;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use MMedia\LaravelChat\LaravelChatServiceProvider;
@@ -13,7 +13,7 @@ class TestCase extends Orchestra
         parent::setUp();
 
         Factory::guessFactoryNamesUsing(
-            fn (string $modelName) => 'MMedia\\LaravelChat\\Database\\Factories\\'.class_basename($modelName).'Factory'
+            fn(string $modelName) => 'Mmedia\\LaravelChat\\Database\\Factories\\' . class_basename($modelName) . 'Factory'
         );
     }
 
@@ -28,10 +28,9 @@ class TestCase extends Orchestra
     {
         config()->set('database.default', 'testing');
 
-        /*
-         foreach (\Illuminate\Support\Facades\File::allFiles(__DIR__ . '/database/migrations') as $migration) {
-            (include $migration->getRealPath())->up();
-         }
-         */
+
+        // foreach (\Illuminate\Support\Facades\File::allFiles(__DIR__ . '/database/migrations') as $migration) {
+        //     (include $migration->getRealPath())->up();
+        // }
     }
 }
