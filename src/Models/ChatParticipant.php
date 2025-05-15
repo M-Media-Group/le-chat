@@ -2,14 +2,13 @@
 
 namespace Mmedia\LaravelChat\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
 use Mmedia\LaravelChat\Traits\IsChatParticipant;
 
 class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements ChatParticipantInterface
 {
-    use IsChatParticipant, SoftDeletes, HasUlids;
+    use IsChatParticipant, SoftDeletes;
 
     protected $fillable = [
         'chatroom_id',
@@ -50,7 +49,8 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
      */
     public function messages(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        $chatMessageInstance = new ChatMessage();
+        $chatMessageInstance = new ChatMessage;
+
         return $this->hasMany(ChatMessage::class, 'chatroom_id', 'chatroom_id')
             // where created_at is after the time this participant was created at
             ->whereColumn(
@@ -68,5 +68,13 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
     public function participant(): \Illuminate\Database\Eloquent\Relations\MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function scopeOfParticipant(
+        $query,
+        ChatParticipantInterface|ChatParticipant $participant
+    ) {
+        return $query->where('participant_id', $participant->getKey())
+            ->where('participant_type', $participant->getMorphClass());
     }
 }

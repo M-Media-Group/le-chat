@@ -2,13 +2,12 @@
 
 namespace Mmedia\LaravelChat\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
 
 class Chatroom extends \Illuminate\Database\Eloquent\Model
 {
-    use SoftDeletes, HasUlids;
+    use SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -48,5 +47,18 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
         $chatMessage->save();
 
         return $chatMessage;
+    }
+
+    public function addParticipant(ChatParticipantInterface $participant): ChatParticipant
+    {
+        $chatParticipant = new ChatParticipant([
+            'chatroom_id' => $this->getKey(),
+            'participant_id' => $participant->getKey(),
+            'participant_type' => $participant->getMorphClass(),
+        ]);
+
+        $chatParticipant->save();
+
+        return $chatParticipant;
     }
 }

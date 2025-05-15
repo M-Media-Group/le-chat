@@ -9,7 +9,7 @@ return new class extends Migration
     public function up()
     {
         Schema::create('chat_messages', function (Blueprint $table) {
-            $table->ulid('id')->primary();
+            $table->id();
 
             $table->foreignIdFor(
                 \Mmedia\LaravelChat\Models\ChatParticipant::class,
@@ -19,14 +19,22 @@ return new class extends Migration
                 ->cascadeOnDelete();
 
             $table->foreignIdFor(
-                \Mmedia\LaravelChat\Models\Chatroom::class,
-                'chatroom_id'
+                \Mmedia\LaravelChat\Models\Chatroom::class
             )
-                ->constrained()
+                // ->constrained()
                 ->cascadeOnDelete();
 
             // The message text
             $table->text('message')->nullable();
+
+            // A reply to another message
+            $table->foreignIdFor(
+                \Mmedia\LaravelChat\Models\ChatMessage::class,
+                'reply_to_id'
+            )
+                ->nullable()
+                ->constrained()
+                ->nullOnDelete();
 
             // Soft delete
             $table->softDeletes();

@@ -3,8 +3,8 @@
 namespace Mmedia\LaravelChat\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
-use \Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Collection;
 use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
 use Mmedia\LaravelChat\Models\ChatMessage;
 use Mmedia\LaravelChat\Models\ChatParticipant;
@@ -60,8 +60,7 @@ trait IsChatParticipant
         return Chatroom::query()
             ->whereHas('participants', function (Builder $query) {
                 // Filter the participants to include only those that are linked to this model
-                $query->where('participant_id', $this->getKey())
-                    ->where('participant_type', $this->getMorphClass());
+                return $query->ofParticipant($this);
             })->distinct();
     }
 
@@ -76,14 +75,7 @@ trait IsChatParticipant
         // where that ChatParticipant is linked to this model.
         // Start from the ChatMessage model query builder.
         return ChatMessage::query()
-            // Join the chat_participants table.
-            // The sender_id on chat_messages links to the id on chat_participants.
-            ->join('chat_participants', 'chat_messages.sender_id', '=', 'chat_participants.id')
-            // Filter the joined chat_participants records
-            ->where('chat_participants.participant_id', $this->getKey())
-            ->where('chat_participants.participant_type', $this->getMorphClass())
-            // Select only the columns from the chat_messages table
-            ->select('chat_messages.*');
+            ->sentByParticipant($this);
         // Distinct is likely not needed here.
     }
 
@@ -99,33 +91,53 @@ trait IsChatParticipant
     /**
      * Loads all messages for the given model via the participant relationship. Filtered to only messages created after column created_at in the pivot table.
      *
+     * @return \Illuminate\Database\Eloquent\Builder<ChatMessage>
+     */
+    private function getMessagesQuery(): Builder
+    {
+
+        // Start building a query on the ChatMessage model
+        return ChatMessage::query()
+            ->canBeReadByParticipant($this)
+
+            // Optional: Order the messages, typically by creation date
+            ->orderBy('id', 'desc');
+    }
+
+    /**
+     * Loads all messages for the given model via the participant relationship. Filtered to only messages created after column created_at in the pivot table.
+     *
      * @return \Illuminate\Support\Collection<ChatMessage, $this>
      */
     public function getMessages(): Collection
     {
 
-        return $this->chatParticipants()
-            ->with('messages')
-            ->get()
-            ->flatMap(fn($participant) => $participant->messages);
+        // Start building a query on the ChatMessage model
+        return $this->getMessagesQuery()
+            // Add the core condition: only include messages created *after* the participant joined.
+            // We compare the 'created_at' column on the messages table with the 'created_at'
+            // column on the joined participants table.
+            ->where('chat_messages.created_at', '>=', $this->created_at)
+            // Execute the query and return the collection of ChatMessage models
+            ->get();
     }
 
     /**
      * Get all messages sent by this model across all their chat participants.
      */
-    private function getMessagesSentToParticipant(ChatParticipantInterface $participant): Collection
+    private function getMessagesSentToParticipant(ChatParticipantInterface|ChatParticipant $participant): Collection
     {
         return $this->sentMessages()
             // Filter the joined chat_participants records
-            ->where('chat_participants.participant_id', $participant->getKey())
-            ->where('chat_participants.participant_type', $participant->getMorphClass())
+            ->canBeReadByParticipant($participant)
+            ->distinct()
             ->get();
     }
 
     /**
      * Get the best channel for the given participants. Returns the latest used chatroom that contains all and only the given participants (plus this model).
      *
-     * @param  ChatParticipantInterface[]  $participants
+     * @param  (ChatParticipantInterface|ChatParticipant)[]  $participants
      */
     public function getBestChannelForParticipants(array $participants): ?Chatroom
     {
@@ -141,8 +153,7 @@ trait IsChatParticipant
         // Filter the chat rooms to include only those that contain ALL specified participants.
         foreach ($participants as $participant) {
             $chatRooms->whereHas('participants', function (Builder $query) use ($participant) {
-                $query->where('participant_id', $participant->getKey())
-                    ->where('participant_type', $participant->getMorphClass());
+                return $query->ofParticipant($participant);
             });
         }
 
@@ -164,11 +175,11 @@ trait IsChatParticipant
     {
         return $this->sentMessages()
             // Filter the joined chat_participants records
-            ->where('chat_participants.chatroom_id', $chatRoom->getKey())
+            ->where('chatroom_id', $chatRoom->getKey())
             ->get();
     }
 
-    public function getMessagesSentTo(Chatroom|ChatParticipantInterface $target): Collection
+    public function getMessagesSentTo(Chatroom|ChatParticipantInterface|ChatParticipant $target): Collection
     {
         if ($target instanceof Chatroom) {
             return $this->getMessagesSentToChatRoom($target);
@@ -183,7 +194,7 @@ trait IsChatParticipant
         return $chatRoom->messages()->create([
             'sender_id' => $this->asChatParticipantIn($chatRoom)->getKey(),
             'message' => $message,
-        ]);
+        ])->fresh();
     }
 
     private function sendMessageToParticipant(ChatParticipantInterface $participant, string $message): ChatMessage

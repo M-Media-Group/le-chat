@@ -9,7 +9,7 @@ return new class extends Migration
     public function up()
     {
         Schema::create('chatrooms', function (Blueprint $table) {
-            $table->ulid('id')->primary();
+            $table->id();
 
             // Name of the chatroom
             $table->string('name')->nullable();

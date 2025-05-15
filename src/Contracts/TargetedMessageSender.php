@@ -2,9 +2,9 @@
 
 namespace Mmedia\LaravelChat\Contracts;
 
-use \Illuminate\Support\Collection;
-use Mmedia\LaravelChat\Models\Chatroom;
+use Illuminate\Support\Collection;
 use Mmedia\LaravelChat\Models\ChatMessage;
+use Mmedia\LaravelChat\Models\Chatroom;
 
 interface TargetedMessageSender
 {
