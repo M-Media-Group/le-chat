@@ -2,7 +2,7 @@
 
 namespace Mmedia\LaravelChat\Contracts;
 
-use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Mmedia\LaravelChat\Models\ChatMessage;
 use Mmedia\LaravelChat\Models\ChatParticipant;
@@ -23,14 +23,14 @@ interface ChatParticipantInterface extends MessageSender, TargetedMessageSender
     /**
      * Get the chat rooms this model is a participant in.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<Chatroom>
+     * @return \Illuminate\Database\Query\Builder<Chatroom>
      */
     public function chatRooms(): Builder;
 
     /**
      * Get all messages sent by this model across all their chat participants.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<ChatMessage>
+     * @return \Illuminate\Database\Query\Builder<ChatMessage>
      */
     public function sentMessages(): Builder;
 
@@ -51,4 +51,12 @@ interface ChatParticipantInterface extends MessageSender, TargetedMessageSender
      * @return mixed
      */
     public function getKey();
+
+    /**
+     * Determines if this model is a participant in the given chat room.
+     *
+     * @param \Mmedia\LaravelChat\Models\Chatroom $chatRoom
+     * @return bool
+     */
+    public function isParticipantIn(Chatroom $chatRoom): bool;
 }

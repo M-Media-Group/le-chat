@@ -269,3 +269,10 @@ Channel::getOrCreateBestFor([$student, $teacher], [
 ]); // will get the best channel for the given participants - the most resent chat that contains only these two participants. If no such channel exists, it will create a new channel with the given participants. The second parameter is optional and will be used to create the channel if it does not exist. The new channel will be created with the teacher as the owner and the student as a participant.
 ```
 
+### Check if a participant is already in a channel
+```php
+$channel->hasParticipant($student); // will check if the student is already in the channel
+
+// Or
+$user->isParticipantIn($channel); // will check if the user is already in the channel
+```

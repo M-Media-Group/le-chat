@@ -52,12 +52,34 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
         return $query->whereHas(
             'chatroom',
             function ($query) use ($participant) {
-                return $query->whereHas(
-                    'participants',
-                    function ($query) use ($participant) {
-                        return $query->ofParticipant($participant);
-                    }
-                );
+                return $query->havingParticipants([$participant]);
+            }
+        )
+            ->when(
+                !$includeMessagesBeforeParticipantJoined,
+                function ($query) use ($participant) {
+                    return $query->afterParticipantJoined($participant);
+                }
+            );
+    }
+
+    public function scopeAfterParticipantJoined(
+        $query,
+        ChatParticipantInterface|ChatParticipant $participant
+    ) {
+        return $query->when(($participant instanceof ChatParticipant),
+            function ($query) use ($participant) {
+                $query->where('created_at', '>=', $participant->created_at);
+            },
+            // If we have a ChatParticipantInterface, we need to do this dynamically - because we need to join/match on the chatroom_id column in the ChatMessage
+            function ($query) use ($participant) {
+                $query->where('created_at', '>=', function ($query) use ($participant) {
+                    $query->select('created_at')
+                        ->from('chat_participants')
+                        ->whereColumn('chatroom_id', 'chat_messages.chatroom_id')
+                        ->where('participant_id', $participant->getKey())
+                        ->where('participant_type', $participant->getMorphClass());
+                });
             }
         );
     }

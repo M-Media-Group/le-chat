@@ -2,7 +2,7 @@
 
 namespace Mmedia\LaravelChat\Traits;
 
-use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Collection;
 use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
@@ -51,25 +51,21 @@ trait IsChatParticipant
     /**
      * Get the chat rooms this model is a participant in.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<Chatroom>
+     * @return \Illuminate\Database\Query\Builder<Chatroom>|\Illuminate\Database\Eloquent\Builder<Chatroom>
      */
-    public function chatRooms(): Builder
+    public function chatRooms(): \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder
     {
         // We need to join ChatRooms through the ChatParticipants table.
         // Start from the Chatroom model query builder.
-        return Chatroom::query()
-            ->whereHas('participants', function (Builder $query) {
-                // Filter the participants to include only those that are linked to this model
-                return $query->ofParticipant($this);
-            })->distinct();
+        return Chatroom::havingParticipants([$this]);
     }
 
     /**
      * Get all messages sent by this model across all their chat participants.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<ChatMessage>
+     * @return \Illuminate\Database\Query\Builder<ChatMessage>
      */
-    public function sentMessages(): Builder
+    public function sentMessages(): \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder
     {
         // We need to get ChatMessages that are linked to a ChatParticipant
         // where that ChatParticipant is linked to this model.
@@ -91,9 +87,9 @@ trait IsChatParticipant
     /**
      * Loads all messages for the given model via the participant relationship. Filtered to only messages created after column created_at in the pivot table.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<ChatMessage>
+     * @return \Illuminate\Database\Query\Builder<ChatMessage>
      */
-    private function getMessagesQuery(): Builder
+    private function getMessagesQuery(): \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder
     {
 
         // Start building a query on the ChatMessage model
@@ -145,27 +141,10 @@ trait IsChatParticipant
         $allParticipants = $participants;
         $allParticipants[] = $this; // Add this model (which implements ChatParticipantInterface)
 
-        $expectedParticipantCount = count($allParticipants);
-
         // Get the chat rooms this model is a participant in.
-        $chatRooms = $this->chatRooms();
-
-        // Filter the chat rooms to include only those that contain ALL specified participants.
-        foreach ($participants as $participant) {
-            $chatRooms->whereHas('participants', function (Builder $query) use ($participant) {
-                return $query->ofParticipant($participant);
-            });
-        }
-
-        // Now, filter these rooms to ensure they contain *exactly* the expected number of participants.
-        // This requires joining the chat_participants table again, grouping, and counting.
-        $chatRooms->select('chatrooms.*') // Ensure we are selecting chat room columns
-            ->join('chat_participants as cp_count', 'chatrooms.id', '=', 'cp_count.chatroom_id')
-            ->groupBy('chatrooms.id') // Group by chat room to count participants per room
-            ->havingRaw('COUNT(DISTINCT cp_count.id) = ?', [$expectedParticipantCount]); // Count distinct participant IDs
-
-        // Get the latest chat room from the filtered set
-        return $chatRooms->latest('chatrooms.updated_at')->first(); // Order by chat room's updated_at for "latest used"
+        return $this->chatRooms()->havingExactlyParticipants($allParticipants)
+            // Limit to the latest one
+            ->first();
     }
 
     /**
@@ -231,6 +210,7 @@ trait IsChatParticipant
                 'chatroom_id' => $bestChannel->getKey(),
                 'participant_id' => $this->getKey(),
                 'participant_type' => $this->getMorphClass(),
+                'role' => 'admin',
             ]);
 
             foreach ($recipient as $participant) {
@@ -244,5 +224,17 @@ trait IsChatParticipant
 
         // Send the message to the best channel
         return $this->sendMessageToChatRoom($bestChannel, $message);
+    }
+
+    /**
+     * Determines if this model is a participant in the given chat room.
+     *
+     * @param \Mmedia\LaravelChat\Models\Chatroom $chatRoom
+     * @return bool
+     */
+    public function isParticipantIn(Chatroom $chatRoom): bool
+    {
+        // Check if this model is a participant in the given chat room
+        return $this->asChatParticipantIn($chatRoom) !== null;
     }
 }

@@ -4,6 +4,7 @@ namespace Mmedia\LaravelChat\Models;
 
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
+use Illuminate\Database\Query\Builder;
 
 class Chatroom extends \Illuminate\Database\Eloquent\Model
 {
@@ -60,5 +61,51 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
         $chatParticipant->save();
 
         return $chatParticipant;
+    }
+
+    public function hasParticipant(ChatParticipantInterface| ChatParticipant $participant): bool
+    {
+        return $this->participants()->ofParticipant($participant)->exists();
+    }
+
+    /**
+     * Get chatrooms that have at least the given participants.
+     *
+     * @param array (ChatParticipantInterface|ChatParticipant)[] $participant
+     * @return \Illuminate\Database\Eloquent\Builder<static>
+     */
+    public function scopeHavingParticipants(
+        \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder $query,
+        array $participants
+    ) {
+        return $query->whereHas(
+            'participants',
+            function ($query) use ($participants) {
+                foreach ($participants as $participant) {
+                    return $query->ofParticipant($participant);
+                }
+            }
+        );
+    }
+
+    /**
+     * Get the chatrooms that have exactly the given participants.
+     *
+     * @param array (ChatParticipantInterface|ChatParticipant)[] $participant
+     * @return \Illuminate\Database\Eloquent\Builder<static>
+     */
+    public function scopeHavingExactlyParticipants(
+        \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder $query,
+        array $participants
+    ) {
+        $total = count($participants);
+
+        return $query->havingParticipants($participants)
+            ->whereHas(
+                'participants',
+                null,
+                '=',
+                $total
+            );
     }
 }
