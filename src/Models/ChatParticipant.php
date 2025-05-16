@@ -73,8 +73,7 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
     /**
      * Note this function may return unexpected results if you pass an instance of ChatParticipantInterface, because it will filter to the participant_id and participant_type regardless of the chatroom_id, so you can get multiple results.
      *
-     * @param \Illuminate\Database\Eloquent\Builder<ChatParticipant> $query
-     * @param \Mmedia\LaravelChat\Contracts\ChatParticipantInterface|ChatParticipant $participant
+     * @param  \Illuminate\Database\Eloquent\Builder<ChatParticipant>  $query
      * @return \Illuminate\Database\Eloquent\Builder<ChatParticipant>
      */
     public function scopeOfParticipant(
@@ -84,6 +83,7 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
         if ($participant instanceof ChatParticipant) {
             return $query->where('id', $participant->getKey());
         }
+
         return $query->where('participant_id', $participant->getKey())
             ->where('participant_type', $participant->getMorphClass());
     }

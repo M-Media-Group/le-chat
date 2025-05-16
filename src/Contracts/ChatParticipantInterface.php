@@ -54,9 +54,6 @@ interface ChatParticipantInterface extends MessageSender, TargetedMessageSender
 
     /**
      * Determines if this model is a participant in the given chat room.
-     *
-     * @param \Mmedia\LaravelChat\Models\Chatroom $chatRoom
-     * @return bool
      */
     public function isParticipantIn(Chatroom $chatRoom): bool;
 }

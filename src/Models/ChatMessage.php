@@ -56,7 +56,7 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
             }
         )
             ->when(
-                !$includeMessagesBeforeParticipantJoined,
+                ! $includeMessagesBeforeParticipantJoined,
                 function ($query) use ($participant) {
                     return $query->afterParticipantJoined($participant);
                 }
@@ -69,12 +69,12 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
     ) {
         return $query->when(($participant instanceof ChatParticipant),
             function ($query) use ($participant) {
-                $query->where('created_at', '>=', $participant->created_at);
+                $query->where(self::CREATED_AT, '>=', $participant->created_at);
             },
             // If we have a ChatParticipantInterface, we need to do this dynamically - because we need to join/match on the chatroom_id column in the ChatMessage
             function ($query) use ($participant) {
-                $query->where('created_at', '>=', function ($query) use ($participant) {
-                    $query->select('created_at')
+                $query->where(self::CREATED_AT, '>=', function ($query) use ($participant) {
+                    $query->select(self::CREATED_AT)
                         ->from('chat_participants')
                         ->whereColumn('chatroom_id', 'chat_messages.chatroom_id')
                         ->where('participant_id', $participant->getKey())

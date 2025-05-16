@@ -2,8 +2,8 @@
 
 namespace Mmedia\LaravelChat\Traits;
 
-use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
 use Mmedia\LaravelChat\Models\ChatMessage;
@@ -228,9 +228,6 @@ trait IsChatParticipant
 
     /**
      * Determines if this model is a participant in the given chat room.
-     *
-     * @param \Mmedia\LaravelChat\Models\Chatroom $chatRoom
-     * @return bool
      */
     public function isParticipantIn(Chatroom $chatRoom): bool
     {

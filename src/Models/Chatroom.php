@@ -4,7 +4,6 @@ namespace Mmedia\LaravelChat\Models;
 
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
-use Illuminate\Database\Query\Builder;
 
 class Chatroom extends \Illuminate\Database\Eloquent\Model
 {
@@ -63,7 +62,7 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
         return $chatParticipant;
     }
 
-    public function hasParticipant(ChatParticipantInterface| ChatParticipant $participant): bool
+    public function hasParticipant(ChatParticipantInterface|ChatParticipant $participant): bool
     {
         return $this->participants()->ofParticipant($participant)->exists();
     }
@@ -71,7 +70,7 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
     /**
      * Get chatrooms that have at least the given participants.
      *
-     * @param array (ChatParticipantInterface|ChatParticipant)[] $participant
+     * @param  array (ChatParticipantInterface|ChatParticipant)[]  $participant
      * @return \Illuminate\Database\Eloquent\Builder<static>
      */
     public function scopeHavingParticipants(
@@ -91,7 +90,7 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
     /**
      * Get the chatrooms that have exactly the given participants.
      *
-     * @param array (ChatParticipantInterface|ChatParticipant)[] $participant
+     * @param  array (ChatParticipantInterface|ChatParticipant)[]  $participant
      * @return \Illuminate\Database\Eloquent\Builder<static>
      */
     public function scopeHavingExactlyParticipants(
