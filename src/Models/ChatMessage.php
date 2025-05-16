@@ -69,7 +69,7 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
     ) {
         return $query->when(($participant instanceof ChatParticipant),
             function ($query) use ($participant) {
-                $query->where(self::CREATED_AT, '>=', $participant->created_at);
+                $query->where(self::CREATED_AT, '>=', $participant->getCreatedAtColumn());
             },
             // If we have a ChatParticipantInterface, we need to do this dynamically - because we need to join/match on the chatroom_id column in the ChatMessage
             function ($query) use ($participant) {

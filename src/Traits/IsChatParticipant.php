@@ -107,13 +107,8 @@ trait IsChatParticipant
      */
     public function getMessages(): Collection
     {
-
         // Start building a query on the ChatMessage model
         return $this->getMessagesQuery()
-            // Add the core condition: only include messages created *after* the participant joined.
-            // We compare the 'created_at' column on the messages table with the 'created_at'
-            // column on the joined participants table.
-            ->where('chat_messages.created_at', '>=', $this->created_at)
             // Execute the query and return the collection of ChatMessage models
             ->get();
     }
@@ -126,7 +121,6 @@ trait IsChatParticipant
         return $this->sentMessages()
             // Filter the joined chat_participants records
             ->canBeReadByParticipant($participant)
-            ->distinct()
             ->get();
     }
 
@@ -189,7 +183,7 @@ trait IsChatParticipant
     /**
      * Sends a message to a chat or a participant
      *
-     * @param  Chatroom|ChatParticipantInterface|ChatParticipantInterface[]  $recipient
+     * @param  Chatroom|ChatParticipant|ChatParticipantInterface|ChatParticipantInterface[]  $recipient
      */
     public function sendMessageTo(Chatroom|ChatParticipantInterface|array $recipient, string $message, bool $forceNewChannel = false, array $newChannelConfiguration = []): ChatMessage
     {
@@ -198,11 +192,16 @@ trait IsChatParticipant
         }
 
         // Normalize the recipient to an array of ChatParticipantInterface
-        if ($recipient instanceof ChatParticipantInterface) {
+        if ($recipient instanceof ChatParticipantInterface || $recipient instanceof ChatParticipant) {
             $recipient = [$recipient];
         }
 
         if ($forceNewChannel || ! $bestChannel = $this->getBestChannelForParticipants($recipient)) {
+            // If the current model is a ChatParticipant, it cannot create a new chat room because a participant belongs to one room
+            if ($this instanceof ChatParticipant) {
+                // While the code would create a new chatroom, it would also create a new ChatParticipant for this model from itself, which is confusing from a developers perspective. Here we throw an exception to indicate that the current model cannot create a new chatroom.
+                throw new \Exception('Cannot send a message because no chatroom between the participants was found. The current model cannot create a new shared chatroom because channels cannot be created from or for a direct ChatParticipant. Use a higher-order model that implements the ChatParticipantInterface instead.');
+            }
             // Create a new chat room with the given configuration
             $bestChannel = Chatroom::create($newChannelConfiguration);
             // Add this model and the recipient to the chat room

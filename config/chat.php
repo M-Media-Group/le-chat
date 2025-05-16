@@ -14,7 +14,14 @@ return [
      *
      * If true, users that join a channel will not see messages that were sent before they joined.
      *
-     * This can be ovverriden on the participant level by setting the `can_see_messages_before_joined` property to true.
+     * @todo make This can be ovverriden on the participant level by setting the `can_see_messages_before_joined` property to true.
      */
     'can_see_messages_before_joined' => false,
+
+    /**
+     * If true, system messages will be sent to all participants in the channel on channel events such as participants joining, leaving, etc.
+     *
+     * If false, system messages will not be created automatically.
+     */
+    'create_system_messages' => true,
 ];

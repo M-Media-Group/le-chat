@@ -23,14 +23,14 @@ interface ChatParticipantInterface extends MessageSender, TargetedMessageSender
     /**
      * Get the chat rooms this model is a participant in.
      *
-     * @return \Illuminate\Database\Query\Builder<Chatroom>
+     * @return \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder<Chatroom>
      */
     public function chatRooms(): Builder;
 
     /**
      * Get all messages sent by this model across all their chat participants.
      *
-     * @return \Illuminate\Database\Query\Builder<ChatMessage>
+     * @return \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder<ChatMessage>
      */
     public function sentMessages(): Builder;
 
@@ -56,4 +56,11 @@ interface ChatParticipantInterface extends MessageSender, TargetedMessageSender
      * Determines if this model is a participant in the given chat room.
      */
     public function isParticipantIn(Chatroom $chatRoom): bool;
+
+    /**
+     * Get the name of the "created at" column.
+     *
+     * @return string|null
+     */
+    public function getCreatedAtColumn();
 }
