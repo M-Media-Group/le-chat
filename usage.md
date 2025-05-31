@@ -1,6 +1,15 @@
 # Usage
 Laravel Chat allows you to add chat functionality to your Laravel application. It provides a simple and flexible API for sending and receiving messages between models.
 
+## Difference from Chatify
+I made this package because I disagreed with a fundamental design decision in Chatify, which was that a message can only have one sender and one recipient.
+
+This package allows you to send messages to multiple recipients, and any models. You can also create multi-user chat rooms, and send messages to channels.
+
+## Other projects
+- https://github.com/namumakwembo/wirechat - nice package but livewire heavy
+- https://github.com/musonza/chat - nice but some code looks overly complex
+-
 ```php
 $user->sendMessageTo($otherUser, "Hello");
 

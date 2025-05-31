@@ -2,9 +2,7 @@
 
 namespace Mmedia\LaravelChat\Contracts;
 
-use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
-use Mmedia\LaravelChat\Models\ChatMessage;
 use Mmedia\LaravelChat\Models\ChatParticipant;
 use Mmedia\LaravelChat\Models\Chatroom;
 
@@ -22,17 +20,13 @@ interface ChatParticipantInterface extends MessageSender, TargetedMessageSender
 
     /**
      * Get the chat rooms this model is a participant in.
-     *
-     * @return \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder<Chatroom>
      */
-    public function chatRooms(): Builder;
+    public function chatRooms();
 
     /**
      * Get all messages sent by this model across all their chat participants.
-     *
-     * @return \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder<ChatMessage>
      */
-    public function sentMessages(): Builder;
+    public function sentMessages();
 
     /**
      * Get the class name for polymorphic relations.

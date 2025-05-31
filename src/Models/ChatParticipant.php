@@ -87,4 +87,9 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
         return $query->where('participant_id', $participant->getKey())
             ->where('participant_type', $participant->getMorphClass());
     }
+
+    public function scopeInRoom($query, Chatroom $chatroom)
+    {
+        return $query->where('chatroom_id', $chatroom->getKey());
+    }
 }

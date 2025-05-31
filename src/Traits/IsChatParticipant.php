@@ -9,6 +9,7 @@ use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
 use Mmedia\LaravelChat\Models\ChatMessage;
 use Mmedia\LaravelChat\Models\ChatParticipant;
 use Mmedia\LaravelChat\Models\Chatroom;
+use Staudenmeir\EloquentHasManyDeep\HasRelationships;
 
 /**
  * @template T of \Mmedia\LaravelChat\Contracts\ChatParticipantInterface
@@ -25,6 +26,8 @@ use Mmedia\LaravelChat\Models\Chatroom;
  */
 trait IsChatParticipant
 {
+    use HasRelationships;
+
     /**
      * The chat participants for this model (the inverse of the morphTo on ChatParticipant).
      *
@@ -33,7 +36,7 @@ trait IsChatParticipant
     public function chatParticipants(): MorphMany
     {
         // 'participant' is the morph name defined in the ChatParticipant model's morphTo() method
-        return $this->morphMany(ChatParticipant::class, 'participant');
+        return $this->morphMany(ChatParticipant::class, 'participant')->chaperone();
     }
 
     /**
@@ -50,22 +53,50 @@ trait IsChatParticipant
 
     /**
      * Get the chat rooms this model is a participant in.
+     */
+    public function chatRooms()
+    {
+        // We need to join ChatRooms through the ChatParticipants table.
+        // Start from the Chatroom model query builder.
+        return $this->hasManyDeepFromRelations(
+            $this->chatParticipants(),
+            (new ChatParticipant)->chat()
+        );
+    }
+
+    /**
+     * Get the chat rooms this model is a participant in.
+     *
+     * Compared to above, this uses EXISTS (the above uses inner joins). It may be more efficient in some cases.
      *
      * @return \Illuminate\Database\Query\Builder<Chatroom>|\Illuminate\Database\Eloquent\Builder<Chatroom>
      */
-    public function chatRooms(): \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder
+    public function chatRoomsBuilder(): \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder
     {
         // We need to join ChatRooms through the ChatParticipants table.
         // Start from the Chatroom model query builder.
         return Chatroom::havingParticipants([$this]);
     }
 
+    public function sentMessages()
+    {
+        // We need to get ChatMessages that are linked to a ChatParticipant
+        // where that ChatParticipant is linked to this model.
+        // Start from the ChatMessage model query builder.
+        return $this->hasManyDeepFromRelations(
+            $this->chatParticipants(),
+            (new ChatParticipant)->sentMessages()
+        );
+    }
+
     /**
      * Get all messages sent by this model across all their chat participants.
      *
+     * Compared to above, this uses EXISTS (the above uses inner joins). It may be more efficient in some cases.
+     *
      * @return \Illuminate\Database\Query\Builder<ChatMessage>
      */
-    public function sentMessages(): \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder
+    public function sentMessagesBuilder(): \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder
     {
         // We need to get ChatMessages that are linked to a ChatParticipant
         // where that ChatParticipant is linked to this model.
@@ -148,7 +179,7 @@ trait IsChatParticipant
     {
         return $this->sentMessages()
             // Filter the joined chat_participants records
-            ->where('chatroom_id', $chatRoom->getKey())
+            ->inRoom($chatRoom)
             ->get();
     }
 

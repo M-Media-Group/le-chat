@@ -31,6 +31,14 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
         return $this->belongsTo(ChatParticipant::class, 'sender_id');
     }
 
+    public function scopeInRoom($query, Chatroom $chatroom)
+    {
+        return $query->where(
+            $this->qualifyColumn('chatroom_id'),
+            $chatroom->getKey()
+        );
+    }
+
     public function scopeSentByParticipant($query, ChatParticipantInterface|ChatParticipant $participant)
     {
         return $query->whereHas(
@@ -67,14 +75,17 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
         $query,
         ChatParticipantInterface|ChatParticipant $participant
     ) {
+        $instance = new ChatParticipant;
+        $selfInstance = new self;
+
         return $query->when(($participant instanceof ChatParticipant),
-            function ($query) use ($participant) {
-                $query->where(self::CREATED_AT, '>=', $participant->getCreatedAtColumn());
+            function ($query) use ($participant, $selfInstance) {
+                $query->where($selfInstance->getQualifiedCreatedAtColumn(), '>=', $participant->getCreatedAtColumn());
             },
             // If we have a ChatParticipantInterface, we need to do this dynamically - because we need to join/match on the chatroom_id column in the ChatMessage
-            function ($query) use ($participant) {
-                $query->where(self::CREATED_AT, '>=', function ($query) use ($participant) {
-                    $query->select(self::CREATED_AT)
+            function ($query) use ($participant, $selfInstance, $instance) {
+                $query->where($selfInstance->getQualifiedCreatedAtColumn(), '>=', function ($query) use ($participant, $instance) {
+                    $query->select($instance->getQualifiedCreatedAtColumn())
                         ->from('chat_participants')
                         ->whereColumn('chatroom_id', 'chat_messages.chatroom_id')
                         ->where('participant_id', $participant->getKey())
