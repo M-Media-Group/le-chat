@@ -3,7 +3,7 @@
 namespace Mmedia\LaravelChat\Tests;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use MMedia\LaravelChat\LaravelChatServiceProvider;
+use Mmedia\LaravelChat\LaravelChatServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 class TestCase extends Orchestra
