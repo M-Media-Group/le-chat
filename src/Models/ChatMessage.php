@@ -16,6 +16,11 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
         'reply_to_id',
     ];
 
+    // Events
+    protected $dispatchesEvents = [
+        'created' => \Mmedia\LaravelChat\Events\MessageCreated::class,
+    ];
+
     public function chatroom()
     {
         return $this->belongsTo(Chatroom::class);

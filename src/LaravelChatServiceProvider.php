@@ -20,6 +20,7 @@ class LaravelChatServiceProvider extends PackageServiceProvider
             ->hasConfigFile()
             ->hasViews()
             ->discoversMigrations()
+            ->hasRoutes('channels', 'api')
             ->hasCommand(LaravelChatCommand::class);
     }
 }

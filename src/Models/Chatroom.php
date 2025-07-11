@@ -67,6 +67,11 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
         return $this->participants()->ofParticipant($participant)->exists();
     }
 
+    public function participant(ChatParticipantInterface|ChatParticipant $participant): ?ChatParticipant
+    {
+        return $this->participants()->ofParticipant($participant)->first();
+    }
+
     /**
      * Get chatrooms that have at least the given participants.
      *
