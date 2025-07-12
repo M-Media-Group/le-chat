@@ -196,7 +196,9 @@ trait IsChatParticipant
     {
         // Create a new message in the chat room
         return $chatRoom->messages()->create([
-            'sender_id' => $this->asChatParticipantIn($chatRoom)->getKey(),
+            'sender_id' => $this instanceof ChatParticipant
+                ? $this->getKey()
+                : $this->asChatParticipantIn($chatRoom)->getKey(),
             'message' => $message,
         ])->fresh();
     }
@@ -263,5 +265,17 @@ trait IsChatParticipant
     {
         // Check if this model is a participant in the given chat room
         return $this->asChatParticipantIn($chatRoom) !== null;
+    }
+
+    /**
+     * Determines if this model is current connected to the chatroom via sockets.
+     *
+     * This is useful to determine if the participant is online and can receive real-time notifications.
+     */
+    public function isConnectedToChatroomViaSockets(Chatroom $chatRoom): ?bool
+    {
+        $participant = $this->asChatParticipantIn($chatRoom);
+
+        return $participant ? $participant->is_connected : null;
     }
 }

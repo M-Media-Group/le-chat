@@ -24,4 +24,11 @@ return [
      * If false, system messages will not be created automatically.
      */
     'create_system_messages' => true,
+
+    /**
+     * The listener for new messages.
+     *
+     * This is used to broadcast new messages to the participants of the chatroom.
+     */
+    'new_message_listener' => \Mmedia\LaravelChat\Listeners\SendMessageCreatedNotification::class,
 ];

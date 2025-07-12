@@ -23,4 +23,17 @@ class LaravelChatServiceProvider extends PackageServiceProvider
             ->hasRoutes('channels', 'api')
             ->hasCommand(LaravelChatCommand::class);
     }
+
+    // The boot
+    public function bootingPackage(): void
+    {
+        $listener = config('chat.new_message_listener');
+
+        if ($listener && class_exists($listener)) {
+            $this->app['events']->listen(
+                \Mmedia\LaravelChat\Events\MessageCreated::class,
+                $listener
+            );
+        }
+    }
 }

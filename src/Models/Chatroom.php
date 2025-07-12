@@ -30,6 +30,11 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
         return $this->hasMany(ChatMessage::class);
     }
 
+    public function latestMessage(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ChatMessage::class)->latestOfMany();
+    }
+
     // Each chatroom has one or more ChatParticipants. The ChatParticipant contains a morph to the user or other model
     public function participants(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
@@ -49,17 +54,34 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
         return $chatMessage;
     }
 
-    public function addParticipant(ChatParticipantInterface $participant): ChatParticipant
+    public function addParticipant(ChatParticipantInterface $participant, string $role = 'member'): ChatParticipant
     {
         $chatParticipant = new ChatParticipant([
             'chatroom_id' => $this->getKey(),
             'participant_id' => $participant->getKey(),
             'participant_type' => $participant->getMorphClass(),
+            'role' => $role,
         ]);
 
         $chatParticipant->save();
 
         return $chatParticipant;
+    }
+
+    /**
+     * Add multiple participants to the chatroom.
+     *
+     * @param  ChatParticipantInterface[]  $participants
+     * @return ChatParticipant[]
+     */
+    public function addParticipants(array $participants, string $role = 'member'): array
+    {
+        $chatParticipants = [];
+        foreach ($participants as $participant) {
+            $chatParticipants[] = $this->addParticipant($participant, $role);
+        }
+
+        return $chatParticipants;
     }
 
     public function hasParticipant(ChatParticipantInterface|ChatParticipant $participant): bool

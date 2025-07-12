@@ -2,9 +2,8 @@
 
 namespace Mmedia\LaravelChat\Events;
 
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
-use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -42,8 +41,7 @@ class MessageCreated implements ShouldBroadcast
     public function broadcastOn(): array
     {
         return [
-            new PresenceChannel('chatroom.'.$this->message->chatroom_id),
-            new PrivateChannel($this->message->sender->participant),
+            new Channel($this->message->chatroom),
         ];
     }
 }

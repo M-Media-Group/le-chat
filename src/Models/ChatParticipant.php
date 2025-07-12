@@ -2,13 +2,15 @@
 
 namespace Mmedia\LaravelChat\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
+use Mmedia\LaravelChat\Traits\ConnectsToBroadcast;
 use Mmedia\LaravelChat\Traits\IsChatParticipant;
 
 class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements ChatParticipantInterface
 {
-    use IsChatParticipant, SoftDeletes;
+    use ConnectsToBroadcast, IsChatParticipant, SoftDeletes;
 
     protected $fillable = [
         'chatroom_id',
@@ -91,5 +93,23 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
     public function scopeInRoom($query, Chatroom $chatroom)
     {
         return $query->where('chatroom_id', $chatroom->getKey());
+    }
+
+    protected function isConnected(): CastsAttribute
+    {
+        return CastsAttribute::make(
+            get: fn () => $this->getIsConnectedViaSockets(
+                localId: 'participant_id',
+                channelName: $this->chat->broadcastChannel(),
+                type: 'presence'
+            )
+        )->shouldCache();
+    }
+
+    protected function displayName(): CastsAttribute
+    {
+        return CastsAttribute::make(
+            get: fn () => $this->getRawOriginal('display_name') ?? $this->participant?->name ?? $this->participant?->email
+        )->shouldCache();
     }
 }
