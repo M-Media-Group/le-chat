@@ -9,11 +9,22 @@ use Illuminate\Support\Facades\Log;
 
 trait ConnectsToBroadcast
 {
+    /**
+     * Determine if the model is connected to the broadcast channel via sockets.
+     *
+     * @param  string|null  $channelName  the name of the broadcast channel. By default, it will use the channel name from the HasBroadcastChannel trait.
+     * @param  string  $type  the type of channel, either 'private' or 'presence'.
+     * @param  string|null  $localId  the local ID of the model. If not provided, it will use the model's primary key.
+     *
+     * @throws \InvalidArgumentException if the channel name is not provided and the model does not implement HasBroadcastChannel.
+     * @throws \InvalidArgumentException if the type is not 'private' or 'presence'.
+     * @throws \RuntimeException if the broadcast driver is not set or is not supported.
+     * @throws \Exception if there is an error checking the participant connection status.
+     */
     public function getIsConnectedViaSockets(?string $channelName = null, string $type = 'private', ?string $localId = null): ?bool
     {
         if (! $channelName && $this instanceof HasBroadcastChannel) {
             $channelName = $this->broadcastChannel();
-            Log::info('Using broadcast channel from HasBroadcastChannel: '.$channelName);
         } elseif (! $channelName) {
             throw new \InvalidArgumentException('Channel name must be provided or implement HasBroadcastChannel.');
         }
@@ -69,6 +80,9 @@ trait ConnectsToBroadcast
         return $isConnected;
     }
 
+    /**
+     * A convenience attribute to check if the participant is connected via sockets. E.g.: $model->is_connected
+     */
     protected function isConnected(): CastsAttribute
     {
         return CastsAttribute::make(

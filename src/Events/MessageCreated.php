@@ -8,6 +8,7 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Broadcast;
+use Mmedia\LaravelChat\Http\Resources\MessageResource;
 use Mmedia\LaravelChat\Models\ChatMessage;
 
 class MessageCreated implements ShouldBroadcast
@@ -39,21 +40,7 @@ class MessageCreated implements ShouldBroadcast
      */
     public function broadcastWith(): array
     {
-        $sender = $this->message->sender;
-
-        return [
-            'message' => [
-                'id' => $this->message->id,
-                'message' => $this->message->message,
-                'chatroom_id' => $this->message->chatroom_id,
-                'sender_id' => $this->message->sender_id,
-                'created_at' => $this->message->created_at,
-                'sender' => $sender ? [
-                    'id' => $sender->getKey(),
-                    'display_name' => $sender->display_name,
-                ] : null,
-            ],
-        ];
+        return MessageResource::make($this->message)->resolve();
     }
 
     /**
