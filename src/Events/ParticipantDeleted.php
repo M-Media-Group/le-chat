@@ -8,25 +8,25 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Broadcast;
-use Mmedia\LaravelChat\Models\ChatMessage;
+use Mmedia\LaravelChat\Models\ChatParticipant;
 
-class MessageCreated implements ShouldBroadcast
+class ParticipantDeleted implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     /**
-     * The message that was created.
+     * The participant that was deleted.
      *
-     * @var ChatMessage
+     * @var ChatParticipant
      */
-    public $message;
+    public $participant;
 
     /**
      * Create a new event instance.
      */
-    public function __construct(ChatMessage $message)
+    public function __construct(ChatParticipant $participant)
     {
-        $this->message = $message;
+        $this->participant = $participant;
         if (Broadcast::socket()) {
             $this->dontBroadcastToCurrentUser();
         }
@@ -39,19 +39,13 @@ class MessageCreated implements ShouldBroadcast
      */
     public function broadcastWith(): array
     {
-        $sender = $this->message->sender;
 
         return [
-            'message' => [
-                'id' => $this->message->id,
-                'message' => $this->message->message,
-                'chatroom_id' => $this->message->chatroom_id,
-                'sender_id' => $this->message->sender_id,
-                'created_at' => $this->message->created_at,
-                'sender' => $sender ? [
-                    'id' => $sender->getKey(),
-                    'display_name' => $sender->display_name,
-                ] : null,
+            'participant' => [
+                'id' => $this->participant->id,
+                'chatroom_id' => $this->participant->chatroom_id,
+                'display_name' => $this->participant->display_name,
+                'created_at' => $this->participant->created_at,
             ],
         ];
     }
@@ -64,7 +58,7 @@ class MessageCreated implements ShouldBroadcast
     public function broadcastOn(): array
     {
         return [
-            new PresenceChannel($this->message->chatroom->broadcastChannel()),
+            new PresenceChannel($this->participant->chatroom->broadcastChannel()),
         ];
     }
 }

@@ -49,7 +49,12 @@ interface ChatParticipantInterface extends MessageSender, TargetedMessageSender
     /**
      * Determines if this model is a participant in the given chat room.
      */
-    public function isParticipantIn(Chatroom $chatRoom): bool;
+    public function isParticipantIn(Chatroom $chatRoom, bool $includeTrashed = false): bool;
+
+    /**
+     * There is one chatParticipant per chat room for a given model using this trait.
+     */
+    public function asParticipantIn(Chatroom $chatRoom, bool $includeTrashed = false): ?ChatParticipant;
 
     /**
      * Get the name of the "created at" column.

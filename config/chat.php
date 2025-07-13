@@ -29,6 +29,26 @@ return [
      * The listener for new messages.
      *
      * This is used to broadcast new messages to the participants of the chatroom.
+     *
+     * Set to null to disable the listener.
      */
     'new_message_listener' => \Mmedia\LaravelChat\Listeners\SendMessageCreatedNotification::class,
+
+    /**
+     * The listener for new participants.
+     *
+     * This is used to broadcast new participants to the participants of the chatroom.
+     *
+     * Set to null to disable the listener.
+     */
+    'new_participant_listener' => \Mmedia\LaravelChat\Listeners\SendParticipantCreatedNotification::class,
+
+    /**
+     * The listener for deleted participants.
+     *
+     * This is used to broadcast deleted participants to the participants of the chatroom.
+     *
+     * Set to null to disable the listener.
+     */
+    'participant_deleted_listener' => \Mmedia\LaravelChat\Listeners\SendParticipantDeletedNotification::class,
 ];

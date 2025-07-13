@@ -1,17 +1,11 @@
 # Usage
 Laravel Chat allows you to add chat functionality to your Laravel application. It provides a simple and flexible API for sending and receiving messages between models.
 
-## Difference from Chatify
-I made this package because I disagreed with a fundamental design decision in Chatify, which was that a message can only have one sender and one recipient.
-
-This package allows you to send messages to multiple recipients, and any models. You can also create multi-user chat rooms, and send messages to chatrooms.
-
-## Other projects
-- https://github.com/namumakwembo/wirechat - nice package but livewire heavy
-- https://github.com/musonza/chat - nice but some code looks overly complex
--
 ```php
-$user->sendMessageTo($otherUser, "Hello");
+$message = $user->sendMessageTo($otherUser, "Hello");
+
+// Super easy reply - LaravelChat automatically finds the latest chatroom between the two users and sends the message to it
+$reply = $otherUser->sendMessageTo($user, "Hi there");
 
 // Get the messages on the other side
 $messages = $otherUser->getMessages();
@@ -23,8 +17,18 @@ $messages = $user->getSentMessages();
 $messages = $user->getMessagesSentTo($otherUser);
 
 // Get the sent messages to a specific chatroom
-$messages = $user->getMessagesSentTo($chatroom);
+$messages = $user->getMessagesSentTo($message->chatroom);
 ```
+
+## Difference from Chatify
+I made this package because I disagreed with a fundamental design decision in Chatify, which was that a message can only have one sender and one recipient.
+
+This package allows you to send messages to multiple recipients, and any models. You can also create multi-user chat rooms, and send messages to chatrooms.
+
+## Other projects
+- https://github.com/namumakwembo/wirechat - nice package but livewire heavy
+- https://github.com/musonza/chat - nice but some code looks overly complex
+-
 
 ## Requirements
 - PHP 8.0 or higher
@@ -50,21 +54,13 @@ You can publish the config file with:
 php artisan vendor:publish --tag="laravel-chat-config"
 ```
 
-This is the contents of the published config file:
-
-```php
-return [
-// Coming soon
-];
-```
-
 There are no views.
 
 ## Key concepts
-- There is a `Chatroom` model that represents a chat chatroom. A chatroom can have many participants and many messages. There is only one `Chatroom` model.
-- There is a `Message` model that represents a message in a chatroom. A message belongs to a sender and is intended for a chatroom. There is only one `Message` model.
-- There is a `ChatParticipant` model that represents a participant in a chatroom. A participant can be pretty much anything. There is only one `ChatParticipant` model.
-- Any model can implement the `ChatParticipant` interface to make it possible for that entity to send and receive messages. This is done by using the `ChatParticipant` trait.
+- There is a `Chatroom` model that represents a chat chatroom. A chatroom can have many `ChatParticipant`s and many messages.
+- There is a `ChatParticipant` model that represents a participant in a chatroom. A `ChatParticipant` can reference via morphing pretty much anything.
+- There is a `Message` model that represents a message in a chatroom. A message belongs to the sender `ChatParticipant`, and belongs to a `Chatroom`.
+- Any model can use the `IsChatParticipant` trait to make it possible for that entity to send and receive messages. Additionally, the model must implement the `ChatParticipantInterface`.
 
 ## Sample use cases
 - Many to many polymorphic model chat (e.g. teachers and students chat in a specific class chatroom)
@@ -75,71 +71,7 @@ There are no views.
 ## High level
 Note, this high level overview here does not cover permissions. Your app should handle permissions and access to chatrooms at a layer above this package.
 
-### Your first chat
-
-First, prepare the models to send and receive messages. The models must implement the `IsChatParticipant` interface. This interface is implemented by the `ChatParticipantInterface` interface, which is a contract for all chat participants.
-
-#### First, setup your models
-```php
-class Teacher extends Model implements ChatParticipantInterface
-{
-    use IsChatParticipant;
-
-    // Your model code here
-}
-
-class Student extends Model implements ChatParticipantInterface
-{
-    use IsChatParticipant;
-
-    // Your model code here
-}
-```
-
-#### Then, send your first message
-```php
-$teacher = Teacher::find(1);
-$student = Student::find(1);
-$message = "Hello, how are you?";
-$teacher->sendMessageTo($student, $message);
-```
-LaravelChat will automatically create a new chatroom with the teacher and student as participants, and send the message to the chatroom. The message will be stored in the database. The teacher will be the owner of the chatroom, and the student will be a participant.
-
-#### On the students side, load the messages
-The student will want to see the messages sent to them. This is usually what you want to call when you initially load a chatroom on the frontend.
-
-```php
-$student = Student::find(1);
-return $student->getMessages(); // will get all messages from all chatrooms from the student, ordered from newest to oldest
-```
-
-A sample of the response might look like this:
-```json
-[
-    {
-        "uuid": "12345678-1234-5678-1234-567812345678",
-        "message": "Hello, how are you?",
-        "sender_id": 1,
-        "channel_id": 1,
-        "created_at": "2023-10-01T00:00:00.000000Z",
-        "updated_at": "2023-10-01T00:00:00.000000Z"
-    }
-]
-```
-
-#### Send back a message
-```php
-$student = Student::find(1);
-$chatroom = Chatroom::find(1); // Get the chatroom where the message was sent from channel_id in the original message
-$message = "I'm fine, thank you!";
-$student->sendMessageTo($chatroom, $message);
-
-// Alternatively, you can send a message to the chatroom as a user
-$chatroom->sendMessageAs($student, $message);
-
-// You can also send the message directly to a user and it will re-use the latest chatroom that has only the teacher and student in it, (or create a new one if it doesn't exist - but in this case, it already should exist since its a reply)
-$student->sendMessageTo($teacher, $message);
-```
+## Docs
 
 ### Sending messages
 First, prepare the models to send and receive messages. The models must use the `IsChatParticipant` trait. Also implement the `ChatParticipantInterface` interface in your models, which is a contract for all chat participants.
@@ -182,6 +114,7 @@ $messageId = $teacher->sendMessageTo($chatroom, $message); // will send the mess
 
 // And you can also send messages as a bot / non-DB user (like an AI bot or external service)
 $bot = new ChatParticipant('slackbot'); // `slackbot` is the key of the bot - it will be used to determine if a participant is in the chatroom
+@todo
 $bot->setName('My bot');
 $bot->sendMessageTo($student, $message); // will send the message to the student
 ```
@@ -228,6 +161,39 @@ $messages = $chatroom->getMessages(); // will get all messages from the chatroom
 $messages = $chatroom->getMessages(10); // will get the last 10 messages from the chatroom
 $messages = $chatroom->getMessages(10, 0); // will get the last 10 messages from the chatroom, starting from the first message
 ```
+
+#### Get messages visible to a given participant
+```php
+$messages = $student->getMessages();
+```
+LaravelChat will automatically filter the messages to only include those that can be read by the participant. This means that if a message is not visible to the participant, it will not be included in the result.
+
+For example, you don't want a user that joined a chatroom recently to see messages that were sent before they joined the chatroom.
+
+Additionally, if they are removed from the chatroom, they should not see any new messages sent to the chatroom after they were removed.
+
+##### Scoping messages for a participant
+You can also use the `canBeReadByParticipant` scope to filter messages that can be read by a given participant. The participant can be a `ChatParticipant` instance or any model that implements the `ChatParticipantInterface` and `IsChatParticipant` trait.
+
+The messages will only include those that were created after a participant joined the chatroom, and will not include messages that were sent after the participant was removed from the chatroom.
+
+```php
+// A scope that filters messages based on the participant's visibility this will filter the messages to only include those that can be read by the participant.
+ChatMessage::canBeReadByParticipant($participant)->get();
+```
+
+If you do not want to return any messages that were sent in chatrooms that the participant used to but no longer belongs in, set the second parameter to `false`. This will return no messages for chatrooms where the participant has left.
+
+```php
+ChatMessage::canBeReadByParticipant($participant, false)->get();
+```
+
+If you want to include messages sent to chatrooms before the participant joined, you can set the third parameter to `true`.
+
+```php
+ChatMessage::canBeReadByParticipant($participant, true, true)->get(); // Returns messages that were sent to chatrooms before the participant joined, but not messages sent to the chatroom after the participant was removed from the chatroom.
+```
+
 #### Get messages by a participant in a chatroom
 ```php
 $messages = $chatroom->getMessagesBy($teacher); // will get all messages from the teacher in the chatroom
@@ -265,6 +231,19 @@ $chatroom->addParticipant($student, 'admin'); // will add the student to the cha
 $chatroom->addParticipants([$studentA, $studentB], 'admin'); // will add the students to the chatroom as admins
 ```
 
+### Removing participants from a chatroom
+```php
+$chatroom->removeParticipant($student); // will remove the student from the chatroom
+$chatroom->removeParticipants([$studentA, $studentB]); // will remove the students from the chatroom
+```
+
+### Syncing participants
+You can sync participants in a chatroom. This will remove all participants that are not in the given array, and add all participants that are not in the chatroom yet.
+```php
+$chatroom->syncParticipants([$studentA, $studentB]); // will remove all participants that are not in the given array, and add all participants that are not in the chatroom yet
+$chatroom->syncParticipants([$studentA, $studentB], 'admin'); // will remove all participants that are not in the given array, and add all participants that are not in the chatroom yet, as admins. Existing participants will not be changed, so if the studentA is already in the chatroom as a member, they will remain a member, not an admin.
+```
+
 ### Finding the best chatroom for a given set of participants
 ```php
 Chatroom::getBestFor([$student, $teacher]); // will get the best chatroom for the given participants - the most resent chat that contains only these two participants. If no such chatroom exists, it will return null.
@@ -282,14 +261,19 @@ Chatroom::getOrCreateBestFor([$student, $teacher], [
 ```php
 $chatroom->hasParticipant($student); // will check if the student is already in the chatroom
 
-// Or
+$chatroom->hasOrHadParticipant($student); // will check if the student is already in the chatroom, or if they have previously been a member of the chatroom but were now removed.
+
+// OR
+
 $user->isParticipantIn($chatroom); // will check if the user is already in the chatroom
+
+$user->isOrWasParticipantIn($chatroom); // will check if the user is already in the chatroom, or if they have previously been a member of the chatroom but were now removed.
 ```
 
 ### Check if a participant is connected via sockets to a given chatroom
 Sometimes, it is useful to know if a participant is actively connected to a given chatroom via sockets. For example, if a user is not actively connected, you might want to send them a Web Push notification instead of a real-time message.
 
-This currently only works with the `pusher` and `reverb` broadcast drivers. Internally, we will call the [`get users`](https://pusher.com/docs/chatrooms/library_auth_reference/rest-api/#get-users) endpoint of the chatroom to check if the participant is currently connected to the chatroom.
+This currently only works with the `pusher` and `reverb` broadcast drivers. Internally, we call the [`get users`](https://pusher.com/docs/chatrooms/library_auth_reference/rest-api/#get-users) endpoint of the chatroom to check if the participant is currently connected to the chatroom.
 
 ```php
 $user->isConnectedToChatroomViaSockets($chatroom);
@@ -327,10 +311,31 @@ $chatParticipant->getIsConnectedViaSockets(
 );
 ```
 
+### Check if a participant is notifiable
+A participant can be notifiable if the model that it refers to uses the native Laravel `Notifiable` trait. In LaravelChat, `ChatParticipant` is not always related to a model that can be notified, so you can check if a `ChatParticipant` is notifiable by checking the `is_notifiable` attribute.
+
+```php
+if ($chatParticipant->is_notifiable) {
+    // The participant_type is notifiable, so you can send notifications to it.
+}
+```
+
+You may want to get all the notifiable participants in a chatroom, for example, to send them an individual notification about an event. You can do this by calling the `getNotifiableParticipants` method on the `Chatroom` model. This will return a collection of `ChatParticipant` models that are morphable to a model that uses the `Notifiable` trait.
+
+```php
+$notifiableParticipants = $chatroom->getNotifiableParticipants(); // will return a collection of ChatParticipant models that are morphable to a model that uses the Notifiable trait.
+
+// Now you can send notifications to the notifiable participants
+foreach ($notifiableParticipants as $participant) {
+    $participant->notify(new \App\Notifications\NewMessageNotification($message));
+}
+```
+
 ## Events, listeners, and broadcasting
 ### New Message
+When a new message is created, the `\Mmedia\LaravelChat\Events\MessageCreated::class` event is fired. This event contains the `Message` model instance, which is an instance of `ChatMessage`.
 
-### Event and chatroom broadcasting
+#### Event and chatroom broadcasting
 When a new message is created, the `\Mmedia\LaravelChat\Events\MessageCreated::class` event is fired. This event contains the `Message` model instance, which is an instance of `ChatMessage`.
 
 If you have broadcasting enabled, the event will be broadcasted to the chatroom chatroom. The chatroom name uses the Laravel Broadcasting convention, so it will be `Mmedia.LaravelChat.Models.Chatroom.{chatroom_id}`. This is a presence channel, so you can join it in your frontend application like this:
@@ -345,12 +350,12 @@ Refer to the [Laravel Broadcasting documentation](https://laravel.com/docs/broad
 
 Note: even though you'll get messages here, its better to use the individual private channels for each chat participant becuase you'll be able to receive messages that are sent to the participant without joining each chatroom individually and opening multiple connections. Refer to the "Default notification" section below for more information on how to set this up.
 
-### Default listener
+#### Default listener
 A default listener is provided to send a notification when a new message is created. You can customize this listener by changing the `chat.new_message_listener` config value in your `config/chat.php` file.
 
 The default listener is `\Mmedia\LaravelChat\Listeners\SendMessageCreatedNotification::class`, which will send the "Default notification" (or whatever you configured) to the participants of the chatroom when a new message is created. It will NOT send a notification to the sender of the message.
 
-### Default notification
+#### Default notification
 The default notification is `\Mmedia\LaravelChat\Notifications\NewMessage::class`, which will send a notification to each of the participants of the chatroom when a new message is created, except the sender of the message.
 
 If you have broadcasting enabled, the notification will also broadcast the event to the notifiable via its private channel. The chatroom name uses the Laravel Broadcasting convention, so if your chat participant is a user, it will be something like `App.Models.User.{user_id}`.
@@ -359,14 +364,62 @@ The listener is the perfect place to check if the user is currently connected to
 
 On a ChatParticipant, you can check `$chatParticipant->is_connected` to see if the participant is currently connected to the chatroom via sockets. Refer to the trait `ConnectsToBroadcast` for more information on how you can check connections on other channels.
 
+### Using Chatrooms as notification channels
+It can be helpful to use chatroom messages as a notification channel. Internally, LaravelChat does this when new participants are added or removed from a chatroom to create system-messages about these events.
+You can use the `ChatroomChannel` notification channel to send notifications to a chatroom. This channel will automatically create a new message in the chatroom with the notification data.
+
+```php
+use Mmedia\LaravelChat\Notifications\ChatroomChannel;
+use Mmedia\LaravelChat\Notifications\ChatroomChannelMessage;
+
+    public function via(object $notifiable): array
+    {
+        // Now you can send notifications as chatroom messages
+        return [ChatroomChannel::class];
+    }
+
+    // Implement the `toChatroom` method in your notification class
+    public function toChatroom(object $notifiable): ChatroomChannelMessage
+    {
+        return (new ChatroomChannelMessage)
+            ->message("My custom message");
+    }
+```
+By default, the notification will be sent as a system notification (not attached/"sent" by any particular participant) to the personal chatroom of the notifiable - e.g. the first chatroom that only contains them as a participant.
+
+If you want to send the notification to a specific chatroom, you can set the `chatroom_id` property on the `ChatroomChannelMessage` instance.
+
+```php
+public function toChatroom(object $notifiable): ChatroomChannelMessage
+{
+    return (new ChatroomChannelMessage)
+        ->message("My custom message")
+        ->chatroomId(5); // The ID of the chatroom to send the notification
+}
+```
+
 ## API routes
+A set of default API routes and controllers are provided to interact with the chatrooms and messages. You can customize these routes by publishing the package's routes file and modifying it as needed.
+You can publish the routes file with:
+```bash
+php artisan vendor:publish --tag="laravel-chat-routes"
+```
+
+Currently the package uses the `api` and `auth:sanctum` middleware for the API routes. If you need to change this, you should override the routes in your application.
 
 ### GET /api/chatrooms
 This route is used to get all chatrooms for the authenticated user, along with the participants and latest message.
 
+This will also return chatrooms the user was a participant in but is no longer a participant of. The latest message returned is the latest message that can be read by the user.
+
 ### GET /api/chatrooms/{chatroom}
 This route is used to get a specific chatroom by its ID for the authenticated user. It will return the chatroom with its participants and all messages visible to the user.
 
+Authenticated users can only access chatrooms they are a participant of, or have been a participant of in the past.
+
 ### POST /api/messages
-This route is used to send a message to a chatroom. The request body should contain the `to_entity_type`, `to_entity_id`, and `message` fields. An existing chat between the sender and the recipient will be used, or a new one will be created if it does not exist.
-- ``to_entity_type``: The type of the entity to send the message to (e.g. `Mmedia\LaravelChat\Models\Chatroom`, `Mmedia\LaravelChat\Models\ChatParticipant`, or anything that implements the ChatParticipantInterface can be used like `App\Models\User`).
+This route is used to send a message to a chatroom or other entity. The request body should contain the `to_entity_type`, `to_entity_id`, and `message` fields.
+
+An existing chat between the sender and the recipient will be used, or a new one will be created if it does not exist.
+
+- ``to_entity_type``: The type of the entity to send the message to (e.g. `Mmedia\LaravelChat\Models\Chatroom`, `Mmedia\LaravelChat\Models\ChatParticipant`, or anything that you implement the ChatParticipantInterface on can be used, e.g. `App\Models\User`).

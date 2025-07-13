@@ -4,6 +4,7 @@ namespace Mmedia\LaravelChat\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Mmedia\LaravelChat\Models\ChatParticipant;
 use Mmedia\LaravelChat\Models\Chatroom;
 
 class ChatroomController extends Controller
@@ -16,9 +17,14 @@ class ChatroomController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $chatrooms = Chatroom::whereHas('participants', function ($query) use ($user) {
-            $query->where('user_id', $user->id);
-        })->get();
+        $chatrooms = Chatroom::havingParticipants([$user], true)
+            ->with([
+                'participants',
+                'latestMessage' => function ($query) use ($user) {
+                    $query->canBeReadByParticipant($user)->with('sender');
+                },
+            ])
+            ->get();
 
         return response()->json($chatrooms);
     }
@@ -28,12 +34,57 @@ class ChatroomController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function create()
+    public function show(Request $request, Chatroom $chatroom)
     {
-        return response()->json([
-            'message' => 'Show form for creating a new chatroom',
-        ]);
+        $user = $request->user();
+
+        if (! $chatroom->hasOrHadParticipant($user)) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $chatroom->load(['participants', 'messages' => function ($query) use ($user) {
+            $query->canBeReadByParticipant($user)->with('sender');
+        }]);
+
+        return response()->json($chatroom);
     }
 
-    // Additional methods for store, show, edit, update, and destroy can be added here
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+        ]);
+
+        $chatroom = Chatroom::create($request->only('name', 'description'));
+
+        $user = $request->user();
+        $chatroom->addParticipant($user, 'admin');
+
+        return response()->json($chatroom, 201);
+    }
+
+    public function storeMessage(Request $request)
+    {
+        $request->validate([
+            'to_entity_type' => 'required|string',
+            'to_entity_id' => 'required|integer',
+            'message' => 'required|string',
+        ]);
+
+        $model = $request->to_entity_type === 'chatroom'
+            ? Chatroom::findOrFail($request->to_entity_id)
+            : ChatParticipant::findOrFail($request->to_entity_id);
+
+        try {
+            $request->user()->sendMessageTo(
+                $model,
+                $request->message
+            );
+
+            return response()->json(['message' => 'Message sent successfully'], 201);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to send message', 'message' => $e->getMessage()], 400);
+        }
+    }
 }

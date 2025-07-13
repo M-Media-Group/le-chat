@@ -27,12 +27,30 @@ class LaravelChatServiceProvider extends PackageServiceProvider
     // The boot
     public function bootingPackage(): void
     {
-        $listener = config('chat.new_message_listener');
+        $newMessageListener = config('chat.new_message_listener');
 
-        if ($listener && class_exists($listener)) {
+        if ($newMessageListener && class_exists($newMessageListener)) {
             $this->app['events']->listen(
                 \Mmedia\LaravelChat\Events\MessageCreated::class,
-                $listener
+                $newMessageListener
+            );
+        }
+
+        $newParticipantListener = config('chat.new_participant_listener');
+
+        if ($newParticipantListener && class_exists($newParticipantListener)) {
+            $this->app['events']->listen(
+                \Mmedia\LaravelChat\Events\ParticipantCreated::class,
+                $newParticipantListener
+            );
+        }
+
+        $participantDeletedListener = config('chat.participant_deleted_listener');
+
+        if ($participantDeletedListener && class_exists($participantDeletedListener)) {
+            $this->app['events']->listen(
+                \Mmedia\LaravelChat\Events\ParticipantDeleted::class,
+                $participantDeletedListener
             );
         }
     }

@@ -15,13 +15,15 @@ return new class extends Migration
                 \Mmedia\LaravelChat\Models\ChatParticipant::class,
                 'sender_id'
             )
+                ->nullable()
                 ->constrained()
                 ->cascadeOnDelete();
 
             $table->foreignIdFor(
-                \Mmedia\LaravelChat\Models\Chatroom::class
+                \Mmedia\LaravelChat\Models\Chatroom::class,
+                'chatroom_id'
             )
-                // ->constrained()
+                ->constrained()
                 ->cascadeOnDelete();
 
             // The message text
