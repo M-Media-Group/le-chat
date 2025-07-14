@@ -58,7 +58,7 @@ class NewMessage extends Notification implements ShouldQueue
                 // You can also add a check to see if the notifiable model
                 // has the necessary 'routeNotificationForWebPush' method.
                 if (method_exists($notifiable, 'routeNotificationForWebPush')) {
-                    $channels[] = \NotificationChannels\WebPush\WebPushChannel::class;
+                    $via[] = \NotificationChannels\WebPush\WebPushChannel::class;
                 }
             }
         }
