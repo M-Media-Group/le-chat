@@ -39,6 +39,9 @@ return new class extends Migration
 
             // Nullable read_at column to track when the participant last read the chatroom
             $table->timestamp('read_at')->nullable();
+
+            // Unique index to prevent duplicate participants in the same chatroom
+            $table->unique(['chatroom_id', 'participant_id', 'participant_type'], 'chat_participant_unique');
         });
     }
 };
