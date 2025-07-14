@@ -1,9 +1,6 @@
 <?php
 
 // config for Mmedia/LaravelChat
-
-use Mmedia\LaravelChat\Models\Chatroom;
-
 return [
     /**
      * Determines if, when looking for a best channel, the order we should apply. If true, if more than one channel matches, the latest updated channel will be used. If false, the first channel that matches will be used.
@@ -54,11 +51,4 @@ return [
      * Set to null to disable the listener.
      */
     'participant_deleted_listener' => \Mmedia\LaravelChat\Listeners\SendParticipantDeletedNotification::class,
-
-    /**
-     * The default channel to use for broadcast auth
-     *
-     * This should stay as much as possible as it is - we define it here so we can leverage route caching
-     */
-    'default_broadcast_channel' => (new Chatroom)->broadcastChannelRoute(),
 ];
