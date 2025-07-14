@@ -51,9 +51,48 @@ class NewMessage extends Notification implements ShouldQueue
 
         if (! $connected) {
             Log::info('Participant is not connected via sockets, not sending notification.');
+
+            // Check if the WebPush channel class exists before adding it.
+            // Use the fully qualified class name as a string.
+            if (class_exists(\NotificationChannels\WebPush\WebPushChannel::class)) {
+                // You can also add a check to see if the notifiable model
+                // has the necessary 'routeNotificationForWebPush' method.
+                if (method_exists($notifiable, 'routeNotificationForWebPush')) {
+                    $channels[] = \NotificationChannels\WebPush\WebPushChannel::class;
+                }
+            }
         }
 
         return $via;
+    }
+
+    /**
+     * Get the web push representation of the notification.
+     *
+     * This method will only be called by Laravel if the WebPushChannel
+     * was added in the via() method.
+     *
+     * @param  mixed  $notifiable
+     * @param  mixed  $notification
+     * @return mixed
+     */
+    public function toWebPush($notifiable, $notification)
+    {
+        // Now, instantiate the WebPushMessage using its fully qualified name
+        $webPushMessageClass = \NotificationChannels\WebPush\WebPushMessage::class;
+
+        return (new $webPushMessageClass)
+            // The title is the name of the sender
+            ->title($this->message->sender->display_name.' sent you a new message!')
+            // The icon can be a URL to an image or a path to an asset
+            ->icon('/approved-icon.png')
+            // The body is the message content
+            ->body($this->message->message)
+            // The action is a button that the user can click
+            ->action('Open Chat', 'view_chat')
+            ->options(['TTL' => 1000])
+            ->lang('en')
+            ->vibrate([100, 50, 100]);
     }
 
     /**

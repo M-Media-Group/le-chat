@@ -4,14 +4,14 @@ namespace Mmedia\LaravelChat\Events;
 
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Broadcast;
 use Mmedia\LaravelChat\Http\Resources\MessageResource;
 use Mmedia\LaravelChat\Models\ChatMessage;
 
-class MessageCreated implements ShouldBroadcast
+class MessageCreated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
