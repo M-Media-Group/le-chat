@@ -21,7 +21,20 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
         // The participant may be non-related (e,g. a bot or external user), so we need to store a display name and a reference ID (could be a remote ID or a unique key)
 
         'display_name',
+        'avatar_url',
         'reference_id',
+
+        'read_at',
+    ];
+
+    // Casts
+    protected $casts = [
+        'read_at' => 'datetime',
+    ];
+
+    protected $dispatchesEvents = [
+        'created' => \Mmedia\LaravelChat\Events\ParticipantCreated::class,
+        'deleted' => \Mmedia\LaravelChat\Events\ParticipantDeleted::class,
     ];
 
     /**
@@ -29,7 +42,7 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
      *
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Chatroom, $this>
      */
-    public function chat(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function chatroom(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Chatroom::class, 'chatroom_id');
     }
@@ -100,7 +113,7 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
         return CastsAttribute::make(
             get: fn () => $this->getIsConnectedViaSockets(
                 localId: 'participant_id',
-                channelName: $this->chat->broadcastChannel(),
+                channelName: $this->chatroom->broadcastChannel(),
                 type: 'presence'
             )
         )->shouldCache();
@@ -110,6 +123,33 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
     {
         return CastsAttribute::make(
             get: fn () => $this->getRawOriginal('display_name') ?? $this->participant?->name ?? $this->participant?->email
+        )->shouldCache();
+    }
+
+    protected function avatarUrl(): CastsAttribute
+    {
+        return CastsAttribute::make(
+            get: fn () => $this->getRawOriginal('avatar_url') ?? $this->participant?->avatar ?? $this->participant?->gravatar
+        )->shouldCache();
+    }
+
+    protected function canManageParticipants(): CastsAttribute
+    {
+        return CastsAttribute::make(
+            get: fn () => $this->role === 'admin'
+        )->shouldCache();
+    }
+
+    /**
+     * A participant is notifiable if the participant_type class uses the Notifiable trait.
+     */
+    protected function isNotifiable(): CastsAttribute
+    {
+        return CastsAttribute::make(
+            get: fn () => $this->participant_type && in_array(
+                \Illuminate\Notifications\Notifiable::class,
+                class_uses_recursive($this->participant_type)
+            )
         )->shouldCache();
     }
 }

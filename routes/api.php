@@ -7,6 +7,10 @@ Route::group(['middleware' => ['api', 'auth:sanctum'], 'prefix' => 'api'], funct
     Route::apiResource('/chatrooms', ChatroomController::class)
         ->names('chatrooms');
 
-    Route::post('/messages', [ChatroomController::class, 'storeMessage'])
-        ->name('chatrooms.messages.store');
+    Route::post('/chatrooms/{chatroom}/messages', [ChatroomController::class, 'storeMessage']);
+
+    Route::post('/chatrooms/{chatroom}/mark-as-read', [ChatroomController::class, 'markAsRead'])
+        ->name('chatrooms.markAsRead');
+
+    Route::post('/messages', [ChatroomController::class, 'storeMessage']);
 });

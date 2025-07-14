@@ -2,6 +2,8 @@
 
 namespace Mmedia\LaravelChat\Traits;
 
+use Carbon\Carbon;
+use DateTime;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
@@ -42,12 +44,13 @@ trait IsChatParticipant
     /**
      * There is one chatParticipant per chat room for a given model using this trait.
      */
-    private function asChatParticipantIn(Chatroom $chatRoom): ?ChatParticipant
+    public function asParticipantIn(Chatroom $chatRoom, bool $includeTrashed = false): ?ChatParticipant
     {
         // Get the chat participant for this model in the given chat room.
         // This will return a single ChatParticipant model instance.
         return $this->chatParticipants()
             ->where('chatroom_id', $chatRoom->getKey())
+            ->when($includeTrashed, fn ($query) => $query->withTrashed())
             ->first();
     }
 
@@ -60,7 +63,18 @@ trait IsChatParticipant
         // Start from the Chatroom model query builder.
         return $this->hasManyDeepFromRelations(
             $this->chatParticipants(),
-            (new ChatParticipant)->chat()
+            (new ChatParticipant)->chatroom()
+        );
+    }
+
+    public function messages()
+    {
+        // We need to get ChatMessages that are linked to a ChatParticipant
+        // where that ChatParticipant is linked to this model.
+        // Start from the ChatMessage model query builder.
+        return $this->hasManyDeepFromRelations(
+            $this->chatParticipants(),
+            (new ChatParticipant)->messages()
         );
     }
 
@@ -78,6 +92,11 @@ trait IsChatParticipant
         return Chatroom::havingParticipants([$this]);
     }
 
+    /**
+     * Get all messages sent by this model across all their chat participants.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasManyDeep<ChatMessage, ChatParticipant>
+     */
     public function sentMessages()
     {
         // We need to get ChatMessages that are linked to a ChatParticipant
@@ -131,17 +150,34 @@ trait IsChatParticipant
             ->orderBy('id', 'desc');
     }
 
+    private function buildGetMessages(?int $limit = null, ?int $offset = null)
+    {
+        // Start building a query on the ChatMessage model
+        $query = $this->getMessagesQuery();
+
+        // Apply pagination if limit is set
+        if ($limit) {
+            $query->limit($limit);
+        }
+
+        // Apply offset if set
+        if ($offset) {
+            $query->offset($offset);
+        }
+
+        // Execute the query and return the collection of ChatMessage models
+        return $query;
+    }
+
     /**
      * Loads all messages for the given model via the participant relationship. Filtered to only messages created after column created_at in the pivot table.
      *
      * @return \Illuminate\Support\Collection<ChatMessage, $this>
      */
-    public function getMessages(): Collection
+    public function getMessages(?int $limit = null, ?int $offset = null): Collection
     {
-        // Start building a query on the ChatMessage model
-        return $this->getMessagesQuery()
-            // Execute the query and return the collection of ChatMessage models
-            ->get();
+        // Get the messages using the buildGetMessages method
+        return $this->buildGetMessages($limit, $offset)->get();
     }
 
     /**
@@ -150,7 +186,6 @@ trait IsChatParticipant
     private function getMessagesSentToParticipant(ChatParticipantInterface|ChatParticipant $participant): Collection
     {
         return $this->sentMessages()
-            // Filter the joined chat_participants records
             ->canBeReadByParticipant($participant)
             ->get();
     }
@@ -173,7 +208,35 @@ trait IsChatParticipant
     }
 
     /**
+     * Returns or creates a chatroom where only the current model is present, e.g. a private chatroom.
+     *
+     * This is useful for sending messages to the current model only, e.g. for notifications.
+     *
+     * @param  array<string, mixed>  $newChannelConfiguration
+     */
+    public function getOrCreatePersonalChatroom(array $newChannelConfiguration = []): Chatroom
+    {
+        // Get the chat room this model is a participant in.
+        $chatRoom = $this->chatRooms()->havingExactlyParticipants([$this], true)->first();
+
+        // If no chat room exists, create a new one with the given configuration
+        if (! $chatRoom) {
+            $chatRoom = Chatroom::create($newChannelConfiguration);
+            // Add this model as a participant in the new chat room
+            $this->chatParticipants()->create([
+                'chatroom_id' => $chatRoom->getKey(),
+                'participant_id' => $this->getKey(),
+                'participant_type' => $this->getMorphClass(),
+            ]);
+        }
+
+        return $chatRoom;
+    }
+
+    /**
      * Get all messages sent by this model across all their chat participants.
+     *
+     * @return \Illuminate\Support\Collection<ChatMessage, $this>
      */
     private function getMessagesSentToChatRoom(Chatroom $chatRoom): Collection
     {
@@ -183,6 +246,11 @@ trait IsChatParticipant
             ->get();
     }
 
+    /**
+     * Get all messages sent by this model across all their chat participants.
+     *
+     * @return \Illuminate\Support\Collection<ChatMessage, $this>
+     */
     public function getMessagesSentTo(Chatroom|ChatParticipantInterface|ChatParticipant $target): Collection
     {
         if ($target instanceof Chatroom) {
@@ -192,17 +260,40 @@ trait IsChatParticipant
         return $this->getMessagesSentToParticipant($target);
     }
 
+    /**
+     * Determines if the current model can send a message to the given chat room.
+     */
+    private function canSendMessageToChatRoom(Chatroom $chatRoom): bool
+    {
+        // Check if the current model is a participant in the chat room
+        return $this->isParticipantIn($chatRoom);
+    }
+
+    /**
+     * Sends a message to a chat room.
+     *
+     *
+     * @throws \Exception if the current model is not an active participant in the chat room
+     */
     private function sendMessageToChatRoom(Chatroom $chatRoom, string $message): ChatMessage
     {
+        // Check if the current model can send a message to the chat room
+        if (! $this->canSendMessageToChatRoom($chatRoom)) {
+            throw new \Exception('Cannot send a message to the chat room because the current model is not an active participant in the chat room. If the model is deleted, you need to create a new chatroom.');
+        }
+
         // Create a new message in the chat room
         return $chatRoom->messages()->create([
             'sender_id' => $this instanceof ChatParticipant
                 ? $this->getKey()
-                : $this->asChatParticipantIn($chatRoom)->getKey(),
+                : $this->asParticipantIn($chatRoom, true)->getKey(),
             'message' => $message,
         ])->fresh();
     }
 
+    /**
+     * Sends a message to a participant, creating a new chat room if necessary.
+     */
     private function sendMessageToParticipant(ChatParticipantInterface $participant, string $message): ChatMessage
     {
         $bestChannel = $this->getBestChannelForParticipants([$participant]);
@@ -261,10 +352,60 @@ trait IsChatParticipant
     /**
      * Determines if this model is a participant in the given chat room.
      */
-    public function isParticipantIn(Chatroom $chatRoom): bool
+    public function isParticipantIn(Chatroom $chatRoom, bool $includeTrashed = false): bool
     {
         // Check if this model is a participant in the given chat room
-        return $this->asChatParticipantIn($chatRoom) !== null;
+        return $this->asParticipantIn($chatRoom, $includeTrashed) !== null;
+    }
+
+    public function isOrWasParticipantIn(Chatroom $chatRoom): bool
+    {
+        // Check if this model is a participant in the given chat room, including trashed participants
+        return $this->asParticipantIn($chatRoom, true) !== null;
+    }
+
+    public function asChatParticipantFromMessageOrChatroom(ChatMessage|Chatroom $roomOrMessage): ?ChatParticipant
+    {
+        // Get the chat participant for this model in the given chat room or message
+        if ($roomOrMessage instanceof ChatMessage) {
+            return $this->asParticipantIn($roomOrMessage->chatroom);
+        }
+
+        return $this->asParticipantIn($roomOrMessage);
+    }
+
+    public function markRead(Chatroom|ChatMessage $roomOrMessage): bool
+    {
+        $chatParticipant = $this instanceof ChatParticipant
+            ? $this
+            :
+            $this->asChatParticipantFromMessageOrChatroom($roomOrMessage);
+
+        if (! $chatParticipant) {
+            throw new \Exception('Cannot mark as read because the current model is not an active participant in the chat room. If the model is deleted, you need to create a new chatroom.');
+        }
+
+        $chatParticipant->read_at = $roomOrMessage instanceof ChatMessage
+            ? $roomOrMessage->created_at
+            : Carbon::now();
+
+        return $chatParticipant->save();
+    }
+
+    /**
+     * Mark the chat room or message as read at a specific time.
+     */
+    public function markReadUntil(Chatroom|ChatMessage $roomOrMessage, DateTime|Carbon $readAt): bool
+    {
+        $chatParticipant = $this->asChatParticipantFromMessageOrChatroom($roomOrMessage);
+
+        if (! $chatParticipant) {
+            throw new \Exception('Cannot mark as read because the current model is not an active participant in the chat room. If the model is deleted, you need to create a new chatroom.');
+        }
+
+        $chatParticipant->read_at = $readAt;
+
+        return $chatParticipant->save();
     }
 
     /**
@@ -274,8 +415,24 @@ trait IsChatParticipant
      */
     public function isConnectedToChatroomViaSockets(Chatroom $chatRoom): ?bool
     {
-        $participant = $this->asChatParticipantIn($chatRoom);
+        $participant = $this->asParticipantIn($chatRoom);
 
         return $participant ? $participant->is_connected : null;
+    }
+
+    public function scopeWithUnreadMessagesCount($query)
+    {
+        return $query->withCount([
+            'messages as unread_messages_count' => fn ($query) => $query->canBeReadByParticipant($this)->unreadBy($this),
+        ]);
+    }
+
+    public function loadUnreadMessagesCount(): self
+    {
+        $this->loadCount([
+            'messages as unread_messages_count' => fn ($query) => $query->canBeReadByParticipant($this)->unreadBy($this),
+        ]);
+
+        return $this;
     }
 }

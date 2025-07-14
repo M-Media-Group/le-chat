@@ -4,6 +4,7 @@ namespace Mmedia\LaravelChat\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Mmedia\LaravelChat\Http\Resources\ChatroomResource;
 use Mmedia\LaravelChat\Models\ChatParticipant;
 use Mmedia\LaravelChat\Models\Chatroom;
 
@@ -24,9 +25,10 @@ class ChatroomController extends Controller
                     $query->canBeReadByParticipant($user)->with('sender');
                 },
             ])
+            ->withUnreadMessagesCountFor($user)
             ->get();
 
-        return response()->json($chatrooms);
+        return ChatroomResource::collection($chatrooms);
     }
 
     /**
@@ -46,7 +48,7 @@ class ChatroomController extends Controller
             $query->canBeReadByParticipant($user)->with('sender');
         }]);
 
-        return response()->json($chatroom);
+        return new ChatroomResource($chatroom);
     }
 
     public function store(Request $request)
@@ -86,5 +88,20 @@ class ChatroomController extends Controller
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to send message', 'message' => $e->getMessage()], 400);
         }
+    }
+
+    public function markAsRead(Request $request, Chatroom $chatroom)
+    {
+        $user = $request->user();
+
+        if (! $chatroom->hasOrHadParticipant($user)) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        if (! $chatroom->markAsReadBy($user)) {
+            return response()->json(['error' => 'Failed to mark chatroom as read'], 400);
+        }
+
+        return response()->json(['message' => 'Chatroom marked as read'], 200);
     }
 }

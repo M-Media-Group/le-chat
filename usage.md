@@ -222,6 +222,35 @@ $messages = $teacher->getSentMessages(); // will get all messages sent by the te
 $messages = $teacher->getSentMessages(10); // will get the last 10 messages sent by the teacher from all chatrooms
 ```
 
+### "Read" messages
+LaravelChat uses a `read_at` timestamp on the `ChatParticipant` model to track up to which point in time the participant has read the messages in the chatroom. This is useful to determine which messages are new and should be highlighted in the UI.
+
+The design decision was taken deliberately - keeping track of each individual message read by each participant would cause a huge amount of database writes, especially on large chatrooms with many participants. Instead, we track the last read time for each participant in a chatroom, and use that to determine which messages are new.
+
+#### Marking messages as read
+
+```php
+$chatroom->markAsReadBy($participant); // will mark all messages in the chatroom as read for the given participant
+$chatroom->markAsReadBy($participant, $message); // will mark the given message and any previous messages up until the message as read for the given participant
+
+$chatroom->markAsReadBy($participant, now()); // You can also pass a date or Carbon instance to mark all messages in the chatroom as read for the given participant, up until the current time
+
+$message->markAsReadBy($participant); // will mark the message as read for the given participant, and all previous messages in the chatroom as read for the given participant
+
+// You can also work directly on the models implementing the IsChatParticipant trait
+
+$student->markRead($chatroom); // will mark all messages in the chatroom as read for the student
+
+$student->markRead($message); // will mark the given message and any previous messages in the chatroom up until the message as read for the student
+
+$student->markReadUntil($chatroom, now()); // will mark all messages in the chatroom as read for the student, up until the current time
+```
+
+#### Getting read messages
+```php
+$readMessages = $student->getReadMessages($chatroom); // will get all messages read by the student in the chatroom
+```
+
 ### Adding participants to a chatroom
 ```php
 $chatroom->addParticipant($student); // will add the student to the chatroom as a participant with the default role 'member'.

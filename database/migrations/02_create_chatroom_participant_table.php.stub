@@ -29,12 +29,16 @@ return new class extends Migration
 
             // The participant may be non-related (e,g. a bot or external user), so we need to store a display name and a reference ID (could be a remote ID or a unique key)
             $table->string('display_name')->nullable();
+            $table->string('avatar_url')->nullable();
             $table->string('reference_id')->nullable(); // e.g. `slackbot-1234`,
 
             // Soft delete
             $table->softDeletes();
 
             $table->timestamps();
+
+            // Nullable read_at column to track when the participant last read the chatroom
+            $table->timestamp('read_at')->nullable();
         });
     }
 };

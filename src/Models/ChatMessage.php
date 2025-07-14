@@ -36,6 +36,12 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
         return $this->belongsTo(ChatParticipant::class, 'sender_id');
     }
 
+    public function markAsReadBy(ChatParticipantInterface|ChatParticipant $participant): bool
+    {
+        // Mark the message as read by the participant
+        return $participant->markRead($this);
+    }
+
     public function scopeInRoom($query, Chatroom $chatroom)
     {
         return $query->where(
@@ -136,6 +142,50 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
                                 ->where('participant_type', $participant->getMorphClass());
                         })->orWhereRaw('(
                             SELECT '.$instance->getQualifiedDeletedAtColumn().'
+                            FROM '.$instance->getTable().'
+                            WHERE '.$instance->getTable().'.chatroom_id = '.$selfInstance->qualifyColumn('chatroom_id').'
+                              AND participant_id = ?
+                              AND participant_type = ?
+                        ) IS NULL', [$participant->getKey(), $participant->getMorphClass()]);
+                    });
+                }
+            );
+    }
+
+    /**
+     * Returns all messages created before the given participants read_at timestamp.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<ChatMessage>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<ChatMessage>
+     */
+    public function scopeUnreadBy(
+        $query,
+        ChatParticipantInterface|ChatParticipant $participant
+    ) {
+        $instance = new ChatParticipant;
+        $selfInstance = new static;
+
+        return $query
+            ->when(($participant instanceof ChatParticipant),
+                function ($query) use ($participant, $selfInstance) {
+
+                    // Needs to be a where group to support the case where the participant is not deleted
+                    $query->where(function ($query) use ($participant, $selfInstance) {
+                        $query->where($selfInstance->getQualifiedCreatedAtColumn(), '<=', $participant->qualifyColumn('read_at'))
+                            ->orWhereNull($participant->qualifyColumn('read_at'));
+                    });
+                },
+                // If we have a ChatParticipantInterface, we need to do this dynamically - because we need to join/match on the chatroom_id column in the ChatMessage
+                function ($query) use ($participant, $selfInstance, $instance) {
+                    $query->where(function ($query) use ($participant, $selfInstance, $instance) {
+                        $query->where($selfInstance->getQualifiedCreatedAtColumn(), '>', function ($query) use ($participant, $instance, $selfInstance) {
+                            $query->select($instance->qualifyColumn('read_at'))
+                                ->from($instance->getTable())
+                                ->whereColumn('chatroom_id', $selfInstance->qualifyColumn('chatroom_id'))
+                                ->where('participant_id', $participant->getKey())
+                                ->where('participant_type', $participant->getMorphClass());
+                        })->orWhereRaw('(
+                            SELECT '.$instance->qualifyColumn('read_at').'
                             FROM '.$instance->getTable().'
                             WHERE '.$instance->getTable().'.chatroom_id = '.$selfInstance->qualifyColumn('chatroom_id').'
                               AND participant_id = ?
