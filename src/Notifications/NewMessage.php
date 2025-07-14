@@ -7,7 +7,6 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Support\Facades\Log;
 use Mmedia\LaravelChat\Http\Resources\MessageResource;
 use Mmedia\LaravelChat\Models\ChatMessage;
 use Mmedia\LaravelChat\Models\ChatParticipant;
@@ -50,8 +49,6 @@ class NewMessage extends Notification implements ShouldQueue
         }
 
         if (! $connected) {
-            Log::info('Participant is not connected via sockets, not sending notification.');
-
             // Check if the WebPush channel class exists before adding it.
             // Use the fully qualified class name as a string.
             if (class_exists(\NotificationChannels\WebPush\WebPushChannel::class)) {
