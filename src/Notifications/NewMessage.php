@@ -80,9 +80,9 @@ class NewMessage extends Notification implements ShouldQueue
 
         return (new $webPushMessageClass)
             // The title is the name of the sender
-            ->title($this->message->sender->display_name.' in '.($this->message->chatroom->name ?? 'Chat'))
+            ->title(($this->message->sender?->display_name ?? 'System').' in '.($this->message->chatroom->name ?? 'Chat'))
             // The icon can be a URL to an image or a path to an asset
-            ->icon($this->message->sender->avatar_url ?? (config('app.url').'/icon.png'))
+            ->icon($this->message->sender?->avatar_url ?? (config('app.url').'/icon.png'))
             // The body is the message content
             ->body($this->message->message)
             // The action is a button that the user can click
@@ -95,7 +95,7 @@ class NewMessage extends Notification implements ShouldQueue
      */
     public function toMail(object $notifiable): MailMessage
     {
-        $senderName = $this->message->sender->display_name ?? 'Unknown Sender';
+        $senderName = $this->message->sender?->display_name ?? 'Unknown Sender';
 
         return (new MailMessage)
             ->subject($senderName.' Sent You a New Message')
@@ -115,7 +115,7 @@ class NewMessage extends Notification implements ShouldQueue
             'chatroom_id' => $this->message->chatroom_id,
             'sender_id' => $this->message->sender_id,
             'created_at' => $this->message->created_at,
-            'display_name' => $this->message->sender->display_name,
+            'display_name' => $this->message->sender?->display_name ?? 'System',
         ];
     }
 
