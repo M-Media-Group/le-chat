@@ -389,6 +389,8 @@ The default notification is `\Mmedia\LaravelChat\Notifications\NewMessage::class
 
 If you have broadcasting enabled, the notification will also broadcast the event to the notifiable via its private channel. The chatroom name uses the Laravel Broadcasting convention, so if your chat participant is a user, it will be something like `App.Models.User.{user_id}`.
 
+If you have `NotificationChannels\WebPush\WebPushChannel` installed, the notification will automatically be sent via web-push if the participant is not connected to the chatroom via sockets. This is useful for sending notifications to users who are not currently online in the chatroom.
+
 The listener is the perfect place to check if the user is currently connected to the chatroom, and if they are not, send them a Web Push notification for example.
 
 On a ChatParticipant, you can check `$chatParticipant->is_connected` to see if the participant is currently connected to the chatroom via sockets. Refer to the trait `ConnectsToBroadcast` for more information on how you can check connections on other channels.
