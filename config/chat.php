@@ -26,6 +26,13 @@ return [
     'create_system_messages' => true,
 
     /**
+     * Mark all previous messages as read for a given participant when that participant sends a message.
+     *
+     * LaravelChat uses a timestamp per channel-participant to determine if a message was sent after the participant joined the channel.
+     */
+    'update_sender_read_at_on_message_created' => true,
+
+    /**
      * The listener for new messages.
      *
      * This is used to broadcast new messages to the participants of the chatroom.

@@ -53,5 +53,12 @@ class LaravelChatServiceProvider extends PackageServiceProvider
                 $participantDeletedListener
             );
         }
+
+        if (config('chat.update_sender_read_at_on_message_created', true)) {
+            $this->app['events']->listen(
+                \Mmedia\LaravelChat\Events\MessageCreated::class,
+                \Mmedia\LaravelChat\Listeners\UpdatedChatParticipantReadAtOnMessageCreated::class
+            );
+        }
     }
 }
