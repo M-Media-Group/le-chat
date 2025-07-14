@@ -44,14 +44,14 @@ composer require mmedia/laravel-chat
 You can publish and run the migrations with:
 
 ```bash
-php artisan vendor:publish --tag="laravel-chat-migrations"
+php artisan vendor:publish --tag="chat-migrations"
 php artisan migrate
 ```
 
 You can publish the config file with:
 
 ```bash
-php artisan vendor:publish --tag="laravel-chat-config"
+php artisan vendor:publish --tag="chat-config"
 ```
 
 There are no views.
