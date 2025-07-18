@@ -420,17 +420,60 @@ trait IsChatParticipant
         return $participant ? $participant->is_connected : null;
     }
 
-    public function scopeWithUnreadMessagesCount($query)
+    public function scopeWhereHasUnreadMessages($query, ?int $daysAgo = null, bool $includeSystemMessages = false)
     {
-        return $query->withCount([
-            'messages as unread_messages_count' => fn ($query) => $query->canBeReadByParticipant($this)->unreadBy($this),
-        ]);
+        return $query->whereHas('messages', function ($messagesQuery) use ($daysAgo, $includeSystemMessages) {
+            $messagesTable = (new ChatMessage)->getTable();
+            $participantsTable = (new ChatParticipant)->getTable();
+
+            if ($daysAgo !== null) {
+                $messagesQuery->whereDate("{$messagesTable}.created_at", '>=', now()->subDays($daysAgo));
+            }
+
+            $messagesQuery->when(! $includeSystemMessages, function ($q) use ($messagesTable) {
+                // Exclude system messages
+                $q->whereNotNull("{$messagesTable}.sender_id");
+            });
+
+            // 1. Participant must not be the sender of the message.
+            // The sender_id on a chat_message links to a chat_participants.id.
+            $messagesQuery->whereColumn(
+                "{$messagesTable}.sender_id",
+                '!=',
+                "{$participantsTable}.id"
+            );
+
+            // 2. Message must have been created after the participant joined the room.
+            // This ensures the participant could have seen the message.
+            $messagesQuery->whereColumn(
+                "{$messagesTable}.created_at",
+                '>=',
+                "{$participantsTable}.created_at"
+            );
+
+            // 3. Message is newer than the read timestamp OR the read timestamp is NULL.
+            // This is the key fix to handle users who have never read the chat.
+            $messagesQuery->where(function ($q) use ($messagesTable, $participantsTable) {
+                $q->whereColumn("{$messagesTable}.created_at", '>', "{$participantsTable}.read_at")
+                    ->orWhereNull("{$participantsTable}.read_at");
+            });
+        });
     }
 
-    public function loadUnreadMessagesCount(): self
+    public function scopeWhereHasUnreadMessagesToday($query, bool $includeSystemMessages = false)
+    {
+        // Call the whereHasUnreadMessages method with 0 days ago to get today's unread messages
+        return $query->whereHasUnreadMessages(0, $includeSystemMessages);
+    }
+
+    public function loadUnreadMessagesCount(bool $includeSystemMessages = false): self
     {
         $this->loadCount([
-            'messages as unread_messages_count' => fn ($query) => $query->canBeReadByParticipant($this)->unreadBy($this),
+            'messages as unread_messages_count' => fn ($query) => $query->canBeReadByParticipant($this)->unreadBy($this)
+                ->when(! $includeSystemMessages, function ($q) {
+                    // Exclude system messages
+                    $q->whereNotNull('sender_id');
+                }),
         ]);
 
         return $this;

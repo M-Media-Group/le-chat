@@ -3,6 +3,7 @@
 namespace Mmedia\LaravelChat;
 
 use Mmedia\LaravelChat\Commands\LaravelChatCommand;
+use Mmedia\LaravelChat\Commands\NotifyUsersOfRecentUnreadMessages;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -21,7 +22,8 @@ class LaravelChatServiceProvider extends PackageServiceProvider
             ->hasViews()
             ->discoversMigrations()
             ->hasRoutes('channels', 'api')
-            ->hasCommand(LaravelChatCommand::class);
+            ->hasCommand(LaravelChatCommand::class)
+            ->hasCommand(NotifyUsersOfRecentUnreadMessages::class);
     }
 
     // The boot

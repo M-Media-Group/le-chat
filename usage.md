@@ -246,9 +246,38 @@ $student->markRead($message); // will mark the given message and any previous me
 $student->markReadUntil($chatroom, now()); // will mark all messages in the chatroom as read for the student, up until the current time
 ```
 
-#### Getting read messages
+#### Scoping to models that only have unread messages
+Sometimes you may want to notify your models via other channels that they have unread messages. To get all models that have unread messages in a chatroom, you can use the `whereHasUnreadMessages` scope on models using the `IsChatParticipant` trait.
+
 ```php
-$readMessages = $student->getReadMessages($chatroom); // will get all messages read by the student in the chatroom
+$users = User::whereHasUnreadMessagesToday()->get(); // unread messages sent today
+
+$users = User::whereHasUnreadMessages(7)->get(); // unread messages sent in the last 7 days
+```
+
+By default, system messages, i.e. messages without a sender, are excluded from the unread messages count. If you want to include them, you can pass `true` as the second parameter to the `whereHasUnreadMessages` method.
+
+```php
+$users = User::whereHasUnreadMessages(7, true)->get(); // unread messages sent in the last 7 days, including system messages
+$users = User::whereHasUnreadMessagesToday(true)->get(); // unread messages sent today, including system messages
+```
+
+#### Loading unread messages count
+You can load the unread messages count for a participant in a chatroom using the `loadUnreadMessagesCount` method. This will load the `unread_messages_count` attribute on the participant model.
+
+```php
+$student->loadUnreadMessagesCount(); // will load the unread messages count for the student in all chatrooms
+$student->loadUnreadMessagesCount(true); // will load the unread messages count for the student in all chatrooms, including system messages
+```
+
+#### Notifying users of unread messages
+If you are using the `IsChatParticipant` trait on your User model, you can take advantage of the already written `NotifyUsersOfRecentUnreadMessages` command to notify users of unread messages. This command will notify all users that have unread messages that were sent today by default, but you can change the number of days using the `--days` option.
+
+```bash
+php artisan laravel-chat:notify-users-of-recent-unread-messages --days=7
+
+# Or schedule the command to run daily
+$schedule->command('laravel-chat:notify-users-of-recent-unread-messages --days=7')->daily();
 ```
 
 ### Adding participants to a chatroom
