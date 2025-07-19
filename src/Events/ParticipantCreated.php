@@ -8,7 +8,6 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Broadcast;
-use Illuminate\Support\Facades\Log;
 use Mmedia\LaravelChat\Models\ChatParticipant;
 
 class ParticipantCreated implements ShouldBroadcast
@@ -27,10 +26,6 @@ class ParticipantCreated implements ShouldBroadcast
      */
     public function __construct(ChatParticipant $participant)
     {
-        Log::info('ParticipantCreated event fired', [
-            'participant_id' => $participant,
-            'chatroom_id' => $participant->chatroom_id,
-        ]);
         $this->participant = $participant;
         if (Broadcast::socket()) {
             $this->dontBroadcastToCurrentUser();

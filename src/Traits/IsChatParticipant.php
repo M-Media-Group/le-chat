@@ -309,8 +309,13 @@ trait IsChatParticipant
      *
      * @param  Chatroom|ChatParticipant|ChatParticipantInterface|ChatParticipantInterface[]  $recipient
      */
-    public function sendMessageTo(Chatroom|ChatParticipantInterface|array $recipient, string $message, bool $forceNewChannel = false, array $newChannelConfiguration = []): ChatMessage
-    {
+    public function sendMessageTo(
+        Chatroom|ChatParticipantInterface|array $recipient,
+        string $message,
+        bool $forceNewChannel = false,
+        array $newChannelConfiguration = [],
+        array $asParticipantConfiguration = []
+    ): ChatMessage {
         if ($recipient instanceof Chatroom) {
             return $this->sendMessageToChatRoom($recipient, $message);
         }
@@ -330,6 +335,7 @@ trait IsChatParticipant
             $bestChannel = Chatroom::create($newChannelConfiguration);
             // Add this model and the recipient to the chat room
             $this->chatParticipants()->create([
+                ...$asParticipantConfiguration,
                 'chatroom_id' => $bestChannel->getKey(),
                 'participant_id' => $this->getKey(),
                 'participant_type' => $this->getMorphClass(),

@@ -81,13 +81,14 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
     /**
      * Send a message as the system, unattached to any participant.
      */
-    public function sendMessage(string $message): ChatMessage
+    public function sendMessage(string $message, array $options = []): ChatMessage
     {
         $chatMessage = new ChatMessage([
             'sender_id' => null, // No sender, system message
             'chatroom_id' => $this->getKey(),
-            'message' => $message,
-        ]);
+        ])
+            ->forceFill($options)
+            ->setAttribute('message', $message);
 
         $chatMessage->save();
 

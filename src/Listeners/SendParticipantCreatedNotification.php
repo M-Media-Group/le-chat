@@ -21,6 +21,6 @@ class SendParticipantCreatedNotification implements ShouldQueue
         // For each participant in the chatroom, send a notification
         $chatroom = $event->participant->chatroom;
 
-        $chatroom->sendMessage("{$event->participant->display_name} has joined the chat.");
+        $chatroom->sendMessage("{$event->participant->display_name} has joined the chat.", ['created_at' => $event->participant->created_at]);
     }
 }

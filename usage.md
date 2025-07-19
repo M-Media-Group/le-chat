@@ -108,6 +108,17 @@ $messageId = $teacher->sendMessageTo($student, $message, true, [
     ],
 ]); // will create a new chatroom with the given name, description and metadata
 
+$messageId = $teacher->sendMessageTo($student, $message, true, [
+    'name' => 'My custom chatroom name',
+    'description' => 'My custom chatroom description',
+    'metadata' => [
+        'foo' => 'bar',
+    ],
+], [
+    'display_name' => 'Biology Teacher',
+]); // will create a new chatroom with the given name, description and metadata, and will add the teacher as a participant with the given display name. The display name will be used to display the teacher in the chatroom, instead of the model's name.
+```
+
 $messageId = $teacher->sendMessageTo([$studentA, $studentB], $message); // will re-use the latest chatroom where only the teacher and both students are in, or if not found, will create a new chatroom with both participants. The new chatroom will be created with the teacher as the owner and the students as participantss
 
 $messageId = $teacher->sendMessageTo($chatroom, $message); // will send the message to the given chatroom. If the teacher is not a participant of the chatroom, it will be added as a participant with the default role (e.g. `participant`).
@@ -128,6 +139,10 @@ $messageId = $chatroom->sendMessageAs($teacher, $message); // will send the mess
 
 // You can send a system message, which is a message that has neither an internal polymorphic relationship nor an external relationship/ID.
 $messageId = $chatroom->sendMessage("Class postponed due to snow."); // will send a system message to the chatroom (not tied to a user)
+
+$messageId = $chatroom->sendMessage("Welcome to class!", [
+    'created_at' => now()->subDays(1), // You can set the created_at date to a specific date, e.g. one day ago
+]);
 ```
 
 #### Send a message to many users
