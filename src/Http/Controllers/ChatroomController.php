@@ -2,8 +2,8 @@
 
 namespace Mmedia\LaravelChat\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
 use Mmedia\LaravelChat\Http\Resources\ChatroomResource;
 use Mmedia\LaravelChat\Models\ChatParticipant;
 use Mmedia\LaravelChat\Models\Chatroom;
@@ -12,12 +12,12 @@ class ChatroomController extends Controller
 {
     /**
      * Display a listing of the chatrooms.
-     *
-     * @return \Illuminate\Http\Response
      */
-    public function index(Request $request)
+    public function index(Request $request): \Illuminate\Http\Resources\Json\AnonymousResourceCollection
     {
+        /** @var \Mmedia\LaravelChat\Contracts\ChatParticipantInterface */
         $user = $request->user();
+
         $chatrooms = Chatroom::havingParticipants([$user], true)
             ->with([
                 'participants',
@@ -33,11 +33,10 @@ class ChatroomController extends Controller
 
     /**
      * Show the form for creating a new chatroom.
-     *
-     * @return \Illuminate\Http\Response
      */
-    public function show(Request $request, Chatroom $chatroom)
+    public function show(Request $request, Chatroom $chatroom): ChatroomResource|\Illuminate\Http\JsonResponse
     {
+        /** @var \Mmedia\LaravelChat\Contracts\ChatParticipantInterface */
         $user = $request->user();
 
         if (! $chatroom->hasOrHadParticipant($user)) {
@@ -51,7 +50,10 @@ class ChatroomController extends Controller
         return new ChatroomResource($chatroom);
     }
 
-    public function store(Request $request)
+    /**
+     * Store a newly created chatroom in storage.
+     */
+    public function store(Request $request): \Illuminate\Http\JsonResponse
     {
         $request->validate([
             'name' => 'required|string|max:255',
@@ -60,14 +62,22 @@ class ChatroomController extends Controller
 
         $chatroom = Chatroom::create($request->only('name', 'description'));
 
+        /** @var \Mmedia\LaravelChat\Contracts\ChatParticipantInterface */
         $user = $request->user();
+
         $chatroom->addParticipant($user, 'admin');
 
         return response()->json($chatroom, 201);
     }
 
-    public function storeMessage(Request $request)
+    /**
+     * Store a message in the chatroom.
+     */
+    public function storeMessage(Request $request): \Illuminate\Http\JsonResponse
     {
+        /** @var \Mmedia\LaravelChat\Contracts\ChatParticipantInterface */
+        $user = $request->user();
+
         $request->validate([
             'to_entity_type' => 'required|string|in:chatroom,chat_participant',
             'to_entity_id' => 'required|integer',
@@ -79,7 +89,7 @@ class ChatroomController extends Controller
             : ChatParticipant::findOrFail($request->to_entity_id);
 
         try {
-            $request->user()->sendMessageTo(
+            $user->sendMessageTo(
                 $model,
                 $request->message
             );
@@ -90,8 +100,12 @@ class ChatroomController extends Controller
         }
     }
 
-    public function markAsRead(Request $request, Chatroom $chatroom)
+    /**
+     * Mark the chatroom as read.
+     */
+    public function markAsRead(Request $request, Chatroom $chatroom): \Illuminate\Http\JsonResponse
     {
+        /** @var \Mmedia\LaravelChat\Contracts\ChatParticipantInterface */
         $user = $request->user();
 
         if (! $chatroom->hasOrHadParticipant($user)) {

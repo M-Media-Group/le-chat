@@ -22,7 +22,12 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
         'created' => \Mmedia\LaravelChat\Events\MessageCreated::class,
     ];
 
-    public function chatroom()
+    /**
+     * The chatroom this message belongs to.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Chatroom, $this>
+     */
+    public function chatroom(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Chatroom::class);
     }
