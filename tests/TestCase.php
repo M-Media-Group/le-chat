@@ -1,9 +1,9 @@
 <?php
 
-namespace Mmedia\LaravelChat\Tests;
+namespace Mmedia\LeChat\Tests;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Mmedia\LaravelChat\LaravelChatServiceProvider;
+use Mmedia\LeChat\LeChatServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 class TestCase extends Orchestra
@@ -13,14 +13,14 @@ class TestCase extends Orchestra
         parent::setUp();
 
         Factory::guessFactoryNamesUsing(
-            fn (string $modelName) => 'Mmedia\\LaravelChat\\Database\\Factories\\'.class_basename($modelName).'Factory'
+            fn(string $modelName) => 'Mmedia\\LeChat\\Database\\Factories\\' . class_basename($modelName) . 'Factory'
         );
     }
 
     protected function getPackageProviders($app)
     {
         return [
-            LaravelChatServiceProvider::class,
+            LeChatServiceProvider::class,
         ];
     }
 

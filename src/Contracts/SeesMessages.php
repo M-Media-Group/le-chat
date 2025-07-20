@@ -1,9 +1,9 @@
 <?php
 
-namespace Mmedia\LaravelChat\Contracts;
+namespace Mmedia\LeChat\Contracts;
 
 use Illuminate\Database\Eloquent\Collection;
-use Mmedia\LaravelChat\Models\Chatroom;
+use Mmedia\LeChat\Models\Chatroom;
 
 interface SeesMessages
 {

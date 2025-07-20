@@ -1,15 +1,15 @@
 ---
 title: Notifications
-description: Documentation for Laravel Chat notifications.
+description: Documentation for Le Chat notifications.
 ---
 
 ## Introduction
-Laravel Chat provides a powerful notification system that allows you to send notifications to chat participants when certain events occur, such as when a new message is sent or when a participant is added to a chatroom.
+Le Chat provides a powerful notification system that allows you to send notifications to chat participants when certain events occur, such as when a new message is sent or when a participant is added to a chatroom.
 
 ## Checking a Participant's Notifiability
 Because a participant can be linked to any model or no model at all, it may or may not be notifiable. To determine this you'd need to check if the model uses the Laravel `Notifiable` trait.
 
-Laravel Chat provides a convenient method to check if a `ChatParticipant` is linked to a model that is notifiable:
+Le Chat provides a convenient method to check if a `ChatParticipant` is linked to a model that is notifiable:
 ```php
 if ($chatParticipant->is_notifiable) {
     // The linked model is notifiable, so you can send notifications to it with $chatParticipant->participatingModel->notify();
@@ -36,7 +36,7 @@ foreach ($notifiableParticipants as $participant) {
 ```
 
 ## Default New Message Notification
-The default notification is `\Mmedia\LaravelChat\Notifications\NewMessage::class`, which will send a notification to each of the participants personal channels when a new message is created, except the sender of the message, via the [Broadcasting](/broadcasting) channel.
+The default notification is `\Mmedia\LeChat\Notifications\NewMessage::class`, which will send a notification to each of the participants personal channels when a new message is created, except the sender of the message, via the [Broadcasting](/broadcasting) channel.
 
 If you have `WebPush` channel installed, the notification will automatically be sent via web-push if the participant is not connected to the chatroom via sockets. This is useful for sending notifications to users who are not currently online in the chatroom.
 
@@ -46,13 +46,13 @@ The `NewMessage` notification is sent to the personal channel of each participan
 This is useful to send notifications to participants who are currently online, but not connected to any chatroom via sockets, or to send notifications to participants who are not currently online at all via web-push, for example.
 
 ## Using Chatrooms as notification channels
-It can be helpful to use chatroom messages as a notification channel. Internally, LaravelChat does this when new participants are added or removed from a chatroom to create system-messages about these events.
+It can be helpful to use chatroom messages as a notification channel. Internally, LeChat does this when new participants are added or removed from a chatroom to create system-messages about these events.
 
 You can use the `ChatroomChannel` notification channel to send notifications to a chatroom. This channel will automatically create a new message in the chatroom with the notification data.
 
 ```php
-use Mmedia\LaravelChat\Notifications\ChatroomChannel;
-use Mmedia\LaravelChat\Notifications\ChatroomChannelMessage;
+use Mmedia\LeChat\Notifications\ChatroomChannel;
+use Mmedia\LeChat\Notifications\ChatroomChannelMessage;
 
     public function via(object $notifiable): array
     {

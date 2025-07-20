@@ -1,6 +1,6 @@
 <?php
 
-namespace Mmedia\LaravelChat\Events;
+namespace Mmedia\LeChat\Events;
 
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
@@ -8,8 +8,8 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Broadcast;
-use Mmedia\LaravelChat\Http\Resources\ChatParticipantResource;
-use Mmedia\LaravelChat\Models\ChatParticipant;
+use Mmedia\LeChat\Http\Resources\ChatParticipantResource;
+use Mmedia\LeChat\Models\ChatParticipant;
 
 class ParticipantDeleted implements ShouldBroadcast
 {

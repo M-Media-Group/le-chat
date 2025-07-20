@@ -1,6 +1,6 @@
-# Laravel Chat
+# Le Chat
 
-**Laravel Chat** adds rich, flexible chat functionality to your Laravel application with minimal setup and maximum customization. Whether you're building one-on-one messaging, group chatrooms, or bot integrations, this package gives you the tools to implement powerful conversations between any models in your app.
+**Le Chat** adds rich, flexible chat functionality to your Laravel application with minimal setup and maximum customization. Whether you're building one-on-one messaging, group chatrooms, or bot integrations, this package gives you the tools to implement powerful conversations between any models in your app.
 
 ---
 
@@ -68,7 +68,7 @@ Easily send messages to:
 
 ## 🔥 Why Not Chatify?
 
-Unlike [Chatify](https://github.com/munafio/chatify), Laravel Chat **does not limit messages to one sender and one recipient**. This package supports:
+Unlike [Chatify](https://github.com/munafio/chatify), Le Chat **does not limit messages to one sender and one recipient**. This package supports:
 
 * Multi-participant chatrooms
 * Flexible polymorphic model support
@@ -88,7 +88,7 @@ See the complete usage guide for in-depth examples, APIs, and advanced features:
 
 * [Wirechat](https://github.com/namumakwembo/wirechat) — Livewire-heavy
 * [Musonza Chat](https://github.com/musonza/chat) — Feature-rich but complex
-* Laravel Chat — **Simple API, full flexibility, no view layer**
+* Le Chat — **Simple API, full flexibility, no view layer**
 
 ---
 

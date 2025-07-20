@@ -1,12 +1,12 @@
 <?php
 
-namespace Mmedia\LaravelChat\Http\Controllers;
+namespace Mmedia\LeChat\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Mmedia\LaravelChat\Http\Resources\ChatroomResource;
-use Mmedia\LaravelChat\Models\ChatParticipant;
-use Mmedia\LaravelChat\Models\Chatroom;
+use Mmedia\LeChat\Http\Resources\ChatroomResource;
+use Mmedia\LeChat\Models\ChatParticipant;
+use Mmedia\LeChat\Models\Chatroom;
 
 class ChatroomController extends Controller
 {
@@ -15,7 +15,7 @@ class ChatroomController extends Controller
      */
     public function index(Request $request): \Illuminate\Http\Resources\Json\AnonymousResourceCollection
     {
-        /** @var \Mmedia\LaravelChat\Contracts\ChatParticipantInterface */
+        /** @var \Mmedia\LeChat\Contracts\ChatParticipantInterface */
         $user = $request->user();
 
         $chatrooms = Chatroom::havingParticipants([$user], true)
@@ -36,7 +36,7 @@ class ChatroomController extends Controller
      */
     public function show(Request $request, Chatroom $chatroom): ChatroomResource|\Illuminate\Http\JsonResponse
     {
-        /** @var \Mmedia\LaravelChat\Contracts\ChatParticipantInterface */
+        /** @var \Mmedia\LeChat\Contracts\ChatParticipantInterface */
         $user = $request->user();
 
         if (! $chatroom->hasOrHadParticipant($user)) {
@@ -62,7 +62,7 @@ class ChatroomController extends Controller
 
         $chatroom = Chatroom::create($request->only('name', 'description'));
 
-        /** @var \Mmedia\LaravelChat\Contracts\ChatParticipantInterface */
+        /** @var \Mmedia\LeChat\Contracts\ChatParticipantInterface */
         $user = $request->user();
 
         $chatroom->addParticipant($user, 'admin');
@@ -75,7 +75,7 @@ class ChatroomController extends Controller
      */
     public function storeMessage(Request $request): \Illuminate\Http\JsonResponse
     {
-        /** @var \Mmedia\LaravelChat\Contracts\ChatParticipantInterface */
+        /** @var \Mmedia\LeChat\Contracts\ChatParticipantInterface */
         $user = $request->user();
 
         $request->validate([
@@ -105,7 +105,7 @@ class ChatroomController extends Controller
      */
     public function markAsRead(Request $request, Chatroom $chatroom): \Illuminate\Http\JsonResponse
     {
-        /** @var \Mmedia\LaravelChat\Contracts\ChatParticipantInterface */
+        /** @var \Mmedia\LeChat\Contracts\ChatParticipantInterface */
         $user = $request->user();
 
         if (! $chatroom->hasOrHadParticipant($user)) {

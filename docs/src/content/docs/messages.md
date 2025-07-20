@@ -1,20 +1,20 @@
 ---
 title: Messages
-description: Documentation for managing chat messages in Laravel Chat.
+description: Documentation for managing chat messages in Le Chat.
 ---
 
 ## Introduction
-Laravel Chat allows you to manage messages between chat participants. This includes sending, receiving, and storing messages in a chat application.
+Le Chat allows you to manage messages between chat participants. This includes sending, receiving, and storing messages in a chat application.
 
 ## Seeing messages
-Messages are just another model in Laravel Chat, and you can retrieve them using the `ChatMessage` model.
+Messages are just another model in Le Chat, and you can retrieve them using the `ChatMessage` model.
 ```php
-use \Mmedia\LaravelChat\Models\ChatMessage;
+use \Mmedia\LeChat\Models\ChatMessage;
 
 ChatMessage::get();
 ```
 ### Message visibility
-Not all messages should be visible to all participants. Laravel Chat automatically handles message visibility based on the participants in a chatroom.
+Not all messages should be visible to all participants. Le Chat automatically handles message visibility based on the participants in a chatroom.
 
 Messages are visible to participants who are part of the chatroom. Only messages from between the time a participant joins the chatroom and potentially leaves it are visible to them. This means that if a participant joins a chatroom after messages have been sent, they will not see those previous messages.
 
@@ -47,7 +47,7 @@ $messages = ChatMessage::query()
             ->get();
 ```
 
-Note that you should prefer to use the `visibleTo` method as these internal methods are subject to change in future versions of Laravel Chat.
+Note that you should prefer to use the `visibleTo` method as these internal methods are subject to change in future versions of Le Chat.
 
 ### Getting messages sent by a participant
 If you want to retrieve only the messages sent by a specific participant, you can use the `sentBy` method:

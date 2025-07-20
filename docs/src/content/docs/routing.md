@@ -1,6 +1,6 @@
 ---
 title: Routing
-description: Documentation for Laravel Chat routing.
+description: Documentation for Le Chat routing.
 ---
 
 :::note
@@ -8,12 +8,12 @@ This section assumes that your auth model (e.g. User) is configured for chatting
 :::
 
 ## Introduction
-Laravel Chat provides a powerful notification system that allows you to send notifications to chat participants when certain events occur, such as when a new message is sent or when a participant is added to a chatroom.
+Le Chat provides a powerful notification system that allows you to send notifications to chat participants when certain events occur, such as when a new message is sent or when a participant is added to a chatroom.
 
 These routes are automatically registered by the package.
 
 ## Available Routes
-Laravel Chat provides a set of API routes that you can use to interact with the chat system.
+Le Chat provides a set of API routes that you can use to interact with the chat system.
 
 ### GET /api/chatrooms
 Retrieves a list of all chatrooms that the authenticated user is a participant in or was a participant in previously. This route is useful for displaying a list of chatrooms in your application. It includes the latest_message visible to the user, the participants, and the unread messages count.
@@ -113,4 +113,4 @@ The required parameters are:
 - `message`: The content of the message to be sent.
 
 ## Missing routes
-Laravel Chat does not implement routes for adding or removing participants from chatrooms on purpose, as this will highly depend on your application logic and requirements. You can implement these routes in your application as needed.
+Le Chat does not implement routes for adding or removing participants from chatrooms on purpose, as this will highly depend on your application logic and requirements. You can implement these routes in your application as needed.

@@ -1,6 +1,6 @@
 <?php
 
-namespace Mmedia\LaravelChat\Http\Resources;
+namespace Mmedia\LeChat\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;

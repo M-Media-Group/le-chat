@@ -1,8 +1,8 @@
 <?php
 
-namespace Mmedia\LaravelChat\Listeners;
+namespace Mmedia\LeChat\Listeners;
 
-use Mmedia\LaravelChat\Events\MessageCreated;
+use Mmedia\LeChat\Events\MessageCreated;
 
 class UpdatedChatParticipantReadAtOnMessageCreated
 {

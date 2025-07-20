@@ -1,19 +1,19 @@
 ---
 title: Chatrooms
-description: Documentation for managing chatrooms in Laravel Chat.
+description: Documentation for managing chatrooms in Le Chat.
 ---
 
 ## Introduction
-Laravel Chat allows you to create and manage chatrooms, enabling group conversations among multiple participants. This feature is essential for applications that require collaborative communication.
+Le Chat allows you to create and manage chatrooms, enabling group conversations among multiple participants. This feature is essential for applications that require collaborative communication.
 
-You don't actually need to use chatrooms to send messages, as Laravel Chat [automatically resolves chatrooms](/messages) when sending messages.
+You don't actually need to use chatrooms to send messages, as Le Chat [automatically resolves chatrooms](/messages) when sending messages.
 
 ## Creating a Chatroom
 
 To create a chatroom, you can use the `Chatroom` model. Here's an example of how to create a new chatroom:
 
 ```php
-use Mmedia\LaravelChat\Models\Chatroom;
+use Mmedia\LeChat\Models\Chatroom;
 
 $chatroom = Chatroom::create([
     'name' => 'General Chat',
@@ -73,7 +73,7 @@ $chatroom->syncParticipants([$teacher, $student], 'admin');
 You can retrieve a chatroom by its participants using the `Chatroom` model's `whereParticipants` method. This is useful when you want to find an existing chatroom for a specific set of participants.
 
 ```php
-use Mmedia\LaravelChat\Models\Chatroom;
+use Mmedia\LeChat\Models\Chatroom;
 
 $chatroom = Chatroom::havingExactlyParticipants([$teacher, $student])->first();
 ```

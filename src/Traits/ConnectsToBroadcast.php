@@ -1,6 +1,6 @@
 <?php
 
-namespace Mmedia\LaravelChat\Traits;
+namespace Mmedia\LeChat\Traits;
 
 use Illuminate\Contracts\Broadcasting\HasBroadcastChannel;
 use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
@@ -64,13 +64,13 @@ trait ConnectsToBroadcast
         try {
             $rawPusher = $instance->getPusher();
             $isPrivate = $type === 'private';
-            $channelPath = $isPrivate ? 'private-'.$channelName : 'presence-'.$channelName.'/users';
+            $channelPath = $isPrivate ? 'private-' . $channelName : 'presence-' . $channelName . '/users';
             $response = $rawPusher->get(
-                '/channels/'.$channelPath,
+                '/channels/' . $channelPath,
                 ['info' => 'users']
             );
 
-            Log::info('Response from Reverb: '.json_encode($response, JSON_PRETTY_PRINT));
+            Log::info('Response from Reverb: ' . json_encode($response, JSON_PRETTY_PRINT));
 
             if ($isPrivate) {
                 return $response->occupied;
@@ -83,7 +83,7 @@ trait ConnectsToBroadcast
             });
         } catch (\Exception $e) {
             // An exception may occur if the channel does not exist or the user is not connected, hence why we treat it as a non-connected state
-            Log::error('Error checking participant connection status for channel '.$channelName.': '.$e->getMessage());
+            Log::error('Error checking participant connection status for channel ' . $channelName . ': ' . $e->getMessage());
             // If the connection is not established, return false
             $isConnected = false;
         }
@@ -97,7 +97,7 @@ trait ConnectsToBroadcast
     protected function isConnected(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->getIsConnectedViaSockets()
+            get: fn() => $this->getIsConnectedViaSockets()
         )->shouldCache();
     }
 }

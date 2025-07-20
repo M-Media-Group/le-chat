@@ -1,13 +1,13 @@
 ---
 title: Your first conversation
-description: Documentation for installing Laravel Chat.
+description: Documentation for installing Le Chat.
 ---
 
 ## Introduction
-Laravel Chat is designed to make it super easy to start a conversation between any two or more chat participants. This guide will walk you through the steps to create your first conversation.
+Le Chat is designed to make it super easy to start a conversation between any two or more chat participants. This guide will walk you through the steps to create your first conversation.
 
 ## Send your first message
-After you've [installed Laravel Chat](/installation) and [configured your models](/configuring-models), you can start sending messages directly between models.
+After you've [installed Le Chat](/installation) and [configured your models](/configuring-models), you can start sending messages directly between models.
 
 ```php
 use App\Models\User;
@@ -17,7 +17,7 @@ $recipient = AnotherModel::find(2);
 
 $sender->sendMessageTo($recipient, 'Hello, how are you?');
 ```
-Behind the scenes, Laravel Chat will automatically create a chatroom, add you and the recipient to it, and send the message to the chatroom.
+Behind the scenes, Le Chat will automatically create a chatroom, add you and the recipient to it, and send the message to the chatroom.
 
 ## Replying to a Message
 
@@ -26,7 +26,7 @@ Replying is as simple as sending a message back:
 ```php
 $message = $recipient->sendMessageTo($sender, 'I am fine, thank you!');
 ```
-Laravel Chat will automatically find the correct chatroom for the participants and send the message.
+Le Chat will automatically find the correct chatroom for the participants and send the message.
 
 ## Adding a third participant
 

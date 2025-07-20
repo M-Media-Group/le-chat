@@ -1,9 +1,9 @@
 <?php
 
-namespace Mmedia\LaravelChat\Notifications;
+namespace Mmedia\LeChat\Notifications;
 
 use Illuminate\Notifications\Notification;
-use Mmedia\LaravelChat\Models\Chatroom;
+use Mmedia\LeChat\Models\Chatroom;
 
 class ChatroomChannel
 {

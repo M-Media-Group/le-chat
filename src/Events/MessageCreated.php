@@ -1,6 +1,6 @@
 <?php
 
-namespace Mmedia\LaravelChat\Events;
+namespace Mmedia\LeChat\Events;
 
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
@@ -8,8 +8,8 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Broadcast;
-use Mmedia\LaravelChat\Http\Resources\MessageResource;
-use Mmedia\LaravelChat\Models\ChatMessage;
+use Mmedia\LeChat\Http\Resources\MessageResource;
+use Mmedia\LeChat\Models\ChatMessage;
 
 class MessageCreated implements ShouldBroadcastNow
 {

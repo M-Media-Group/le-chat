@@ -13,7 +13,7 @@ return new class extends Migration
 
             // The chatroom this participant belongs to
             $table->foreignIdFor(
-                \Mmedia\LaravelChat\Models\Chatroom::class,
+                \Mmedia\LeChat\Models\Chatroom::class,
                 'chatroom_id'
             )
                 ->constrained()

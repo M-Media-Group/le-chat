@@ -1,18 +1,18 @@
 ---
 title: Configure Models
-description: Documentation for installing Laravel Chat.
+description: Documentation for installing Le Chat.
 ---
 
 ## Introduction
-Laravel Chat allows you to make any model chattable, making it possible to have conversations with any model, and even any combination of models.
+Le Chat allows you to make any model chattable, making it possible to have conversations with any model, and even any combination of models.
 
 ## Configure a Model for Chatting
 
 First, prepare the models to send and receive messages. The models must use the `IsChatParticipant` trait. Also implement the `ChatParticipantInterface` interface in your models, which is a contract for all chat participants.
 
 ```diff lang="php" ins=" ChatParticipantInterface"
-+use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
-+use Mmedia\LaravelChat\Traits\IsChatParticipant;
++use Mmedia\LeChat\Contracts\ChatParticipantInterface;
++use Mmedia\LeChat\Traits\IsChatParticipant;
 
 class Teacher extends Model implements ChatParticipantInterface
 {

@@ -1,10 +1,10 @@
 ---
 title: Installation
-description: Documentation for installing Laravel Chat.
+description: Documentation for installing Le Chat.
 ---
 
 ## Installation
-Laravel Chat can be installed via Composer. First, ensure you meet the requirements for the package:
+Le Chat can be installed via Composer. First, ensure you meet the requirements for the package:
 - PHP 8.1 or higher
 - Laravel 11
 
@@ -19,4 +19,4 @@ php artisan vendor:publish --tag="chat-migrations"
 php artisan migrate
 ```
 
-That's it! Laravel Chat is now installed and ready to use.
+That's it! Le Chat is now installed and ready to use.

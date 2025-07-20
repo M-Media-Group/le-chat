@@ -1,10 +1,10 @@
 <?php
 
-namespace Mmedia\LaravelChat\Listeners;
+namespace Mmedia\LeChat\Listeners;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Mmedia\LaravelChat\Events\MessageCreated;
-use Mmedia\LaravelChat\Notifications\NewMessage;
+use Mmedia\LeChat\Events\MessageCreated;
+use Mmedia\LeChat\Notifications\NewMessage;
 
 class SendMessageCreatedNotification implements ShouldQueue
 {

@@ -1,10 +1,10 @@
 <?php
 
-namespace Mmedia\LaravelChat\Contracts;
+namespace Mmedia\LeChat\Contracts;
 
 use Illuminate\Support\Collection;
-use Mmedia\LaravelChat\Models\ChatMessage;
-use Mmedia\LaravelChat\Models\Chatroom;
+use Mmedia\LeChat\Models\ChatMessage;
+use Mmedia\LeChat\Models\Chatroom;
 
 interface TargetedMessageSender
 {

@@ -1,10 +1,10 @@
 <?php
 
-namespace Mmedia\LaravelChat\Contracts;
+namespace Mmedia\LeChat\Contracts;
 
 use Illuminate\Database\Eloquent\Relations\MorphMany;
-use Mmedia\LaravelChat\Models\ChatParticipant;
-use Mmedia\LaravelChat\Models\Chatroom;
+use Mmedia\LeChat\Models\ChatParticipant;
+use Mmedia\LeChat\Models\Chatroom;
 
 /**
  * @template T of \Illuminate\Database\Eloquent\Model

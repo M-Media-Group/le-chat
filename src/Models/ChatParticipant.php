@@ -1,13 +1,13 @@
 <?php
 
-namespace Mmedia\LaravelChat\Models;
+namespace Mmedia\LeChat\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
-use Mmedia\LaravelChat\Traits\ConnectsToBroadcast;
-use Mmedia\LaravelChat\Traits\IsChatParticipant;
+use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Traits\ConnectsToBroadcast;
+use Mmedia\LeChat\Traits\IsChatParticipant;
 
 class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements ChatParticipantInterface
 {
@@ -34,8 +34,8 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
     ];
 
     protected $dispatchesEvents = [
-        'created' => \Mmedia\LaravelChat\Events\ParticipantCreated::class,
-        'deleted' => \Mmedia\LaravelChat\Events\ParticipantDeleted::class,
+        'created' => \Mmedia\LeChat\Events\ParticipantCreated::class,
+        'deleted' => \Mmedia\LeChat\Events\ParticipantDeleted::class,
     ];
 
     /**
@@ -127,7 +127,7 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
     protected function isConnected(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->getIsConnectedViaSockets(
+            get: fn() => $this->getIsConnectedViaSockets(
                 localId: 'participant_id',
                 channelName: $this->chatroom->broadcastChannel(),
                 type: 'presence'
@@ -148,21 +148,21 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
     protected function displayName(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->getRawOriginal('display_name') ?? $this->getDisplayName()
+            get: fn() => $this->getRawOriginal('display_name') ?? $this->getDisplayName()
         )->shouldCache();
     }
 
     protected function avatarUrl(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->getRawOriginal('avatar_url') ?? $this->getAvatarUrl()
+            get: fn() => $this->getRawOriginal('avatar_url') ?? $this->getAvatarUrl()
         )->shouldCache();
     }
 
     protected function canManageParticipants(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->role === 'admin'
+            get: fn() => $this->role === 'admin'
         )->shouldCache();
     }
 
@@ -172,7 +172,7 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
     protected function isNotifiable(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->participant_type && in_array(
+            get: fn() => $this->participant_type && in_array(
                 \Illuminate\Notifications\Notifiable::class,
                 class_uses_recursive($this->participant_type)
             )

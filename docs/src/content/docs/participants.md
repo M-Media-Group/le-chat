@@ -1,10 +1,10 @@
 ---
 title: Participants
-description: Documentation for managing chat participants in Laravel Chat.
+description: Documentation for managing chat participants in Le Chat.
 ---
 
 ## Introduction
-Laravel Chat is designed to allow any model to be a chat participant. This means you can have conversations with users, models, or any combination of models that implement the necessary interfaces and traits.
+Le Chat is designed to allow any model to be a chat participant. This means you can have conversations with users, models, or any combination of models that implement the necessary interfaces and traits.
 
 For the purposes of this documentation, we will use the example of a `Teacher` and a `Student` model as the [configured models](#configuring-a-model-for-chatting).
 
@@ -17,7 +17,7 @@ Once your models are configured, you can send messages between them. Here's an e
 ```php
 $teacher->sendMessageTo($student, 'Hello, how are you?');
 ```
-Behind the scenes, Laravel Chat will automatically create a chatroom, add you and the recipient to it, and send the message to the chatroom.
+Behind the scenes, Le Chat will automatically create a chatroom, add you and the recipient to it, and send the message to the chatroom.
 
 You can also pass a chatroom directly if you want to send a message to a specific chatroom:
 
@@ -26,9 +26,9 @@ $teacher->sendMessageTo($chatroom, 'Hi class!');
 ```
 
 ### The message lifecycle
-When you send a message, Laravel Chat will automatically create a chatroom if one doesn't already exist between only the participants and the sender.
+When you send a message, Le Chat will automatically create a chatroom if one doesn't already exist between only the participants and the sender.
 
-If you send a message to a single participant, Laravel Chat will create a chatroom with just those two participants (the sender and the recipient). If you add another participant to the chatroom, the next time you `sendMessageTo` the original participant and NOT an array of all the participants, Laravel Chat will create a new private chatroom with just the sender and the participant.
+If you send a message to a single participant, Le Chat will create a chatroom with just those two participants (the sender and the recipient). If you add another participant to the chatroom, the next time you `sendMessageTo` the original participant and NOT an array of all the participants, Le Chat will create a new private chatroom with just the sender and the participant.
 
 ```php
 $firstMessage = $teacher->sendMessageTo($student, 'Hello!');
@@ -111,7 +111,7 @@ $users = User::whereHasUnreadMessages(7, true)->get(); // unread messages sent i
 ```
 
 ## Working with the intermediate morph model
-Laravel Chat uses an intermediate morph model called `ChatParticipant` to manage the relationships between your chattable models and the chatrooms they participate in.
+Le Chat uses an intermediate morph model called `ChatParticipant` to manage the relationships between your chattable models and the chatrooms they participate in.
 
 This model represents a participant in a chatroom and contains additional information such as the participant's join and leave timestamps, as well as their display name and avatar.
 
@@ -130,11 +130,11 @@ $participant = $chatParticipant->participatingModel; // Will return the original
 ```
 
 ### Customizing the display name and avatar
-By default, Laravel Chat will use the `name` or `email` attribute of your model as the display name and the `avatar_url` attribute as the avatar URL. However, you can customize this behavior by implementing the `getDisplayName` and `getAvatarUrl` methods in your model.
+By default, Le Chat will use the `name` or `email` attribute of your model as the display name and the `avatar_url` attribute as the avatar URL. However, you can customize this behavior by implementing the `getDisplayName` and `getAvatarUrl` methods in your model.
 
 ```diff lang="php"
-use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
-use Mmedia\LaravelChat\Traits\IsChatParticipant;
+use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Traits\IsChatParticipant;
 
 class Teacher implements ChatParticipantInterface
 {

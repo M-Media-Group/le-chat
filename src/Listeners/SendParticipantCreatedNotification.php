@@ -1,9 +1,9 @@
 <?php
 
-namespace Mmedia\LaravelChat\Listeners;
+namespace Mmedia\LeChat\Listeners;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Mmedia\LaravelChat\Events\ParticipantCreated;
+use Mmedia\LeChat\Events\ParticipantCreated;
 
 class SendParticipantCreatedNotification implements ShouldQueue
 {

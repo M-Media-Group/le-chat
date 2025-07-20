@@ -1,11 +1,11 @@
 <?php
 
-namespace Mmedia\LaravelChat\Notifications;
+namespace Mmedia\LeChat\Notifications;
 
 use Illuminate\Contracts\Support\Arrayable;
-use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
-use Mmedia\LaravelChat\Models\ChatParticipant;
-use Mmedia\LaravelChat\Models\Chatroom;
+use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Models\ChatParticipant;
+use Mmedia\LeChat\Models\Chatroom;
 
 class ChatroomChannelMessage implements Arrayable
 {

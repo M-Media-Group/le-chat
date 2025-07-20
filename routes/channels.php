@@ -1,12 +1,12 @@
 <?php
 
-namespace Mmedia\LaravelChat;
+namespace Mmedia\LeChat;
 
 use Illuminate\Support\Facades\Broadcast;
-use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
-use Mmedia\LaravelChat\Http\Resources\ChatParticipantResource;
-use Mmedia\LaravelChat\Models\ChatParticipant;
-use Mmedia\LaravelChat\Models\Chatroom;
+use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Http\Resources\ChatParticipantResource;
+use Mmedia\LeChat\Models\ChatParticipant;
+use Mmedia\LeChat\Models\Chatroom;
 
 Broadcast::channel((new Chatroom)->broadcastChannelRoute(), function (ChatParticipantInterface|ChatParticipant $user, Chatroom $chatroom) {
     return $chatroom->hasParticipant($user) ?

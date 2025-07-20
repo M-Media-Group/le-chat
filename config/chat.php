@@ -1,6 +1,6 @@
 <?php
 
-// config for Mmedia/LaravelChat
+// config for Mmedia/LeChat
 return [
     /**
      * Determines if, when looking for a best channel, the order we should apply. If true, if more than one channel matches, the latest updated channel will be used. If false, the first channel that matches will be used.
@@ -28,7 +28,7 @@ return [
     /**
      * Mark all previous messages as read for a given participant when that participant sends a message.
      *
-     * LaravelChat uses a timestamp per channel-participant to determine if a message was sent after the participant joined the channel.
+     * LeChat uses a timestamp per channel-participant to determine if a message was sent after the participant joined the channel.
      */
     'update_sender_read_at_on_message_created' => true,
 
@@ -39,7 +39,7 @@ return [
      *
      * Set to null to disable the listener.
      */
-    'new_message_listener' => \Mmedia\LaravelChat\Listeners\SendMessageCreatedNotification::class,
+    'new_message_listener' => \Mmedia\LeChat\Listeners\SendMessageCreatedNotification::class,
 
     /**
      * The listener for new participants.
@@ -48,7 +48,7 @@ return [
      *
      * Set to null to disable the listener.
      */
-    'new_participant_listener' => \Mmedia\LaravelChat\Listeners\SendParticipantCreatedNotification::class,
+    'new_participant_listener' => \Mmedia\LeChat\Listeners\SendParticipantCreatedNotification::class,
 
     /**
      * The listener for deleted participants.
@@ -57,5 +57,5 @@ return [
      *
      * Set to null to disable the listener.
      */
-    'participant_deleted_listener' => \Mmedia\LaravelChat\Listeners\SendParticipantDeletedNotification::class,
+    'participant_deleted_listener' => \Mmedia\LeChat\Listeners\SendParticipantDeletedNotification::class,
 ];

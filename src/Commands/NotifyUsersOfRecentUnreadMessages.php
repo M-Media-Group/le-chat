@@ -1,9 +1,9 @@
 <?php
 
-namespace Mmedia\LaravelChat\Commands;
+namespace Mmedia\LeChat\Commands;
 
 use Illuminate\Console\Command;
-use Mmedia\LaravelChat\Notifications\DailyUnreadMessagesNotification;
+use Mmedia\LeChat\Notifications\DailyUnreadMessagesNotification;
 
 class NotifyUsersOfRecentUnreadMessages extends Command
 {
@@ -14,7 +14,7 @@ class NotifyUsersOfRecentUnreadMessages extends Command
     public function handle(): int
     {
         // If the user class is not an instance of ChatParticipantInterface, throw an error
-        if (! class_exists(\App\Models\User::class) || ! is_subclass_of(\App\Models\User::class, \Mmedia\LaravelChat\Contracts\ChatParticipantInterface::class)) {
+        if (! class_exists(\App\Models\User::class) || ! is_subclass_of(\App\Models\User::class, \Mmedia\LeChat\Contracts\ChatParticipantInterface::class)) {
             $this->error('The User model must implement the ChatParticipantInterface contract to use this command.');
 
             return self::FAILURE;

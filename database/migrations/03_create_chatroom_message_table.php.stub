@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
 
             $table->foreignIdFor(
-                \Mmedia\LaravelChat\Models\ChatParticipant::class,
+                \Mmedia\LeChat\Models\ChatParticipant::class,
                 'sender_id'
             )
                 ->nullable()
@@ -20,7 +20,7 @@ return new class extends Migration
                 ->cascadeOnDelete();
 
             $table->foreignIdFor(
-                \Mmedia\LaravelChat\Models\Chatroom::class,
+                \Mmedia\LeChat\Models\Chatroom::class,
                 'chatroom_id'
             )
                 ->constrained()
@@ -31,7 +31,7 @@ return new class extends Migration
 
             // A reply to another message
             $table->foreignIdFor(
-                \Mmedia\LaravelChat\Models\ChatMessage::class,
+                \Mmedia\LeChat\Models\ChatMessage::class,
                 'reply_to_id'
             )
                 ->nullable()

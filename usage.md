@@ -1,10 +1,10 @@
 # Usage
-Laravel Chat allows you to add chat functionality to your Laravel application. It provides a simple and flexible API for sending and receiving messages between models.
+Le Chat allows you to add chat functionality to your Laravel application. It provides a simple and flexible API for sending and receiving messages between models.
 
 ```php
 $message = $user->sendMessageTo($otherUser, "Hello");
 
-// Super easy reply - LaravelChat automatically finds the latest chatroom between the two users and sends the message to it
+// Super easy reply - LeChat automatically finds the latest chatroom between the two users and sends the message to it
 $reply = $otherUser->sendMessageTo($user, "Hi there");
 
 // Get the messages on the other side
@@ -142,7 +142,7 @@ $messageId = $chatroom->sendMessage("Class postponed due to snow."); // will sen
 
 $messageId = $chatroom->sendMessage("Welcome to class!", [
     'created_at' => now()->subDays(1), // You can set the created_at date to a specific date, e.g. one day ago
-]);
+]); // will send a system message to the chatroom (not tied to a user)
 ```
 
 #### Send a message to many users
@@ -181,7 +181,7 @@ $messages = $chatroom->getMessages(10, 0); // will get the last 10 messages from
 ```php
 $messages = $student->getMessages();
 ```
-LaravelChat will automatically filter the messages to only include those that can be read by the participant. This means that if a message is not visible to the participant, it will not be included in the result.
+LeChat will automatically filter the messages to only include those that can be read by the participant. This means that if a message is not visible to the participant, it will not be included in the result.
 
 For example, you don't want a user that joined a chatroom recently to see messages that were sent before they joined the chatroom.
 
@@ -238,7 +238,7 @@ $messages = $teacher->getSentMessages(10); // will get the last 10 messages sent
 ```
 
 ### "Read" messages
-LaravelChat uses a `read_at` timestamp on the `ChatParticipant` model to track up to which point in time the participant has read the messages in the chatroom. This is useful to determine which messages are new and should be highlighted in the UI.
+LeChat uses a `read_at` timestamp on the `ChatParticipant` model to track up to which point in time the participant has read the messages in the chatroom. This is useful to determine which messages are new and should be highlighted in the UI.
 
 The design decision was taken deliberately - keeping track of each individual message read by each participant would cause a huge amount of database writes, especially on large chatrooms with many participants. Instead, we track the last read time for each participant in a chatroom, and use that to determine which messages are new.
 
@@ -385,7 +385,7 @@ $chatParticipant->getIsConnectedViaSockets(
 ```
 
 ### Check if a participant is notifiable
-A participant can be notifiable if the model that it refers to uses the native Laravel `Notifiable` trait. In LaravelChat, `ChatParticipant` is not always related to a model that can be notified, so you can check if a `ChatParticipant` is notifiable by checking the `is_notifiable` attribute.
+A participant can be notifiable if the model that it refers to uses the native Laravel `Notifiable` trait. In LeChat, `ChatParticipant` is not always related to a model that can be notified, so you can check if a `ChatParticipant` is notifiable by checking the `is_notifiable` attribute.
 
 ```php
 if ($chatParticipant->is_notifiable) {
@@ -406,16 +406,16 @@ foreach ($notifiableParticipants as $participant) {
 
 ## Events, listeners, and broadcasting
 ### New Message
-When a new message is created, the `\Mmedia\LaravelChat\Events\MessageCreated::class` event is fired. This event contains the `Message` model instance, which is an instance of `ChatMessage`.
+When a new message is created, the `\Mmedia\LeChat\Events\MessageCreated::class` event is fired. This event contains the `Message` model instance, which is an instance of `ChatMessage`.
 
 #### Event and chatroom broadcasting
-When a new message is created, the `\Mmedia\LaravelChat\Events\MessageCreated::class` event is fired. This event contains the `Message` model instance, which is an instance of `ChatMessage`.
+When a new message is created, the `\Mmedia\LeChat\Events\MessageCreated::class` event is fired. This event contains the `Message` model instance, which is an instance of `ChatMessage`.
 
-If you have broadcasting enabled, the event will be broadcasted to the chatroom chatroom. The chatroom name uses the Laravel Broadcasting convention, so it will be `Mmedia.LaravelChat.Models.Chatroom.{chatroom_id}`. This is a presence channel, so you can join it in your frontend application like this:
+If you have broadcasting enabled, the event will be broadcasted to the chatroom chatroom. The chatroom name uses the Laravel Broadcasting convention, so it will be `Mmedia.LeChat.Models.Chatroom.{chatroom_id}`. This is a presence channel, so you can join it in your frontend application like this:
 ```typescript
 import Echo from 'laravel-echo';
 
-Echo.join('Mmedia.LaravelChat.Models.Chatroom.1').here((users) => {
+Echo.join('Mmedia.LeChat.Models.Chatroom.1').here((users) => {
     console.log("Users in chatroom:", users);
 });
 ```
@@ -426,10 +426,10 @@ Note: even though you'll get messages here, its better to use the individual pri
 #### Default listener
 A default listener is provided to send a notification when a new message is created. You can customize this listener by changing the `chat.new_message_listener` config value in your `config/chat.php` file.
 
-The default listener is `\Mmedia\LaravelChat\Listeners\SendMessageCreatedNotification::class`, which will send the "Default notification" (or whatever you configured) to the participants of the chatroom when a new message is created. It will NOT send a notification to the sender of the message.
+The default listener is `\Mmedia\LeChat\Listeners\SendMessageCreatedNotification::class`, which will send the "Default notification" (or whatever you configured) to the participants of the chatroom when a new message is created. It will NOT send a notification to the sender of the message.
 
 #### Default notification
-The default notification is `\Mmedia\LaravelChat\Notifications\NewMessage::class`, which will send a notification to each of the participants of the chatroom when a new message is created, except the sender of the message.
+The default notification is `\Mmedia\LeChat\Notifications\NewMessage::class`, which will send a notification to each of the participants of the chatroom when a new message is created, except the sender of the message.
 
 If you have broadcasting enabled, the notification will also broadcast the event to the notifiable via its private channel. The chatroom name uses the Laravel Broadcasting convention, so if your chat participant is a user, it will be something like `App.Models.User.{user_id}`.
 
@@ -440,12 +440,12 @@ The listener is the perfect place to check if the user is currently connected to
 On a ChatParticipant, you can check `$chatParticipant->is_connected` to see if the participant is currently connected to the chatroom via sockets. Refer to the trait `ConnectsToBroadcast` for more information on how you can check connections on other channels.
 
 ### Using Chatrooms as notification channels
-It can be helpful to use chatroom messages as a notification channel. Internally, LaravelChat does this when new participants are added or removed from a chatroom to create system-messages about these events.
+It can be helpful to use chatroom messages as a notification channel. Internally, LeChat does this when new participants are added or removed from a chatroom to create system-messages about these events.
 You can use the `ChatroomChannel` notification channel to send notifications to a chatroom. This channel will automatically create a new message in the chatroom with the notification data.
 
 ```php
-use Mmedia\LaravelChat\Notifications\ChatroomChannel;
-use Mmedia\LaravelChat\Notifications\ChatroomChannelMessage;
+use Mmedia\LeChat\Notifications\ChatroomChannel;
+use Mmedia\LeChat\Notifications\ChatroomChannelMessage;
 
     public function via(object $notifiable): array
     {
@@ -497,4 +497,4 @@ This route is used to send a message to a chatroom or other entity. The request 
 
 An existing chat between the sender and the recipient will be used, or a new one will be created if it does not exist.
 
-- ``to_entity_type``: The type of the entity to send the message to (e.g. `Mmedia\LaravelChat\Models\Chatroom`, `Mmedia\LaravelChat\Models\ChatParticipant`, or anything that you implement the ChatParticipantInterface on can be used, e.g. `App\Models\User`).
+- ``to_entity_type``: The type of the entity to send the message to (e.g. `Mmedia\LeChat\Models\Chatroom`, `Mmedia\LeChat\Models\ChatParticipant`, or anything that you implement the ChatParticipantInterface on can be used, e.g. `App\Models\User`).

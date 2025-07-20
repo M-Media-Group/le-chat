@@ -1,10 +1,11 @@
 <?php
 
-namespace Mmedia\LaravelChat\Commands;
+namespace Mmedia\LeChat\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Broadcast;
 
-class LaravelChatCommand extends Command
+class LeChatCommand extends Command
 {
     public $signature = 'laravel-chat:send-message {fromUserId} {message} {otherUserId}';
 
@@ -15,6 +16,14 @@ class LaravelChatCommand extends Command
         $otherUserId = $this->argument('otherUserId');
         $message = $this->argument('message');
         $fromId = $this->argument('fromUserId');
+
+        // For debugging, call the Reverb GET /apps/[app_id]/channels/[channel_name]/users and print
+        // the response
+
+        // $users = Broadcast::driver()->getPusher()
+        //     ->get('/channels');
+
+        // $this->info('Response from Reverb: ' . json_encode($users, JSON_PRETTY_PRINT));
 
         // Get the user
         $fromUser = \App\Models\User::find($fromId);

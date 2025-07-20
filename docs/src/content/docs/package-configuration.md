@@ -1,11 +1,11 @@
 ---
 title: Configuration
-description: Documentation for installing Laravel Chat.
+description: Documentation for installing Le Chat.
 ---
 
 ## Configuration
 
-Laravel Chat comes with sensible defaults, but you can customize its behavior to fit your application's needs.
+Le Chat comes with sensible defaults, but you can customize its behavior to fit your application's needs.
 
 First, publish the configuration file using the following Artisan command:
 ```bash

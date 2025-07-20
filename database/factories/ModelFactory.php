@@ -1,6 +1,6 @@
 <?php
 
-namespace Mmedia\LaravelChat\Database\Factories;
+namespace Mmedia\LeChat\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 

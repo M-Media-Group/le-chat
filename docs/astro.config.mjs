@@ -6,7 +6,7 @@ import starlight from '@astrojs/starlight';
 export default defineConfig({
 	integrations: [
 		starlight({
-			title: 'Laravel Chat',
+			title: 'Le Chat',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/M-Media-Group/laravel-chat' }],
 			sidebar: [
 				{

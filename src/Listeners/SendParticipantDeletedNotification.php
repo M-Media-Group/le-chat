@@ -1,9 +1,9 @@
 <?php
 
-namespace Mmedia\LaravelChat\Listeners;
+namespace Mmedia\LeChat\Listeners;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Mmedia\LaravelChat\Events\ParticipantDeleted;
+use Mmedia\LeChat\Events\ParticipantDeleted;
 
 class SendParticipantDeletedNotification implements ShouldQueue
 {

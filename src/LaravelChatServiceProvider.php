@@ -1,13 +1,13 @@
 <?php
 
-namespace Mmedia\LaravelChat;
+namespace Mmedia\LeChat;
 
-use Mmedia\LaravelChat\Commands\LaravelChatCommand;
-use Mmedia\LaravelChat\Commands\NotifyUsersOfRecentUnreadMessages;
+use Mmedia\LeChat\Commands\LeChatCommand;
+use Mmedia\LeChat\Commands\NotifyUsersOfRecentUnreadMessages;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
-class LaravelChatServiceProvider extends PackageServiceProvider
+class LeChatServiceProvider extends PackageServiceProvider
 {
     public function configurePackage(Package $package): void
     {
@@ -22,7 +22,7 @@ class LaravelChatServiceProvider extends PackageServiceProvider
             ->hasViews()
             ->discoversMigrations()
             ->hasRoutes('channels', 'api')
-            ->hasCommand(LaravelChatCommand::class)
+            ->hasCommand(LeChatCommand::class)
             ->hasCommand(NotifyUsersOfRecentUnreadMessages::class);
     }
 
@@ -33,7 +33,7 @@ class LaravelChatServiceProvider extends PackageServiceProvider
 
         if ($newMessageListener && class_exists($newMessageListener)) {
             $this->app['events']->listen(
-                \Mmedia\LaravelChat\Events\MessageCreated::class,
+                \Mmedia\LeChat\Events\MessageCreated::class,
                 $newMessageListener
             );
         }
@@ -42,7 +42,7 @@ class LaravelChatServiceProvider extends PackageServiceProvider
 
         if ($newParticipantListener && class_exists($newParticipantListener)) {
             $this->app['events']->listen(
-                \Mmedia\LaravelChat\Events\ParticipantCreated::class,
+                \Mmedia\LeChat\Events\ParticipantCreated::class,
                 $newParticipantListener
             );
         }
@@ -51,15 +51,15 @@ class LaravelChatServiceProvider extends PackageServiceProvider
 
         if ($participantDeletedListener && class_exists($participantDeletedListener)) {
             $this->app['events']->listen(
-                \Mmedia\LaravelChat\Events\ParticipantDeleted::class,
+                \Mmedia\LeChat\Events\ParticipantDeleted::class,
                 $participantDeletedListener
             );
         }
 
         if (config('chat.update_sender_read_at_on_message_created', true)) {
             $this->app['events']->listen(
-                \Mmedia\LaravelChat\Events\MessageCreated::class,
-                \Mmedia\LaravelChat\Listeners\UpdatedChatParticipantReadAtOnMessageCreated::class
+                \Mmedia\LeChat\Events\MessageCreated::class,
+                \Mmedia\LeChat\Listeners\UpdatedChatParticipantReadAtOnMessageCreated::class
             );
         }
     }

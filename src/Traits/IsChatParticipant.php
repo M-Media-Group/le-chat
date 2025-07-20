@@ -1,6 +1,6 @@
 <?php
 
-namespace Mmedia\LaravelChat\Traits;
+namespace Mmedia\LeChat\Traits;
 
 use Carbon\Carbon;
 use DateTime;
@@ -8,14 +8,14 @@ use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
-use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
-use Mmedia\LaravelChat\Models\ChatMessage;
-use Mmedia\LaravelChat\Models\ChatParticipant;
-use Mmedia\LaravelChat\Models\Chatroom;
+use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Models\ChatMessage;
+use Mmedia\LeChat\Models\ChatParticipant;
+use Mmedia\LeChat\Models\Chatroom;
 use Staudenmeir\EloquentHasManyDeep\HasRelationships;
 
 /**
- * @template T of \Mmedia\LaravelChat\Contracts\ChatParticipantInterface
+ * @template T of \Mmedia\LeChat\Contracts\ChatParticipantInterface
  *
  * @mixin T
  *
@@ -23,9 +23,9 @@ use Staudenmeir\EloquentHasManyDeep\HasRelationships;
  *
  * @mixin M
  *
- * @phpstan-require-implements \Mmedia\LaravelChat\Contracts\ChatParticipantInterface
+ * @phpstan-require-implements \Mmedia\LeChat\Contracts\ChatParticipantInterface
  *
- * @see \Mmedia\LaravelChat\Contracts\ChatParticipantInterface
+ * @see \Mmedia\LeChat\Contracts\ChatParticipantInterface
  */
 trait IsChatParticipant
 {
@@ -51,7 +51,7 @@ trait IsChatParticipant
         // This will return a single ChatParticipant model instance.
         return $this->chatParticipants()
             ->where('chatroom_id', $chatRoom->getKey())
-            ->when($includeTrashed, fn ($query) => $query->withTrashed())
+            ->when($includeTrashed, fn($query) => $query->withTrashed())
             ->first();
     }
 
@@ -476,7 +476,7 @@ trait IsChatParticipant
     public function loadUnreadMessagesCount(bool $includeSystemMessages = false): self
     {
         $this->loadCount([
-            'messages as unread_messages_count' => fn ($query) => $query->visibleTo($this)->unreadBy($this)
+            'messages as unread_messages_count' => fn($query) => $query->visibleTo($this)->unreadBy($this)
                 ->when(! $includeSystemMessages, function ($q) {
                     // Exclude system messages
                     $q->whereNotNull('sender_id');
@@ -502,7 +502,7 @@ trait IsChatParticipant
     protected function isNotifiable(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => in_array(
+            get: fn() => in_array(
                 \Illuminate\Notifications\Notifiable::class,
                 class_uses_recursive($this)
             )

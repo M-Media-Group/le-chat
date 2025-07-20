@@ -1,10 +1,10 @@
 ---
 title: Broadcasting
-description: Documentation for Laravel Chat broadcasting.
+description: Documentation for Le Chat broadcasting.
 ---
 
 ## Introduction
-Laravel Chat comes with out-of-the-box support for broadcasting messages in real-time. This allows you to create a more interactive chat experience by pushing new messages to users as they are sent.
+Le Chat comes with out-of-the-box support for broadcasting messages in real-time. This allows you to create a more interactive chat experience by pushing new messages to users as they are sent.
 
 ## Broadcasting Setup
 To enable broadcasting, you need to configure broadcasting in your Laravel application. Refer to the [Laravel Broadcasting documentation](https://laravel.com/docs/broadcasting) for detailed instructions on setting up broadcasting.
@@ -14,10 +14,10 @@ Make sure you have the necessary authentication set up for broadcasting. You sho
 
 ```php
 use Illuminate\Support\Facades\Broadcast;
-use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
-use Mmedia\LaravelChat\Http\Resources\ChatParticipantResource;
-use Mmedia\LaravelChat\Models\ChatParticipant;
-use Mmedia\LaravelChat\Models\Chatroom;
+use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Http\Resources\ChatParticipantResource;
+use Mmedia\LeChat\Models\ChatParticipant;
+use Mmedia\LeChat\Models\Chatroom;
 
 Broadcast::channel((new Chatroom)->broadcastChannelRoute(), function (ChatParticipantInterface|ChatParticipant $user, Chatroom $chatroom) {
     return $chatroom->hasParticipant($user) ?
@@ -28,16 +28,16 @@ Broadcast::channel((new Chatroom)->broadcastChannelRoute(), function (ChatPartic
 ```
 
 ## Broadcasting Channels
-Laravel Chat uses presence channels for each chatroom to broadcast messages on. This also allows you to track which users are currently online in a chatroom, as well as use things like typing indicators via sockets.
+Le Chat uses presence channels for each chatroom to broadcast messages on. This also allows you to track which users are currently online in a chatroom, as well as use things like typing indicators via sockets.
 
-The broadcasting channel used will be the `broadcastChannel()` of the chatroom, e.g. `Mmedia.LaravelChat.Models.Chatroom.<chatroom_id>`.
+The broadcasting channel used will be the `broadcastChannel()` of the chatroom, e.g. `Mmedia.LeChat.Models.Chatroom.<chatroom_id>`.
 
 Additionally, if you are using [Notifications](/notifications), the `MessageCreated` notification will also be broadcasted to each individual participant of the chatroom. Refer to the [Notifications documentation](/notifications) for more details this.
 
-Laravel Chat will not broadcast to the current user as they already have the message.
+Le Chat will not broadcast to the current user as they already have the message.
 
 ## Broadcasted Events
-Refer to the [Events documentation](/events) for a list of events that are broadcasted by Laravel Chat. The event name will be the fully qualified class name of the event, e.g. `.Mmedia\\LaravelChat\\Events\\MessageCreated`. Note the starting dot that is used in Echos side.
+Refer to the [Events documentation](/events) for a list of events that are broadcasted by Le Chat. The event name will be the fully qualified class name of the event, e.g. `.Mmedia\\LeChat\\Events\\MessageCreated`. Note the starting dot that is used in Echos side.
 
 ### Broadcasted data
 All broadcasted events include a standardized data structure based on [Resources](/resources).
@@ -49,8 +49,8 @@ To listen to the broadcasted events, you can use Laravel Echo or any other WebSo
 ```ts
 import Echo from 'laravel-echo';
 
-const channelName = `Mmedia.LaravelChat.Models.Chatroom.${chatId}`;
-const newMessageEvent = '.Mmedia\\LaravelChat\\Events\\MessageCreated';
+const channelName = `Mmedia.LeChat.Models.Chatroom.${chatId}`;
+const newMessageEvent = '.Mmedia\\LeChat\\Events\\MessageCreated';
 
 const channel = Echo.join(channelName);
 
@@ -106,7 +106,7 @@ You can use this feature on other models to check their connection status to dif
 
 First, ensure that your model uses the `ConnectsToBroadcast` trait:
 ```php
-use Mmedia\LaravelChat\Traits\ConnectsToBroadcast;
+use Mmedia\LeChat\Traits\ConnectsToBroadcast;
 
 class YourModel extends Model
 {
