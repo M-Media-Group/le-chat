@@ -7,7 +7,7 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: 'Le Chat',
-			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/M-Media-Group/laravel-chat' }],
+			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/M-Media-Group/le-chat' }],
 			sidebar: [
 				{
 					label: 'Getting Started',

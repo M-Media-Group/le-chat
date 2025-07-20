@@ -17,7 +17,7 @@ class LeChatServiceProvider extends PackageServiceProvider
          * More info: https://github.com/spatie/laravel-package-tools
          */
         $package
-            ->name('laravel-chat')
+            ->name('le-chat')
             ->hasConfigFile()
             ->hasViews()
             ->discoversMigrations()

@@ -1,12 +1,12 @@
 {
-    "name": "mmedia/laravel-chat",
-    "description": "This is my package laravel-chat",
+    "name": "mmedia/le-chat",
+    "description": "This is my package le-chat",
     "keywords": [
         "Michal",
         "laravel",
-        "laravel-chat"
+        "le-chat"
     ],
-    "homepage": "https://github.com/mmedia/laravel-chat",
+    "homepage": "https://github.com/mmedia/le-chat",
     "license": "MIT",
     "authors": [
         {

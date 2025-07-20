@@ -15,14 +15,14 @@ First, add the VCS repository to your `composer.json` file:
  "repositories": [
         {
             "type": "vcs",
-            "url": "git@github.com:M-Media-Group/laravel-chat.git"
+            "url": "git@github.com:M-Media-Group/le-chat.git"
         }
     ],
 ```
 
 Then, run the following command to install the package:
 ```bash
-composer require mmedia/laravel-chat
+composer require mmedia/le-chat
 ```
 
 Then, publish the migrations and run the migrations to set up the necessary database tables:

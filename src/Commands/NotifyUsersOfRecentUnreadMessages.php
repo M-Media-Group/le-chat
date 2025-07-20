@@ -7,7 +7,7 @@ use Mmedia\LeChat\Notifications\DailyUnreadMessagesNotification;
 
 class NotifyUsersOfRecentUnreadMessages extends Command
 {
-    public $signature = 'laravel-chat:notify-users-of-recent-unread-messages {--days=0 : The number of days to check for unread messages, defaults to 0 for today}';
+    public $signature = 'le-chat:notify-users-of-recent-unread-messages {--days=0 : The number of days to check for unread messages, defaults to 0 for today}';
 
     public $description = 'Send a message to a chatroom';
 

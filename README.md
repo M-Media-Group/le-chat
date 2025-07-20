@@ -20,7 +20,7 @@
 ## 📦 Installation
 
 ```bash
-composer require mmedia/laravel-chat
+composer require mmedia/le-chat
 ```
 
 Publish migrations and config:

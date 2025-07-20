@@ -38,7 +38,7 @@ This package allows you to send messages to multiple recipients, and any models.
 You can install the package via composer:
 
 ```bash
-composer require mmedia/laravel-chat
+composer require mmedia/le-chat
 ```
 
 You can publish and run the migrations with:
@@ -289,10 +289,10 @@ $student->loadUnreadMessagesCount(true); // will load the unread messages count 
 If you are using the `IsChatParticipant` trait on your User model, you can take advantage of the already written `NotifyUsersOfRecentUnreadMessages` command to notify users of unread messages. This command will notify all users that have unread messages that were sent today by default, but you can change the number of days using the `--days` option.
 
 ```bash
-php artisan laravel-chat:notify-users-of-recent-unread-messages --days=7
+php artisan le-chat:notify-users-of-recent-unread-messages --days=7
 
 # Or schedule the command to run daily
-$schedule->command('laravel-chat:notify-users-of-recent-unread-messages --days=7')->daily();
+$schedule->command('le-chat:notify-users-of-recent-unread-messages --days=7')->daily();
 ```
 
 ### Adding participants to a chatroom
@@ -477,7 +477,7 @@ public function toChatroom(object $notifiable): ChatroomChannelMessage
 A set of default API routes and controllers are provided to interact with the chatrooms and messages. You can customize these routes by publishing the package's routes file and modifying it as needed.
 You can publish the routes file with:
 ```bash
-php artisan vendor:publish --tag="laravel-chat-routes"
+php artisan vendor:publish --tag="le-chat-routes"
 ```
 
 Currently the package uses the `api` and `auth:sanctum` middleware for the API routes. If you need to change this, you should override the routes in your application.

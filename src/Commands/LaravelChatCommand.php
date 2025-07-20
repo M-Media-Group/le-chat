@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Broadcast;
 
 class LeChatCommand extends Command
 {
-    public $signature = 'laravel-chat:send-message {fromUserId} {message} {otherUserId}';
+    public $signature = 'le-chat:send-message {fromUserId} {message} {otherUserId}';
 
     public $description = 'Send a message to a chatroom';
 
