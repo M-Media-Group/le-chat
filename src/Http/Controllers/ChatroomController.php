@@ -4,6 +4,7 @@ namespace Mmedia\LeChat\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Http\Resources\ChatroomResource;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
@@ -13,10 +14,13 @@ class ChatroomController extends Controller
     /**
      * Display a listing of the chatrooms.
      */
-    public function index(Request $request): \Illuminate\Http\Resources\Json\AnonymousResourceCollection
+    public function index(Request $request): \Illuminate\Http\Resources\Json\AnonymousResourceCollection|\Illuminate\Http\JsonResponse
     {
-        /** @var \Mmedia\LeChat\Contracts\ChatParticipantInterface */
         $user = $request->user();
+
+        if (! ($user instanceof ChatParticipantInterface)) {
+            return response()->json(['error' => 'Authenticated user is not a chat participant'], 400);
+        }
 
         $chatrooms = Chatroom::havingParticipants([$user], true)
             ->with([
@@ -36,8 +40,11 @@ class ChatroomController extends Controller
      */
     public function show(Request $request, Chatroom $chatroom): ChatroomResource|\Illuminate\Http\JsonResponse
     {
-        /** @var \Mmedia\LeChat\Contracts\ChatParticipantInterface */
         $user = $request->user();
+
+        if (! ($user instanceof ChatParticipantInterface)) {
+            return response()->json(['error' => 'Authenticated user is not a chat participant'], 400);
+        }
 
         if (! $chatroom->hasOrHadParticipant($user)) {
             return response()->json(['error' => 'Unauthorized'], 403);
@@ -55,6 +62,12 @@ class ChatroomController extends Controller
      */
     public function store(Request $request): \Illuminate\Http\JsonResponse
     {
+        $user = $request->user();
+
+        if (! ($user instanceof ChatParticipantInterface)) {
+            return response()->json(['error' => 'Authenticated user is not a chat participant'], 400);
+        }
+
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -62,12 +75,36 @@ class ChatroomController extends Controller
 
         $chatroom = Chatroom::create($request->only('name', 'description'));
 
-        /** @var \Mmedia\LeChat\Contracts\ChatParticipantInterface */
-        $user = $request->user();
-
         $chatroom->addParticipant($user, 'admin');
 
         return response()->json($chatroom, 201);
+    }
+
+    /**
+     * Update the specified chatroom in storage.
+     */
+    public function update(Request $request, Chatroom $chatroom): \Illuminate\Http\JsonResponse
+    {
+        $user = $request->user();
+
+        if (! ($user instanceof ChatParticipantInterface)) {
+            return response()->json(['error' => 'Authenticated user is not a chat participant'], 400);
+        }
+
+        $chatParticipant = $chatroom->participant($user);
+
+        if (! $chatParticipant || $chatParticipant->role !== 'admin') {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+        ]);
+
+        $chatroom->update($request->only('name', 'description'));
+
+        return response()->json($chatroom, 200);
     }
 
     /**
@@ -75,8 +112,11 @@ class ChatroomController extends Controller
      */
     public function storeMessage(Request $request): \Illuminate\Http\JsonResponse
     {
-        /** @var \Mmedia\LeChat\Contracts\ChatParticipantInterface */
         $user = $request->user();
+
+        if (! ($user instanceof ChatParticipantInterface)) {
+            return response()->json(['error' => 'Authenticated user is not a chat participant'], 400);
+        }
 
         $request->validate([
             'to_entity_type' => 'required|string|in:chatroom,chat_participant',
@@ -105,8 +145,11 @@ class ChatroomController extends Controller
      */
     public function markAsRead(Request $request, Chatroom $chatroom): \Illuminate\Http\JsonResponse
     {
-        /** @var \Mmedia\LeChat\Contracts\ChatParticipantInterface */
         $user = $request->user();
+
+        if (! ($user instanceof ChatParticipantInterface)) {
+            return response()->json(['error' => 'Authenticated user is not a chat participant'], 400);
+        }
 
         if (! $chatroom->hasOrHadParticipant($user)) {
             return response()->json(['error' => 'Unauthorized'], 403);

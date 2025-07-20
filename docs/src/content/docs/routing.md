@@ -85,7 +85,6 @@ Creates a new chatroom with the authenticated user as a participant.
 {
     "name": "New Chatroom",
     "description": "This is a new chatroom for discussion.",
-    "participants": [1, 2] // IDs of other participants to add
 }
 ```
 
@@ -106,6 +105,16 @@ Retrieves a specific chatroom by its ID. This route is useful for displaying the
     "messages": [
       ...
     ]
+}
+```
+
+### PUT|PATCH /api/chatrooms/{chatroom}
+Updates the specified chatroom in storage. Only participants that are an 'admin' of the chatroom can update it. The request body should contain the fields you want to update, such as `name` or `description`.
+
+```json
+{
+    "name": "Updated Chatroom Name",
+    "description": "Updated description for the chatroom."
 }
 ```
 
