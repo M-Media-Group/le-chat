@@ -5,6 +5,7 @@ namespace Mmedia\LaravelChat\Notifications;
 use Illuminate\Contracts\Support\Arrayable;
 use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
 use Mmedia\LaravelChat\Models\ChatParticipant;
+use Mmedia\LaravelChat\Models\Chatroom;
 
 class ChatroomChannelMessage implements Arrayable
 {
@@ -18,16 +19,23 @@ class ChatroomChannelMessage implements Arrayable
     /**
      * The ID of the chatroom where the message will be sent.
      *
-     * @var int
+     * @var Chatroom|null
      */
-    public $chatroom_id;
+    public $chatroom;
 
     /**
      * The ID of the sender of the message.
      *
-     * @var int|null
+     * @var ChatParticipant|null
      */
-    public $sender_id;
+    public $sender;
+
+    /**
+     * Additional attributes that should be force-filled when creating the message.
+     *
+     * @var array<string, mixed>
+     */
+    public $attributes = [];
 
     /**
      * Set the message text for the chatroom.
@@ -40,11 +48,18 @@ class ChatroomChannelMessage implements Arrayable
     }
 
     /**
-     * Set the chatroom ID for the message.
+     * Set additional attributes for the message.
      */
-    public function chatroomId(int $chatroomId): self
+    public function attributes(array $attributes): self
     {
-        $this->chatroom_id = $chatroomId;
+        $this->attributes = $attributes;
+
+        return $this;
+    }
+
+    public function chatroom(Chatroom $chatroom): self
+    {
+        $this->chatroom = $chatroom;
 
         return $this;
     }
@@ -52,9 +67,9 @@ class ChatroomChannelMessage implements Arrayable
     public function sender(ChatParticipant|ChatParticipantInterface $participant): self
     {
         if ($participant instanceof ChatParticipantInterface) {
-            $this->sender_id = $participant->getKey();
+            $this->sender = $participant->asParticipantIn($this->chatroom);
         } elseif ($participant instanceof ChatParticipant) {
-            $this->sender_id = $participant->id;
+            $this->sender = $participant;
         } else {
             throw new \InvalidArgumentException('Invalid participant type.');
         }
@@ -70,8 +85,10 @@ class ChatroomChannelMessage implements Arrayable
     public function toArray(): array
     {
         return [
-            'chatroom_id' => $this->chatroom_id,
+            'sender_id' => $this->sender?->getKey(),
+            'chatroom_id' => $this->chatroom?->getKey() ?? $this->sender?->chatroom->getKey(),
             'message' => $this->message,
+            'attributes' => $this->attributes,
         ];
     }
 }

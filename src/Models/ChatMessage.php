@@ -2,6 +2,7 @@
 
 namespace Mmedia\LaravelChat\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
 
@@ -50,7 +51,13 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
         );
     }
 
-    public function sentBy($query, ChatParticipantInterface|ChatParticipant $participant)
+    /**
+     * Scope where can be read by a given participant - e.g. the message was posted after the participant joined the chatroom.
+     *
+     * @param  Builder<ChatMessage>  $query
+     * @return Builder<ChatMessage>
+     */
+    public function scopeSentBy(Builder $query, ChatParticipantInterface|ChatParticipant $participant)
     {
         return $query->whereHas(
             'sender',
@@ -84,8 +91,16 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
             );
     }
 
+    /**
+     * Scope where messages are after the participant joined the chatroom.
+     *
+     * @internal
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<ChatMessage>  $query
+     * @return void
+     */
     public function scopeAfterParticipantJoined(
-        $query,
+        Builder $query,
         ChatParticipantInterface|ChatParticipant $participant
     ) {
         $instance = new ChatParticipant;

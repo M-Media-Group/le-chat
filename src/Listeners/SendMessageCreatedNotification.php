@@ -26,7 +26,7 @@ class SendMessageCreatedNotification implements ShouldQueue
             if ($participant->id === $event->message->sender_id) {
                 continue;
             }
-            $actualParticipant = $participant->participant;
+            $actualParticipant = $participant->participatingModel;
             $actualParticipant->notify(new NewMessage($event->message, $participant));
         }
     }

@@ -4,6 +4,7 @@ namespace Mmedia\LaravelChat\Traits;
 
 use Carbon\Carbon;
 use DateTime;
+use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
@@ -226,6 +227,7 @@ trait IsChatParticipant
                 'chatroom_id' => $chatRoom->getKey(),
                 'participant_id' => $this->getKey(),
                 'participant_type' => $this->getMorphClass(),
+                'role' => 'admin',
             ]);
         }
 
@@ -482,5 +484,28 @@ trait IsChatParticipant
         ]);
 
         return $this;
+    }
+
+    public function getDisplayName(): ?string
+    {
+        return $this->name ?? $this->email;
+    }
+
+    public function getAvatarUrl(): ?string
+    {
+        return $this->avatar ?? $this->gravatar;
+    }
+
+    /**
+     * A participant is notifiable if they use the Notifiable trait.
+     */
+    protected function isNotifiable(): CastsAttribute
+    {
+        return CastsAttribute::make(
+            get: fn () => in_array(
+                \Illuminate\Notifications\Notifiable::class,
+                class_uses_recursive($this)
+            )
+        )->shouldCache();
     }
 }

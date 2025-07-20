@@ -2,6 +2,7 @@
 
 namespace Mmedia\LaravelChat\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LaravelChat\Contracts\ChatParticipantInterface;
@@ -89,21 +90,27 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
      *
      * @return \Illuminate\Database\Eloquent\Relations\MorphTo<\Illuminate\Database\Eloquent\Model, $this>
      */
-    public function participant(): \Illuminate\Database\Eloquent\Relations\MorphTo
+    public function participatingModel(): \Illuminate\Database\Eloquent\Relations\MorphTo
     {
-        return $this->morphTo();
+        return $this->morphTo(
+            'participant',
+            'participant_type',
+            'participant_id',
+        );
     }
 
     /**
      * Note this function may return unexpected results if you pass an instance of ChatParticipantInterface, because it will filter to the participant_id and participant_type regardless of the chatroom_id, so you can get multiple results.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<ChatParticipant>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<ChatParticipant>
+     * @internal
+     *
+     * @param  Builder<ChatParticipant>  $query
+     * @return Builder<ChatParticipant>
      */
     public function scopeOfParticipant(
-        $query,
+        Builder $query,
         ChatParticipantInterface|ChatParticipant $participant
-    ) {
+    ): Builder {
         if ($participant instanceof ChatParticipant) {
             return $query->where('id', $participant->getKey());
         }
@@ -112,7 +119,7 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
             ->where('participant_type', $participant->getMorphClass());
     }
 
-    public function scopeInRoom($query, Chatroom $chatroom)
+    public function scopeInRoom(Builder $query, Chatroom $chatroom): Builder
     {
         return $query->where('chatroom_id', $chatroom->getKey());
     }
@@ -128,17 +135,27 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
         )->shouldCache();
     }
 
+    public function getDisplayName(): ?string
+    {
+        return $this->participatingModel?->getDisplayName();
+    }
+
+    public function getAvatarUrl(): ?string
+    {
+        return $this->participatingModel?->getAvatarUrl();
+    }
+
     protected function displayName(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->getRawOriginal('display_name') ?? $this->participant?->name ?? $this->participant?->email
+            get: fn () => $this->getRawOriginal('display_name') ?? $this->getDisplayName()
         )->shouldCache();
     }
 
     protected function avatarUrl(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->getRawOriginal('avatar_url') ?? $this->participant?->avatar ?? $this->participant?->gravatar
+            get: fn () => $this->getRawOriginal('avatar_url') ?? $this->getAvatarUrl()
         )->shouldCache();
     }
 

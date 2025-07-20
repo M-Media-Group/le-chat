@@ -65,13 +65,18 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
     /**
      * Send a message to the chatroom as a participant.
      */
-    public function sendMessageAs(ChatParticipantInterface $participant, string $message): ChatMessage
+    public function sendMessageAs(ChatParticipant|ChatParticipantInterface $participant, string $message, array $attributes = []): ChatMessage
     {
+        $senderId = $participant instanceof ChatParticipantInterface
+            ? $participant->asParticipantIn($this)->getKey()
+            : $participant->getKey();
+
         $chatMessage = new ChatMessage([
-            'sender_id' => $participant->getKey(),
+            'sender_id' => $senderId,
             'chatroom_id' => $this->getKey(),
-            'message' => $message,
-        ]);
+        ])
+            ->forceFill($attributes)
+            ->setAttribute('message', $message);
 
         $chatMessage->save();
 
