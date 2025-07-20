@@ -40,10 +40,10 @@ export default defineConfig({
 						{ label: 'Package Configuration', slug: 'package-configuration' },
 					],
 				},
-				{
-					label: 'Reference',
-					autogenerate: { directory: 'reference' },
-				},
+				// {
+				// 	label: 'Reference',
+				// 	autogenerate: { directory: 'reference' },
+				// },
 			],
 		}),
 	],
