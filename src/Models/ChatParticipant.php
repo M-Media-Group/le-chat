@@ -72,7 +72,16 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
                 $chatMessageInstance->getQualifiedCreatedAtColumn(),
                 '>=',
                 'created_at'
-            );
+            )
+            // And where deleted_at is null or created_at is before deleted_at
+            ->where(function ($query) use ($chatMessageInstance) {
+                $query->whereNull('deleted_at')
+                    ->orWhereColumn(
+                        $chatMessageInstance->getQualifiedCreatedAtColumn(),
+                        '<',
+                        'deleted_at'
+                    );
+            });
     }
 
     /**

@@ -120,8 +120,7 @@ trait IsChatParticipant
         // We need to get ChatMessages that are linked to a ChatParticipant
         // where that ChatParticipant is linked to this model.
         // Start from the ChatMessage model query builder.
-        return ChatMessage::query()
-            ->sentByParticipant($this);
+        return ChatMessage::query()->sentBy($this);
         // Distinct is likely not needed here.
     }
 
@@ -139,21 +138,21 @@ trait IsChatParticipant
      *
      * @return \Illuminate\Database\Query\Builder<ChatMessage>
      */
-    private function getMessagesQuery(): \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder
+    private function getMessagesQuery(bool $includeBeforeJoined = false): \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder
     {
 
         // Start building a query on the ChatMessage model
         return ChatMessage::query()
-            ->canBeReadByParticipant($this)
+            ->visibleTo($this, true, $includeBeforeJoined)
 
             // Optional: Order the messages, typically by creation date
             ->orderBy('id', 'desc');
     }
 
-    private function buildGetMessages(?int $limit = null, ?int $offset = null)
+    private function visibleMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder
     {
         // Start building a query on the ChatMessage model
-        $query = $this->getMessagesQuery();
+        $query = $this->getMessagesQuery($includeBeforeJoined);
 
         // Apply pagination if limit is set
         if ($limit) {
@@ -174,10 +173,10 @@ trait IsChatParticipant
      *
      * @return \Illuminate\Support\Collection<ChatMessage, $this>
      */
-    public function getMessages(?int $limit = null, ?int $offset = null): Collection
+    public function getMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): Collection
     {
-        // Get the messages using the buildGetMessages method
-        return $this->buildGetMessages($limit, $offset)->get();
+        // Get the messages using the visibleMessages method
+        return $this->visibleMessages($limit, $offset, $includeBeforeJoined)->get();
     }
 
     /**
@@ -186,7 +185,7 @@ trait IsChatParticipant
     private function getMessagesSentToParticipant(ChatParticipantInterface|ChatParticipant $participant): Collection
     {
         return $this->sentMessages()
-            ->canBeReadByParticipant($participant)
+            ->visibleTo($participant)
             ->get();
     }
 
@@ -475,7 +474,7 @@ trait IsChatParticipant
     public function loadUnreadMessagesCount(bool $includeSystemMessages = false): self
     {
         $this->loadCount([
-            'messages as unread_messages_count' => fn ($query) => $query->canBeReadByParticipant($this)->unreadBy($this)
+            'messages as unread_messages_count' => fn ($query) => $query->visibleTo($this)->unreadBy($this)
                 ->when(! $includeSystemMessages, function ($q) {
                     // Exclude system messages
                     $q->whereNotNull('sender_id');

@@ -22,7 +22,7 @@ class ChatroomController extends Controller
             ->with([
                 'participants',
                 'latestMessage' => function ($query) use ($user) {
-                    $query->canBeReadByParticipant($user)->with('sender');
+                    $query->visibleTo($user)->with('sender');
                 },
             ])
             ->withUnreadMessagesCountFor($user)
@@ -45,7 +45,7 @@ class ChatroomController extends Controller
         }
 
         $chatroom->load(['participants', 'messages' => function ($query) use ($user) {
-            $query->canBeReadByParticipant($user)->with('sender');
+            $query->visibleTo($user)->with('sender');
         }]);
 
         return new ChatroomResource($chatroom);

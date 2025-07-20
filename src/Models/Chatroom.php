@@ -33,7 +33,7 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
     /**
      * Get the latest message in the chatroom.
      *
-     * @note we DO NOT use latestOfMany here because it does not support soft deletes. It will cause latestMessage to fail if the user has been removed from the chatroom - this is because it tries to access the latest message that might not be visible to the user, and the subsequent canBeReadByParticipant filters out the only message.
+     * @note we DO NOT use latestOfMany here because it does not support soft deletes. It will cause latestMessage to fail if the user has been removed from the chatroom - this is because it tries to access the latest message that might not be visible to the user, and the subsequent visibleTo filters out the only message.
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasOne<ChatMessage, $this>
      */
@@ -304,7 +304,7 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
     public function scopeWithUnreadMessagesCountFor($query, ChatParticipantInterface|ChatParticipant $participant)
     {
         return $query->withCount(['messages as unread_messages_count' => function ($query) use ($participant) {
-            $query->canBeReadByParticipant($participant)->unreadBy($participant);
+            $query->visibleTo($participant)->unreadBy($participant);
         }]);
     }
 }

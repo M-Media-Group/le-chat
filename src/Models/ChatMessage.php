@@ -50,7 +50,7 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
         );
     }
 
-    public function scopeSentByParticipant($query, ChatParticipantInterface|ChatParticipant $participant)
+    public function sentBy($query, ChatParticipantInterface|ChatParticipant $participant)
     {
         return $query->whereHas(
             'sender',
@@ -63,21 +63,21 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
     /**
      * Scope where can be read by a given participant - e.g. the message was posted after the participant joined the chatroom.
      */
-    public function scopeCanBeReadByParticipant(
+    public function scopeVisibleTo(
         $query,
         ChatParticipantInterface|ChatParticipant $participant,
-        bool $includeTrashed = true,
-        bool $includeMessagesBeforeParticipantJoined = false
+        bool $includeLeftChatrooms = true,
+        bool $includeBeforeJoined = false
     ) {
         return $query->whereHas(
             'chatroom',
-            function ($query) use ($participant, $includeTrashed) {
-                return $query->havingParticipants([$participant], $includeTrashed);
+            function ($query) use ($participant, $includeLeftChatrooms) {
+                return $query->havingParticipants([$participant], $includeLeftChatrooms);
             }
         )
             ->beforeParticipantDeleted($participant)
             ->when(
-                ! $includeMessagesBeforeParticipantJoined,
+                ! $includeBeforeJoined,
                 function ($query) use ($participant) {
                     return $query->afterParticipantJoined($participant);
                 }
