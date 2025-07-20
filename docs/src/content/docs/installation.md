@@ -18,7 +18,7 @@ composer require mmedia/le-chat
 Then, publish the migrations and run the migrations to set up the necessary database tables:
 
 ```bash
-php artisan vendor:publish --tag="chat-migrations"
+php artisan vendor:publish --tag="le-chat-migrations"
 php artisan migrate
 ```
 
