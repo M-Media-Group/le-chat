@@ -1,84 +1,106 @@
-# This is my package laravel-chat
+# Laravel Chat
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/mmedia/laravel-chat.svg?style=flat-square)](https://packagist.org/packages/mmedia/laravel-chat)
-[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/mmedia/laravel-chat/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/mmedia/laravel-chat/actions?query=workflow%3Arun-tests+branch%3Amain)
-[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/mmedia/laravel-chat/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/mmedia/laravel-chat/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
-[![Total Downloads](https://img.shields.io/packagist/dt/mmedia/laravel-chat.svg?style=flat-square)](https://packagist.org/packages/mmedia/laravel-chat)
+**Laravel Chat** adds rich, flexible chat functionality to your Laravel application with minimal setup and maximum customization. Whether you're building one-on-one messaging, group chatrooms, or bot integrations, this package gives you the tools to implement powerful conversations between any models in your app.
 
-This is where your description should go. Limit it to a paragraph or two. Consider adding a small example.
+---
 
-## Support us
+## 🚀 Features
 
-[<img src="https://github-ads.s3.eu-central-1.amazonaws.com/laravel-chat.jpg?t=1" width="419px" />](https://spatie.be/github-ad-click/laravel-chat)
+* Send messages between any models
+* One-to-one and multi-user chatrooms
+* System messages and bot support
+* Unread message tracking
+* WebSocket connection detection
+* Notifications via Laravel and WebPush
+* REST API endpoints included
+* No frontend views — bring your own UI
 
-We invest a lot of resources into creating [best in class open source packages](https://spatie.be/open-source). You can support us by [buying one of our paid products](https://spatie.be/open-source/support-us).
+---
 
-We highly appreciate you sending us a postcard from your hometown, mentioning which of our package(s) you are using. You'll find our address on [our contact page](https://spatie.be/about-us). We publish all received postcards on [our virtual postcard wall](https://spatie.be/open-source/postcards).
-
-## Installation
-
-You can install the package via composer:
+## 📦 Installation
 
 ```bash
 composer require mmedia/laravel-chat
 ```
 
-You can publish and run the migrations with:
+Publish migrations and config:
 
 ```bash
-php artisan vendor:publish --tag="laravel-chat-migrations"
+php artisan vendor:publish --tag="chat-migrations"
 php artisan migrate
+
+php artisan vendor:publish --tag="chat-config"
 ```
 
-You can publish the config file with:
+---
 
-```bash
-php artisan vendor:publish --tag="laravel-chat-config"
-```
+## 🧠 Core Concepts
 
-This is the contents of the published config file:
+* `Chatroom`: A conversation space containing messages and participants
+* `ChatParticipant`: A polymorphic link between your models and a chatroom
+* `Message`: A message sent by a participant in a chatroom
+* `IsChatParticipant` Trait: Add to any model to enable chat behavior
+
+---
+
+## ✅ Requirements
+
+* PHP 8.0+
+* Laravel 11+
+
+---
+
+## ✨ Quick Example
 
 ```php
-return [
-];
+$message = $user->sendMessageTo($otherUser, "Hello!");
+$reply = $otherUser->sendMessageTo($user, "Hi back!");
 ```
 
-Optionally, you can publish the views using
+Easily send messages to:
 
-```bash
-php artisan vendor:publish --tag="laravel-chat-views"
-```
+* Individual users
+* Multiple recipients
+* Entire chatrooms
+* Non-model participants (bots, services, etc.)
 
-## Usage
+---
 
-```php
-$laravelChat = new Mmedia\LaravelChat();
-echo $laravelChat->echoPhrase('Hello, Mmedia!');
-```
+## 🔥 Why Not Chatify?
 
-## Testing
+Unlike [Chatify](https://github.com/munafio/chatify), Laravel Chat **does not limit messages to one sender and one recipient**. This package supports:
 
-```bash
-composer test
-```
+* Multi-participant chatrooms
+* Flexible polymorphic model support
+* Bots and non-DB participants
 
-## Changelog
+---
 
-Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
+## 📚 Full Documentation
 
-## Contributing
+See the complete usage guide for in-depth examples, APIs, and advanced features:
 
-Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
+👉 [View Full Docs →](./usage.md)
 
-## Security Vulnerabilities
+---
 
-Please review [our security policy](../../security/policy) on how to report security vulnerabilities.
+## 🧪 Comparison to Other Projects
 
-## Credits
+* [Wirechat](https://github.com/namumakwembo/wirechat) — Livewire-heavy
+* [Musonza Chat](https://github.com/musonza/chat) — Feature-rich but complex
+* Laravel Chat — **Simple API, full flexibility, no view layer**
 
-- [Michal](https://github.com/)
-- [All Contributors](../../contributors)
+---
 
-## License
+## 🙋‍♂️ Use Cases
 
-The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
+* Teacher ↔ Student chat (one-on-one)
+* Teachers + Students group chats per class
+* Chatbot ↔ User conversations
+* Cross-platform relay (e.g. Slack integration)
+
+---
+
+## 📖 License
+
+MIT ©
