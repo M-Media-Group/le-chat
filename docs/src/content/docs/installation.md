@@ -8,19 +8,7 @@ Le Chat can be installed using Composer. First, ensure you meet the requirements
 - PHP 8.1 or higher
 - Laravel 11
 
-A Composer package is coming soon, but for now, you can install it directly from the Git repository.
-
-First, add the VCS repository to your `composer.json` file:
-```json
- "repositories": [
-        {
-            "type": "vcs",
-            "url": "git@github.com:M-Media-Group/le-chat.git"
-        }
-    ],
-```
-
-Then, run the following command to install the package:
+Run the following command to install the package:
 ```bash
 composer require mmedia/le-chat
 ```
@@ -33,3 +21,15 @@ php artisan migrate
 ```
 
 That's it! Le Chat is now installed and ready to use.
+
+### Bleeding-edge version
+If you want to use the latest features and fixes, you can install the bleeding-edge version directly from the GitHub repository. Before running the `require`, add the following to your composer.json:
+```json
+
+ "repositories": [
+        {
+            "type": "vcs",
+            "url": "git@github.com:M-Media-Group/le-chat.git"
+        }
+    ],
+```
