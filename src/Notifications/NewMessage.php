@@ -80,9 +80,9 @@ class NewMessage extends Notification implements ShouldQueue
 
         return (new $webPushMessageClass)
             // The title is the name of the sender
-            ->title(($this->message->sender?->display_name ?? 'System') . ' in ' . ($this->message->chatroom->name ?? 'Chat'))
+            ->title(($this->message->sender?->display_name ?? 'System').' in '.($this->message->chatroom->name ?? 'Chat'))
             // The icon can be a URL to an image or a path to an asset
-            ->icon($this->message->sender?->avatar_url ?? (config('app.url') . '/icon.png'))
+            ->icon($this->message->sender?->avatar_url ?? (config('app.url').'/icon.png'))
             // The body is the message content
             ->body($this->message->message)
             // The action is a button that the user can click
@@ -98,10 +98,10 @@ class NewMessage extends Notification implements ShouldQueue
         $senderName = $this->message->sender?->display_name ?? 'Unknown Sender';
 
         return (new MailMessage)
-            ->subject($senderName . ' Sent You a New Message')
-            ->greeting($this->participant->display_name . ', you got a new message!')
-            ->line($senderName . ': ' . $this->message->message)
-            ->action('Open Chat', url('/chatrooms/' . $this->message->chatroom_id))
+            ->subject($senderName.' Sent You a New Message')
+            ->greeting($this->participant->display_name.', you got a new message!')
+            ->line($senderName.': '.$this->message->message)
+            ->action('Open Chat', url('/chatrooms/'.$this->message->chatroom_id))
             ->line('Thank you for using our application!');
     }
 
@@ -124,7 +124,7 @@ class NewMessage extends Notification implements ShouldQueue
      */
     public function broadcastType(): string
     {
-        return $this->message->chatroom->broadcastChannel() . '.message';
+        return $this->message->chatroom->broadcastChannel().'.message';
     }
 
     /**

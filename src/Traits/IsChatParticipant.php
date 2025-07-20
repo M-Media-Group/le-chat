@@ -51,7 +51,7 @@ trait IsChatParticipant
         // This will return a single ChatParticipant model instance.
         return $this->chatParticipants()
             ->where('chatroom_id', $chatRoom->getKey())
-            ->when($includeTrashed, fn($query) => $query->withTrashed())
+            ->when($includeTrashed, fn ($query) => $query->withTrashed())
             ->first();
     }
 
@@ -476,7 +476,7 @@ trait IsChatParticipant
     public function loadUnreadMessagesCount(bool $includeSystemMessages = false): self
     {
         $this->loadCount([
-            'messages as unread_messages_count' => fn($query) => $query->visibleTo($this)->unreadBy($this)
+            'messages as unread_messages_count' => fn ($query) => $query->visibleTo($this)->unreadBy($this)
                 ->when(! $includeSystemMessages, function ($q) {
                     // Exclude system messages
                     $q->whereNotNull('sender_id');
@@ -502,7 +502,7 @@ trait IsChatParticipant
     protected function isNotifiable(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn() => in_array(
+            get: fn () => in_array(
                 \Illuminate\Notifications\Notifiable::class,
                 class_uses_recursive($this)
             )

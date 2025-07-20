@@ -127,7 +127,7 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
     protected function isConnected(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn() => $this->getIsConnectedViaSockets(
+            get: fn () => $this->getIsConnectedViaSockets(
                 localId: 'participant_id',
                 channelName: $this->chatroom->broadcastChannel(),
                 type: 'presence'
@@ -148,21 +148,21 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
     protected function displayName(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn() => $this->getRawOriginal('display_name') ?? $this->getDisplayName()
+            get: fn () => $this->getRawOriginal('display_name') ?? $this->getDisplayName()
         )->shouldCache();
     }
 
     protected function avatarUrl(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn() => $this->getRawOriginal('avatar_url') ?? $this->getAvatarUrl()
+            get: fn () => $this->getRawOriginal('avatar_url') ?? $this->getAvatarUrl()
         )->shouldCache();
     }
 
     protected function canManageParticipants(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn() => $this->role === 'admin'
+            get: fn () => $this->role === 'admin'
         )->shouldCache();
     }
 
@@ -172,7 +172,7 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
     protected function isNotifiable(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn() => $this->participant_type && in_array(
+            get: fn () => $this->participant_type && in_array(
                 \Illuminate\Notifications\Notifiable::class,
                 class_uses_recursive($this->participant_type)
             )

@@ -26,7 +26,7 @@ class DailyUnreadMessagesNotification extends Notification implements ShouldQueu
             ->subject('You have new unread messages')
             ->greeting('Hey!')
             ->line('You have new unread messages that were sent to you in the last day.')
-            ->action('View Messages', (config('app.spa_url') ?? config('app.url')) . '/chat')
-            ->line('Thank you for using ' . config('app.name') . '!');
+            ->action('View Messages', (config('app.spa_url') ?? config('app.url')).'/chat')
+            ->line('Thank you for using '.config('app.name').'!');
     }
 }
