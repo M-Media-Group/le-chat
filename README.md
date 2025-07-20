@@ -80,7 +80,7 @@ Unlike [Chatify](https://github.com/munafio/chatify), Laravel Chat **does not li
 
 See the complete usage guide for in-depth examples, APIs, and advanced features:
 
-👉 [View Full Docs →](./usage.md)
+👉 [View Full Docs →](https://laravelchat.netlify.app/)
 
 ---
 
