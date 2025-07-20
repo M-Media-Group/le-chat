@@ -22,7 +22,12 @@ php artisan vendor:publish --tag="chat-migrations"
 php artisan migrate
 ```
 
-That's it! Le Chat is now installed and ready to use. You can [optionally publish the config](/package-configuration).
+Finally, publish the configuration file to customize the package settings:
+```bash
+php artisan vendor:publish --tag="le-chat-config"
+```
+
+That's it! Le Chat is now installed and ready to use. You can [optionally customise the config](/package-configuration) if you want.
 
 ### Bleeding-edge version
 :::danger

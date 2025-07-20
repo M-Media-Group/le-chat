@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Mmedia\LeChat\Http\Controllers\ChatroomController;
 
-Route::group(['middleware' => ['api', 'auth:sanctum'], 'prefix' => 'api'], function () {
+Route::group(['middleware' => config('chat-options.routes.middleware'), 'prefix' => config('chat-options.routes.prefix')], function () {
     Route::apiResource('/chatrooms', ChatroomController::class)
         ->names('chatrooms');
 

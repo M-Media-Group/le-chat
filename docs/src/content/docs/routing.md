@@ -3,14 +3,22 @@ title: Routing
 description: Documentation for Le Chat routing.
 ---
 
-:::note
-This section assumes that your auth model (e.g. User) is configured for chatting, and that you use `Laravel Sanctum`. If you want to work with other models or have different middlewares, you'll need to write your own routes.
-:::
-
 ## Introduction
 Le Chat provides a powerful notification system that allows you to send notifications to chat participants when certain events occur, such as when a new message is sent or when a participant is added to a chatroom.
 
 These routes are automatically registered by the package.
+
+## Configuration
+Routes are enabled by default. If you publish the package configuration file, you can customize the middleware and prefix used for the API routes in `config/chat.php`:
+
+```php
+'features' => [
+    Features::routes([
+        'middleware' =>  ['api', 'auth:sanctum'],
+        'prefix' => 'api',
+    ]),
+],
+```
 
 ## Available Routes
 Le Chat provides a set of API routes that you can use to interact with the chat system.
