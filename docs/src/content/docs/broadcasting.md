@@ -64,12 +64,14 @@ channel
 .leaving((leavingUser: Chatroom['participants'][number]) => {
     console.log("Participant left the chatroom:", leavingUser);
 })
-.listen(eventName, (e: Chatroom['messages'][number] | Chatroom['participants'][number]) => {
-    if (eventName === newMessageEvent) {
-        console.log("New message received:", e);
-        return;
-    }
-    console.log("Participant added/removed event received:", e);
+.listen('.Mmedia\\LaravelChat\\Events\\MessageCreated', (e: Chatroom['messages'][number]) => {
+    console.log("New message received:", e);
+})
+.listen('.Mmedia\\LaravelChat\\Events\\ParticipantCreated', (e: Chatroom['participants'][number]) => {
+    console.log("Participant added event received:", e);
+})
+.listen('.Mmedia\\LaravelChat\\Events\\ParticipantDeleted', (e: Chatroom['participants'][number]) => {
+    console.log("Participant removed event received:", e);
 })
 .error((error: unknown) => {
     console.error(`Error joining chatroom ${chatId}:`, error);
