@@ -3,12 +3,14 @@ title: Installation
 description: Documentation for installing Le Chat.
 ---
 
-## Installation
-Le Chat can be installed using Composer. First, ensure you meet the requirements for the package:
+## Prerequisites
+Before installing Le Chat, ensure you have the following prerequisites:
+- Laravel 11 or higher installed
 - PHP 8.1 or higher
-- Laravel 11
+- Composer installed
 
-Run the following command to install the package:
+## Installation
+Le Chat is available on Composer. Run the following command to install the package:
 ```bash
 composer require mmedia/le-chat
 ```
@@ -20,9 +22,12 @@ php artisan vendor:publish --tag="chat-migrations"
 php artisan migrate
 ```
 
-That's it! Le Chat is now installed and ready to use.
+That's it! Le Chat is now installed and ready to use. You can [optionally publish the config](/package-configuration).
 
 ### Bleeding-edge version
+:::danger
+Le Chat is in active beta and breaking changes are likely to occur!
+:::
 If you want to use the latest features and fixes, you can install the bleeding-edge version directly from the GitHub repository. Before running the `require`, add the following to your composer.json:
 ```json
 
