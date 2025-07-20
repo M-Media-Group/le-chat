@@ -69,7 +69,7 @@ class ChatroomController extends Controller
     public function storeMessage(Request $request)
     {
         $request->validate([
-            'to_entity_type' => 'required|string',
+            'to_entity_type' => 'required|string|in:chatroom,chat_participant',
             'to_entity_id' => 'required|integer',
             'message' => 'required|string',
         ]);
