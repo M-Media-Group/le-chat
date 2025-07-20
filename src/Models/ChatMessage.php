@@ -102,12 +102,12 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
      * @internal
      *
      * @param  \Illuminate\Database\Eloquent\Builder<ChatMessage>  $query
-     * @return void
+     * @return \Illuminate\Database\Eloquent\Builder<ChatMessage>
      */
     public function scopeAfterParticipantJoined(
         Builder $query,
         ChatParticipantInterface|ChatParticipant $participant
-    ) {
+    ): Builder {
         $instance = new ChatParticipant;
         $selfInstance = new static;
 

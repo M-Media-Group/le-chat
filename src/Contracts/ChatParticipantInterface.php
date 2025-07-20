@@ -62,4 +62,12 @@ interface ChatParticipantInterface extends MessageSender, TargetedMessageSender
      * @return string|null
      */
     public function getCreatedAtColumn();
+
+    /**
+     * Qualify the given column name with the model's table.
+     *
+     * @param  string  $column
+     * @return string
+     */
+    public function qualifyColumn($column);
 }

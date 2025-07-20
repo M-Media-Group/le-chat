@@ -7,6 +7,17 @@ use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Trait ConnectsToBroadcast
+ *
+ * This trait provides methods to check if a model is connected to a broadcast channel via sockets.
+ *
+ * It supports both private and presence channels.
+ *
+ * @template M of \Illuminate\Database\Eloquent\Model
+ *
+ * @mixin M
+ */
 trait ConnectsToBroadcast
 {
     /**

@@ -76,6 +76,40 @@ If you want to retrieve only the messages sent by a participant, you can use the
 $sentMessages = $teacher->sentMessages()->get(); // Will return all messages sent by the teacher
 ```
 
+## Reading messages
+You can mark messages as read by calling the `read` method on the `ChatMessage` model:
+```php
+$student->markRead($message); // will mark the given message and any previous messages in the chatroom up until the message as read for the student
+```
+
+If you want to mark all messages in a chatroom as read for a participant, you can use the `markRead` method on the participant model and pass the chatroom instead of a message:
+```php
+$student->markRead($chatroom); // will mark all messages in the chatroom as read for the student
+```
+
+Alternatively, you can use the `markReadUntil` method to mark all messages in a chatroom as read up until a specific time:
+```php
+$student->markReadUntil($chatroom, now()); // will mark all messages in the chatroom as read for the student, up until the current time
+```
+
+### Retrieving users with unread messages
+You may want to retrieve all participants in a chatroom that have unread messages, for example, to send them a daily notification about messages they've missed.
+
+You can retrieve all participants in a chatroom that have unread messages by using the `whereHasUnreadMessagesToday` scope on your models:
+```php
+User::whereHasUnreadMessagesToday()->get(); // Will return all users that have unread messages in the chatroom today
+```
+
+This will return all participants in the chatroom that have any unread messages today in any chatroom, excluding system messages. If you want to include system messages, you can use the `whereHasUnreadMessagesToday(includeSystemMessages: true)` scope:
+```php
+User::whereHasUnreadMessagesToday(includeSystemMessages: true)->get(); // Will return all
+```
+
+If you want to use a different date range, you can use the `whereHasUnreadMessages` scope and pass a date range:
+```php
+$users = User::whereHasUnreadMessages(7, true)->get(); // unread messages sent in the last 7 days, including system messages
+```
+
 ## Working with the intermediate morph model
 Laravel Chat uses an intermediate morph model called `ChatParticipant` to manage the relationships between your chattable models and the chatrooms they participate in.
 
