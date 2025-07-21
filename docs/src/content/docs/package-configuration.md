@@ -16,22 +16,25 @@ This will create a `config/chat.php` file where you can customize the package se
 
 ## Feature configuration
 Le Chat uses the `Features` class to enable or disable various features. You can customize the features in the `config/chat.php` file under the `features` key.
+
 ```diff lang="php"
+// config/chat.php
 +use Mmedia\LeChat\Features;
 
 return [
 
     // Other configuration options...
 
-    'features' => [
-        // define features here
-    ],
++    'features' => [
++        // define features here
++    ],
 ];
 ```
 ### Routes
 Routes are enabled by default. If you publish the package configuration file, you can customize the middleware and prefix used for the API routes in `config/chat.php`:
 
 ```php
+// config/chat.php
 'features' => [
 
     // If present, the feature is enabled
