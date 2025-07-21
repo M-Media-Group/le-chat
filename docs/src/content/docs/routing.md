@@ -4,9 +4,7 @@ description: Documentation for Le Chat routing.
 ---
 
 ## Introduction
-Le Chat provides a powerful notification system that allows you to send notifications to chat participants when certain events occur, such as when a new message is sent or when a participant is added to a chatroom.
-
-These routes are automatically registered by the package.
+Le Chat provides a powerful set of API routes for managing chatrooms and sending messages. These routes are automatically registered by the package.
 
 ## Configuration
 Routes are enabled by default. If you publish the package configuration file, you can customize the middleware and prefix used for the API routes in `config/chat.php`:
