@@ -14,6 +14,9 @@ After you've [installed Le Chat](/installation) and [configured your models](/co
   <Tabs syncKey="start-method">
 
   <TabItem label="Artisan">
+  :::note
+  Le Chat convenience Artisan commands assume your `\App\Models\User` model is configured as a participanting model in Le Chat.
+  :::
 
     ```bash
     php artisan le-chat:send-message 1 "Hello, how are you?" 2
