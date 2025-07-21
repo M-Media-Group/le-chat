@@ -55,6 +55,15 @@ If you want to retrieve only the messages sent by a specific participant, you ca
 $messages = ChatMessage::sentBy($participant)->get();
 ```
 
+## Marking messages as read
+You can mark messages as read by calling the `markAsReadBy` method on the `ChatMessage` model:
+
+```php
+$message->markAsReadBy($participant);
+```
+
+This will mark the given message, and all previous messages in the chatroom, as read for the specified participant.
+
 ## Scoping messages to their chatrooms
 So far, we have been retrieving messages across all chatrooms. If you want to scope messages to a specific chatroom, you can use the `chatroom` relationship on the `ChatMessage` model.
 

@@ -25,7 +25,9 @@ This doesn't mean you cannot have direct messages, it just means you have to ref
 ## Links to your models are internal
 Le Chat uses the `ChatParticipant` model to represent a participant in a chatroom. This means you can have any model as a participant in a chatroom, and you don't need to modify your existing models to work with Le Chat. You can also forgoe linking your models to the `ChatParticipant` model if you don't need to, and just use the `ChatParticipant` model directly.
 
-This also means that when you get data from [Broadcasting](/broadcasting) or using the provided [Routes](/routes), you will get the `ChatParticipant` model as the representations of the participants, not your own models. This gives you a uniform way to work with participants in chatrooms, regardless of the underlying model, and also seperates and protects your model data from the chat system.
+In general, when you are using methods that write, you will use your own models or the `ChatParticipant` model. When you are reading data, you will mostly get the `ChatParticipant` model as the representation of the participant in a chatroom, unless otherwise documented.
+
+This also means that when you get data from [Broadcasting](/broadcasting) or using the provided [Routes](/routing), you will get the `ChatParticipant` model as the representations of the participants, not your own models. This gives you a uniform way to work with participants in chatrooms, regardless of the underlying model, and also seperates and protects your model data from the chat system.
 
 In this documentation you can work fluently with your models or the `ChatParticipant` model, depending on the context and what you pass. On outgoing responses, you will always get the `ChatParticipant` model as the representation of the participant in a chatroom.
 

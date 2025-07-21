@@ -156,3 +156,12 @@ This is a regular model that references the [Message](/messages) model, so you c
 ```php
 $messages = $chatroom->messages()->visibleTo($teacher)->get(); // Returns messages that can be read by the teacher
 ```
+
+## Marking messages as read
+You can mark messages as read by calling the `markAsReadBy` method on the `Chatroom` model:
+
+```php
+$chatroom->markAsReadBy($participant);
+```
+
+This will mark the given message, and all previous messages in the chatroom, as read for the specified participant.
