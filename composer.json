@@ -1,5 +1,7 @@
 {
     "name": "mmedia/le-chat",
+    "type": "library",
+    "version": "0.0.1",
     "description": "This is my package le-chat",
     "keywords": [
         "Michal",
