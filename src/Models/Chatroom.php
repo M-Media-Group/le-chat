@@ -91,9 +91,9 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
         $chatMessage = new ChatMessage([
             'sender_id' => null, // No sender, system message
             'chatroom_id' => $this->getKey(),
-        ])
-            ->forceFill($options)
-            ->setAttribute('message', $message);
+        ]);
+        $chatMessage->setAttribute('message', $message);
+        $chatMessage = $chatMessage->forceFill($options);
 
         $chatMessage->save();
 
