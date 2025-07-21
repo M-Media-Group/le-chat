@@ -38,6 +38,7 @@ export default defineConfig({
 						{ label: 'Routing', slug: 'routing' },
 						// { label: 'Resources', slug: 'package-configuration' },
 						{ label: 'Package Configuration', slug: 'package-configuration' },
+						{ label: 'Commands', slug: 'commands' },
 					],
 				},
 				// {

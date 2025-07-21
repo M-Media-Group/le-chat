@@ -2,6 +2,7 @@
 
 namespace Mmedia\LeChat;
 
+use Mmedia\LeChat\Commands\LeChatCommand;
 use Mmedia\LeChat\Commands\NotifyUsersOfRecentUnreadMessages;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
@@ -21,6 +22,7 @@ class LeChatServiceProvider extends PackageServiceProvider
             ->hasViews()
             ->discoversMigrations()
             ->hasRoutes('channels')
+            ->hasCommand(LeChatCommand::class)
             ->hasCommand(NotifyUsersOfRecentUnreadMessages::class);
 
         if (Features::enabled(Features::routes())) {
