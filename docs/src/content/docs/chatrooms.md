@@ -124,7 +124,7 @@ If you want to send messages in a chatroom as a system user (e.g., for notificat
 $chatroom->sendMessage('Martha joined the chat');
 ```
 
-This creates a new message that is not associated with any sender, effectively treating it as a system message. The message will be stored in the database and can be retrieved like any other message, but it will not have any model associated with it.
+This creates a new message that is not associated with any sender, effectively treating it as a system message. The message will be stored in the database and can be retrieved like any other message, but it will not have any sender associated with it.
 
 Sometimes you may need to add additional arguments to the `sendMessage` method, such as a specific type or additional metadata. You can do this by passing an array of options:
 ```php

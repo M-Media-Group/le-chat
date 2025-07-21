@@ -93,7 +93,7 @@ if ($participant->is_connected) {
 }
 ```
 
-Internally, we call the [`get users`](https://pusher.com/docs/chatrooms/library_auth_reference/rest-api/#get-users) endpoint of the chatroom to check if the participant is currently connected to the chatroom.
+Internally, we call the [`get users`](https://pusher.com/docs/channels/library_auth_reference/rest-api/#get-users) endpoint of the chatroom to check if the participant is currently connected to the chatroom.
 
 ### Determining if your model is connected to a chatroom
 You can also check if your own model is connected to a chatroom via sockets by using the `isConnectedToChatroomViaSockets` method on your model. This method will return `true` if the model is currently connected to the chatroom presence channel via sockets, and `false` otherwise.
