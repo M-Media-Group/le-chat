@@ -2,6 +2,8 @@
 title: Your first conversation
 description: Documentation for installing Le Chat.
 ---
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
 
 ## Introduction
 Le Chat is designed to make it super easy to start a conversation between any two or more chat participants. This guide will walk you through the steps to create your first conversation.
@@ -9,23 +11,55 @@ Le Chat is designed to make it super easy to start a conversation between any tw
 ## Send your first message
 After you've [installed Le Chat](/installation) and [configured your models](/configuring-models), you can start sending messages directly between models.
 
-```php
-use App\Models\User;
+  <Tabs syncKey="start-method">
 
-$sender = User::find(1);
-$recipient = AnotherModel::find(2);
+  <TabItem label="Artisan">
 
-$sender->sendMessageTo($recipient, 'Hello, how are you?');
-```
+    ```bash
+    php artisan le-chat:send-message 1 "Hello, how are you?" 2
+    ```
+
+  </TabItem>
+
+  <TabItem label="Code">
+    ```php
+    use App\Models\User;
+
+    $sender = User::find(1);
+    $recipient = AnotherModel::find(2);
+
+    $sender->sendMessageTo($recipient, 'Hello, how are you?');
+    ```
+
+  </TabItem>
+
+  </Tabs>
+
+
 Behind the scenes, Le Chat will automatically create a chatroom, add you and the recipient to it, and send the message to the chatroom.
 
 ## Replying to a Message
 
 Replying is as simple as sending a message back:
 
-```php
-$message = $recipient->sendMessageTo($sender, 'I am fine, thank you!');
-```
+  <Tabs syncKey="start-method">
+
+  <TabItem label="Artisan">
+
+    ```bash
+    php artisan le-chat:send-message 2 "I am fine, thank you!" 1
+    ```
+
+  </TabItem>
+
+  <TabItem label="Code">
+    ```php
+    $message = $recipient->sendMessageTo($sender, 'I am fine, thank you!');
+    ```
+  </TabItem>
+
+  </Tabs>
+
 Le Chat will automatically find the correct chatroom for the participants and send the message.
 
 ## Adding a third participant
