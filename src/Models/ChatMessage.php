@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 
-class ChatMessage extends \Illuminate\Database\Eloquent\Model
+final class ChatMessage extends \Illuminate\Database\Eloquent\Model
 {
     use SoftDeletes;
 

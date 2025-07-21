@@ -5,7 +5,7 @@ namespace Mmedia\LeChat\Models;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 
-class Chatroom extends \Illuminate\Database\Eloquent\Model
+final class Chatroom extends \Illuminate\Database\Eloquent\Model
 {
     use SoftDeletes;
 
@@ -71,10 +71,10 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
             ? $participant->getKey()
             : $participant->asParticipantIn($this)->getKey();
 
-        $chatMessage = new ChatMessage([
+        $chatMessage = (new ChatMessage([
             'sender_id' => $senderId,
             'chatroom_id' => $this->getKey(),
-        ])
+        ]))
             ->forceFill($attributes)
             ->setAttribute('message', $message);
 

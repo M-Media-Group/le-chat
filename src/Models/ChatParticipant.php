@@ -12,7 +12,7 @@ use Mmedia\LeChat\Traits\IsChatParticipant;
 /**
  * @phpstan-type ChatParticipantModel \Illuminate\Database\Eloquent\Model&\Mmedia\LeChat\Contracts\ChatParticipantInterface
  */
-class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements ChatParticipantInterface
+final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements ChatParticipantInterface
 {
     use ConnectsToBroadcast, IsChatParticipant, SoftDeletes;
 
