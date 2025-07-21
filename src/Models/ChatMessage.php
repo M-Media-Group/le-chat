@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 
-final class ChatMessage extends \Illuminate\Database\Eloquent\Model
+class ChatMessage extends \Illuminate\Database\Eloquent\Model
 {
     use SoftDeletes;
 
@@ -161,9 +161,9 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
                                 ->where('participant_id', $participant->getKey())
                                 ->where('participant_type', $participant->getMorphClass());
                         })->orWhereRaw('(
-                            SELECT '.$instance->getQualifiedDeletedAtColumn().'
-                            FROM '.$instance->getTable().'
-                            WHERE '.$instance->getTable().'.chatroom_id = '.$selfInstance->qualifyColumn('chatroom_id').'
+                            SELECT ' . $instance->getQualifiedDeletedAtColumn() . '
+                            FROM ' . $instance->getTable() . '
+                            WHERE ' . $instance->getTable() . '.chatroom_id = ' . $selfInstance->qualifyColumn('chatroom_id') . '
                               AND participant_id = ?
                               AND participant_type = ?
                         ) IS NULL', [$participant->getKey(), $participant->getMorphClass()]);
@@ -205,9 +205,9 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
                                 ->where('participant_id', $participant->getKey())
                                 ->where('participant_type', $participant->getMorphClass());
                         })->orWhereRaw('(
-                            SELECT '.$instance->qualifyColumn('read_at').'
-                            FROM '.$instance->getTable().'
-                            WHERE '.$instance->getTable().'.chatroom_id = '.$selfInstance->qualifyColumn('chatroom_id').'
+                            SELECT ' . $instance->qualifyColumn('read_at') . '
+                            FROM ' . $instance->getTable() . '
+                            WHERE ' . $instance->getTable() . '.chatroom_id = ' . $selfInstance->qualifyColumn('chatroom_id') . '
                               AND participant_id = ?
                               AND participant_type = ?
                         ) IS NULL', [$participant->getKey(), $participant->getMorphClass()]);

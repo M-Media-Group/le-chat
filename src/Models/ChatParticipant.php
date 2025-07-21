@@ -12,7 +12,7 @@ use Mmedia\LeChat\Traits\IsChatParticipant;
 /**
  * @phpstan-type ChatParticipantModel \Illuminate\Database\Eloquent\Model&\Mmedia\LeChat\Contracts\ChatParticipantInterface
  */
-final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements ChatParticipantInterface
+class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements ChatParticipantInterface
 {
     use ConnectsToBroadcast, IsChatParticipant, SoftDeletes;
 
@@ -135,7 +135,7 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
     protected function isConnected(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->getIsConnectedViaSockets(
+            get: fn() => $this->getIsConnectedViaSockets(
                 localId: 'participant_id',
                 channelName: $this->chatroom->broadcastChannel(),
                 type: 'presence'
@@ -161,7 +161,7 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
     protected function displayName(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->getRawOriginal('display_name') ?? $this->getDisplayName()
+            get: fn() => $this->getRawOriginal('display_name') ?? $this->getDisplayName()
         )->shouldCache();
     }
 
@@ -173,7 +173,7 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
     protected function avatarUrl(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->getRawOriginal('avatar_url') ?? $this->getAvatarUrl()
+            get: fn() => $this->getRawOriginal('avatar_url') ?? $this->getAvatarUrl()
         )->shouldCache();
     }
 
@@ -185,7 +185,7 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
     protected function canManageParticipants(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->role === 'admin'
+            get: fn() => $this->role === 'admin'
         )->shouldCache();
     }
 
@@ -197,7 +197,7 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
     protected function isNotifiable(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->participant_type && in_array(
+            get: fn() => $this->participant_type && in_array(
                 \Illuminate\Notifications\Notifiable::class,
                 class_uses_recursive($this->participant_type)
             )
