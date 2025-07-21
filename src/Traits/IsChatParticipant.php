@@ -388,11 +388,11 @@ trait IsChatParticipant
             throw new \Exception('Cannot mark as read because the current model is not an active participant in the chat room. If the model is deleted, you need to create a new chatroom.');
         }
 
-        $chatParticipant->read_at = $roomOrMessage instanceof ChatMessage
+        $readAt = $roomOrMessage instanceof ChatMessage
             ? $roomOrMessage->created_at
             : Carbon::now();
 
-        return $chatParticipant->save();
+        return $chatParticipant->markReadUntil($roomOrMessage, $readAt);
     }
 
     /**
@@ -400,10 +400,23 @@ trait IsChatParticipant
      */
     public function markReadUntil(Chatroom|ChatMessage $roomOrMessage, DateTime|Carbon $readAt): bool
     {
-        $chatParticipant = $this->asChatParticipantFromMessageOrChatroom($roomOrMessage);
+        $chatParticipant = $this instanceof ChatParticipant
+            ? $this
+            :
+            $this->asChatParticipantFromMessageOrChatroom($roomOrMessage);
 
         if (! $chatParticipant) {
-            throw new \Exception('Cannot mark as read because the current model is not an active participant in the chat room. If the model is deleted, you need to create a new chatroom.');
+            throw new \Exception('Cannot mark as read because the current model is not an active participant in the chat room. If the model was deleted from the room, you need to create a new chatroom.');
+        }
+
+        // If the passed readAt is a DateTime instance, convert it to Carbon
+        if ($readAt instanceof DateTime) {
+            $readAt = Carbon::instance($readAt);
+        }
+
+        // Update the read_at timestamp on the chat participant if it is less than the new readAt timestamp
+        if ($chatParticipant->read_at?->greaterThanOrEqualTo($readAt)) {
+            return true;
         }
 
         $chatParticipant->read_at = $readAt;

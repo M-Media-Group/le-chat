@@ -118,27 +118,6 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
         return $chatParticipant->markRead($this);
     }
 
-    /**
-     * Mark all messages as read for a participant until a certain date.
-     *
-     * This will mark all messages in the chatroom as read for the participant until the given date.
-     *
-     * @param  ChatParticipantInterface|ChatParticipant  $participant  The participant to mark messages as read for.
-     * @param  \DateTime|\Carbon\Carbon  $until  The date until which to mark messages as read.
-     * @return bool True if the operation was successful, false otherwise.
-     */
-    public function markAsReadUntil(ChatParticipantInterface|ChatParticipant $participant, \DateTime|\Carbon\Carbon $until): bool
-    {
-        // Get the chat participant for this model in the given chat room
-        $chatParticipant = $this->participant($participant, true);
-        if (! $chatParticipant) {
-            return false; // Not a participant in this chatroom
-        }
-
-        // Mark as read until the given date
-        return $chatParticipant->markReadUntil($this, $until);
-    }
-
     public function addParticipant(ChatParticipantInterface $participant, string $role = 'member'): ChatParticipant
     {
         $chatParticipant = new ChatParticipant([
