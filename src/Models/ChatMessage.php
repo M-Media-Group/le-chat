@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 
-class ChatMessage extends \Illuminate\Database\Eloquent\Model
+final class ChatMessage extends \Illuminate\Database\Eloquent\Model
 {
     use SoftDeletes;
 
@@ -109,7 +109,7 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
         ChatParticipantInterface|ChatParticipant $participant
     ): Builder {
         $instance = new ChatParticipant;
-        $selfInstance = new static;
+        $selfInstance = new self;
 
         return $query->when(($participant instanceof ChatParticipant),
             function ($query) use ($participant, $selfInstance) {
@@ -139,7 +139,7 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
         ChatParticipantInterface|ChatParticipant $participant
     ) {
         $instance = new ChatParticipant;
-        $selfInstance = new static;
+        $selfInstance = new self;
 
         return $query
             ->when(($participant instanceof ChatParticipant),
@@ -183,7 +183,7 @@ class ChatMessage extends \Illuminate\Database\Eloquent\Model
         ChatParticipantInterface|ChatParticipant $participant
     ) {
         $instance = new ChatParticipant;
-        $selfInstance = new static;
+        $selfInstance = new self;
 
         return $query
             ->when(($participant instanceof ChatParticipant),

@@ -23,6 +23,8 @@ use Staudenmeir\EloquentHasManyDeep\HasRelationships;
  *
  * @mixin M
  *
+ * @phpstan-require-extends \Illuminate\Database\Eloquent\Model
+ *
  * @phpstan-require-implements \Mmedia\LeChat\Contracts\ChatParticipantInterface
  *
  * @see \Mmedia\LeChat\Contracts\ChatParticipantInterface
@@ -126,15 +128,6 @@ trait IsChatParticipant
     }
 
     /**
-     * Get all messages sent by this model across all their chat participants.
-     */
-    public function getSentMessages(): \Illuminate\Database\Eloquent\Collection
-    {
-
-        return $this->sentMessages()->get();
-    }
-
-    /**
      * Loads all messages for the given model via the participant relationship. Filtered to only messages created after column created_at in the pivot table.
      *
      * @return \Illuminate\Database\Query\Builder<ChatMessage>
@@ -150,7 +143,10 @@ trait IsChatParticipant
             ->orderBy('id', 'desc');
     }
 
-    private function visibleMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder
+    /**
+     * Get the messages that are visible to this participant.
+     */
+    public function visibleMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder
     {
         // Start building a query on the ChatMessage model
         $query = $this->getMessagesQuery($includeBeforeJoined);
@@ -172,7 +168,7 @@ trait IsChatParticipant
     /**
      * Loads all messages for the given model via the participant relationship. Filtered to only messages created after column created_at in the pivot table.
      *
-     * @return \Illuminate\Support\Collection<ChatMessage, $this>
+     * @return \Illuminate\Support\Collection<int, ChatMessage>
      */
     public function getMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): Collection
     {
@@ -195,7 +191,7 @@ trait IsChatParticipant
      *
      * @param  (ChatParticipantInterface|ChatParticipant)[]  $participants
      */
-    public function getBestChannelForParticipants(array $participants): ?Chatroom
+    private function getBestChannelForParticipants(array $participants): ?Chatroom
     {
         // Add the current model to the list of participants to count
         $allParticipants = $participants;

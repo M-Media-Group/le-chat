@@ -3,13 +3,14 @@
 namespace Mmedia\LeChat\Contracts;
 
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
 
 /**
  * @template T of \Illuminate\Database\Eloquent\Model
  */
-interface ChatParticipantInterface extends MessageSender, TargetedMessageSender
+interface ChatParticipantInterface extends TargetedMessageSender
 {
     /**
      * Get the chat participants for this model (the inverse of the morphTo on ChatParticipant).
@@ -70,4 +71,46 @@ interface ChatParticipantInterface extends MessageSender, TargetedMessageSender
      * @return string
      */
     public function qualifyColumn($column);
+
+    /**
+     * Get the messages that are visible to this participant.
+     *
+     * @return \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder<ChatMessage>
+     */
+    public function visibleMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder;
+
+    /**
+     * Loads all messages for the given model via the participant relationship. Filtered to only messages created after column created_at in the pivot table.
+     *
+     * @return \Illuminate\Support\Collection<int, ChatMessage>
+     */
+    public function getMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): \Illuminate\Support\Collection;
+
+    /**
+     * Returns or creates a chatroom where only the current model is present, e.g. a private chatroom.
+     *
+     * This is useful for sending messages to the current model only, e.g. for notifications.
+     *
+     * @param  array<string, mixed>  $newChannelConfiguration
+     */
+    public function getOrCreatePersonalChatroom(array $newChannelConfiguration = []): Chatroom;
+
+    /**
+     * Mark a given message or chatroom as read for this participant.
+     */
+    public function markRead(Chatroom|ChatMessage $roomOrMessage): bool;
+
+    /**
+     * Get the display name for this participant.
+     *
+     * This is used to display the participant in the chat UI.
+     */
+    public function getDisplayName(): ?string;
+
+    /**
+     * Get the avatar URL for this participant.
+     *
+     * This is used to display the participant's avatar in the chat UI.
+     */
+    public function getAvatarUrl(): ?string;
 }

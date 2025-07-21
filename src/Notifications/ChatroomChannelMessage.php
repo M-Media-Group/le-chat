@@ -66,10 +66,10 @@ class ChatroomChannelMessage implements Arrayable
 
     public function sender(ChatParticipant|ChatParticipantInterface $participant): self
     {
-        if ($participant instanceof ChatParticipantInterface) {
-            $this->sender = $participant->asParticipantIn($this->chatroom);
-        } elseif ($participant instanceof ChatParticipant) {
+        if ($participant instanceof ChatParticipant) {
             $this->sender = $participant;
+        } elseif ($participant instanceof ChatParticipantInterface) {
+            $this->sender = $participant->asParticipantIn($this->chatroom);
         } else {
             throw new \InvalidArgumentException('Invalid participant type.');
         }

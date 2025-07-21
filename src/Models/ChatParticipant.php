@@ -9,7 +9,10 @@ use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Traits\ConnectsToBroadcast;
 use Mmedia\LeChat\Traits\IsChatParticipant;
 
-class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements ChatParticipantInterface
+/**
+ * @phpstan-type ChatParticipantModel \Illuminate\Database\Eloquent\Model&\Mmedia\LeChat\Contracts\ChatParticipantInterface
+ */
+final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements ChatParticipantInterface
 {
     use ConnectsToBroadcast, IsChatParticipant, SoftDeletes;
 
@@ -88,7 +91,7 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
     /**
      * The participant model (the user or other model this participant represents)
      *
-     * @return \Illuminate\Database\Eloquent\Relations\MorphTo<\Illuminate\Database\Eloquent\Model, $this>
+     * @return \Illuminate\Database\Eloquent\Relations\MorphTo<ChatParticipantModel, $this>
      */
     public function participatingModel(): \Illuminate\Database\Eloquent\Relations\MorphTo
     {
@@ -124,6 +127,11 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
         return $query->where('chatroom_id', $chatroom->getKey());
     }
 
+    /**
+     * Check if the participant is connected to the chatroom via sockets.
+     *
+     * @return CastsAttribute<bool, never>
+     */
     protected function isConnected(): CastsAttribute
     {
         return CastsAttribute::make(
@@ -145,6 +153,11 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
         return $this->participatingModel?->getAvatarUrl();
     }
 
+    /**
+     * Get the display name of the participant, falling back to the model's display name if not set.
+     *
+     * @return CastsAttribute<null|string, never>
+     */
     protected function displayName(): CastsAttribute
     {
         return CastsAttribute::make(
@@ -152,6 +165,11 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
         )->shouldCache();
     }
 
+    /**
+     * Get the avatar URL of the participant, falling back to the model's avatar URL if not set.
+     *
+     * @return CastsAttribute<null|string, never>
+     */
     protected function avatarUrl(): CastsAttribute
     {
         return CastsAttribute::make(
@@ -159,6 +177,11 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
         )->shouldCache();
     }
 
+    /**
+     * Get the reference ID of the participant, which can be used to identify the participant in external systems.
+     *
+     * @return CastsAttribute<null|string, never>
+     */
     protected function canManageParticipants(): CastsAttribute
     {
         return CastsAttribute::make(
@@ -168,6 +191,8 @@ class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements Cha
 
     /**
      * A participant is notifiable if the participant_type class uses the Notifiable trait.
+     *
+     * @return CastsAttribute<bool, never>
      */
     protected function isNotifiable(): CastsAttribute
     {

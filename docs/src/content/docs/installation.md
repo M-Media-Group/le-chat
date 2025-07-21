@@ -28,18 +28,3 @@ php artisan vendor:publish --tag="le-chat-config"
 ```
 
 That's it! Le Chat is now installed and ready to use. You can [optionally customise the config](/package-configuration) if you want.
-
-### Bleeding-edge version
-:::danger
-Le Chat is in active beta and breaking changes are likely to occur!
-:::
-If you want to use the latest features and fixes, you can install the bleeding-edge version directly from the GitHub repository. Before running the `require`, add the following to your composer.json:
-```json
-
- "repositories": [
-        {
-            "type": "vcs",
-            "url": "git@github.com:M-Media-Group/le-chat.git"
-        }
-    ],
-```

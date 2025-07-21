@@ -5,7 +5,7 @@ namespace Mmedia\LeChat\Models;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 
-class Chatroom extends \Illuminate\Database\Eloquent\Model
+final class Chatroom extends \Illuminate\Database\Eloquent\Model
 {
     use SoftDeletes;
 
@@ -67,9 +67,9 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
      */
     public function sendMessageAs(ChatParticipant|ChatParticipantInterface $participant, string $message, array $attributes = []): ChatMessage
     {
-        $senderId = $participant instanceof ChatParticipantInterface
-            ? $participant->asParticipantIn($this)->getKey()
-            : $participant->getKey();
+        $senderId = $participant instanceof ChatParticipant
+            ? $participant->getKey()
+            : $participant->asParticipantIn($this)->getKey();
 
         $chatMessage = new ChatMessage([
             'sender_id' => $senderId,
@@ -274,7 +274,7 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
     /**
      * Get the chatrooms that have exactly the given participants.
      *
-     * @param  array (ChatParticipantInterface|ChatParticipant)[]  $participant
+     * @param  (ChatParticipantInterface|ChatParticipant)[]  $participant
      * @return \Illuminate\Database\Eloquent\Builder<static>
      */
     public function scopeHavingExactlyParticipants(
@@ -297,7 +297,7 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
      * Get participants that morph into models with the Notifiable trait.
      * This is useful for sending notifications to participants.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<ChatParticipant>
+     * @return \Illuminate\Database\Eloquent\Collection<int, ChatParticipant>
      */
     public function getNotifiableParticipants(): \Illuminate\Database\Eloquent\Collection
     {
