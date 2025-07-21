@@ -184,7 +184,7 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
     public function syncParticipants(array $participants, string $role = 'member'): array
     {
         // A helper to create a unique key (e.g., 'App\Models\User:1') for any participant object.
-        $makeKey = fn(ChatParticipantInterface $p) => $p->getMorphClass() . ':' . $p->getKey();
+        $makeKey = fn (ChatParticipantInterface $p) => $p->getMorphClass().':'.$p->getKey();
 
         // 1. Create a map of the NEW participants we want in the room, keyed by their unique identifier.
         //    Example: ['App\Models\User:2' => $user2_object, 'App\Models\User:3' => $user3_object]
@@ -194,7 +194,7 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
         //    We use participant_type and participant_id to build the same key format.
         //    Example: ['App\Models\User:1' => $chatParticipant1, 'App\Models\User:2' => $chatParticipant2]
         $currentParticipantMap = $this->participants()->get()->keyBy(
-            fn(ChatParticipant $p) => $p->participant_type . ':' . $p->participant_id
+            fn (ChatParticipant $p) => $p->participant_type.':'.$p->participant_id
         );
 
         // 3. Find which participants to ADD.
@@ -234,7 +234,7 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
 
     public function hasParticipant(ChatParticipantInterface|ChatParticipant $participant, bool $includeTrashed = false): bool
     {
-        return $this->participants()->ofParticipant($participant)->when($includeTrashed, fn($query) => $query->withTrashed())->exists();
+        return $this->participants()->ofParticipant($participant)->when($includeTrashed, fn ($query) => $query->withTrashed())->exists();
     }
 
     public function hasOrHadParticipant(ChatParticipantInterface|ChatParticipant $participant): bool
@@ -247,13 +247,12 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
      */
     public function participant(ChatParticipantInterface|ChatParticipant $participant, bool $includeTrashed = false): ?ChatParticipant
     {
-        return $this->participants()->ofParticipant($participant)->when($includeTrashed, fn($query) => $query->withTrashed())->first();
+        return $this->participants()->ofParticipant($participant)->when($includeTrashed, fn ($query) => $query->withTrashed())->first();
     }
 
     /**
      * Get chatrooms that have at least the given participants.
      *
-     * @param  \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder  $query
      * @param  (ChatParticipantInterface|ChatParticipant)[]  $participant
      * @return \Illuminate\Database\Eloquent\Builder<static>
      */
@@ -266,7 +265,7 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
             'participants',
             function ($query) use ($participants, $includeTrashed) {
                 foreach ($participants as $participant) {
-                    return $query->ofParticipant($participant)->when($includeTrashed, fn($query) => $query->withTrashed());
+                    return $query->ofParticipant($participant)->when($includeTrashed, fn ($query) => $query->withTrashed());
                 }
             }
         );
@@ -275,7 +274,7 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
     /**
      * Get the chatrooms that have exactly the given participants.
      *
-     * @param (ChatParticipantInterface|ChatParticipant)[]  $participant
+     * @param  (ChatParticipantInterface|ChatParticipant)[]  $participant
      * @return \Illuminate\Database\Eloquent\Builder<static>
      */
     public function scopeHavingExactlyParticipants(
@@ -303,7 +302,7 @@ class Chatroom extends \Illuminate\Database\Eloquent\Model
     public function getNotifiableParticipants(): \Illuminate\Database\Eloquent\Collection
     {
         return $this->participants->filter(
-            fn(ChatParticipant $participant) => $participant->is_notifiable
+            fn (ChatParticipant $participant) => $participant->is_notifiable
         )->values();
     }
 
