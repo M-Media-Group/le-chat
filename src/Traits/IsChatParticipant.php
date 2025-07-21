@@ -41,7 +41,7 @@ trait IsChatParticipant
     public function chatParticipants(): MorphMany
     {
         // 'participant' is the morph name defined in the ChatParticipant model's morphTo() method
-        return $this->morphMany(ChatParticipant::class, 'participant')->chaperone('participatingModel');
+        return $this->morphMany(ChatParticipant::class, 'participant');
     }
 
     /**
