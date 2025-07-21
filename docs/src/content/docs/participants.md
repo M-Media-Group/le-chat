@@ -169,6 +169,11 @@ On the majority of methods where you can pass your own models, you can also pass
 $chatrooms = Chatroom::hasParticipant([$teacher, $chatParticipant]); // Will return all chatrooms where the participant is currently active
 ```
 
+The model itself also implements the `ChatParticipantInterface`, and uses the trait, so you can use it in the same way as your own models:
+```php
+$chatParticipant->sendMessageTo($student, 'Hello from the chat participant!');
+```
+
 ## Getting a personal chatroom
 You can retrieve a "personal chatroom" for a participant, which is a chatroom that only contains that participant. This is useful for sending notifications or system messages that are not part of any other chatroom.
 
