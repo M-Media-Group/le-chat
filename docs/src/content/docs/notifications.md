@@ -38,7 +38,7 @@ foreach ($notifiableParticipants as $participant) {
 ## Default New Message Notification
 The default notification is `\Mmedia\LeChat\Notifications\NewMessage::class`, which will send a notification to each of the participants personal channels when a new message is created, except the sender of the message, via the [Broadcasting](/broadcasting) channel.
 
-If you have the `WebPush` channel installed, the notification will automatically be sent via web-push if the participant is not connected to the chatroom via sockets. This is useful for sending notifications to users who are not currently online in the chatroom.
+If you have the [`WebPush`](https://laravel-notification-channels.com/webpush/#web-push-notifications-channel-for-laravel) channel installed, the notification will automatically be sent via web-push if the participant is not connected to the chatroom via sockets. This is useful for sending notifications to users who are not currently online in the chatroom.
 
 ### Difference from the event broadcast
 The `NewMessage` notification is sent to the personal channel of each participant, while the event is broadcasted to the chatroom presence channel. This means that the notification will be sent to each participant individually, while the event is sent to the chatroom as a whole.

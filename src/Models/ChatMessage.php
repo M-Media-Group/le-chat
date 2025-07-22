@@ -5,10 +5,11 @@ namespace Mmedia\LeChat\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Traits\BelongsToChatroom;
 
 final class ChatMessage extends \Illuminate\Database\Eloquent\Model
 {
-    use SoftDeletes;
+    use BelongsToChatroom, SoftDeletes;
 
     protected $fillable = [
         'chatroom_id',
@@ -23,16 +24,6 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
     ];
 
     /**
-     * The chatroom this message belongs to.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Chatroom, $this>
-     */
-    public function chatroom(): \Illuminate\Database\Eloquent\Relations\BelongsTo
-    {
-        return $this->belongsTo(Chatroom::class);
-    }
-
-    /**
      * The sender of this message
      *
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<ChatParticipant, $this>
@@ -42,18 +33,13 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
         return $this->belongsTo(ChatParticipant::class, 'sender_id');
     }
 
+    /**
+     * Mark the message as read by a participant.
+     */
     public function markAsReadBy(ChatParticipantInterface|ChatParticipant $participant): bool
     {
         // Mark the message as read by the participant
         return $participant->markRead($this);
-    }
-
-    public function scopeInRoom($query, Chatroom $chatroom)
-    {
-        return $query->where(
-            $this->qualifyColumn('chatroom_id'),
-            $chatroom->getKey()
-        );
     }
 
     /**
@@ -62,7 +48,7 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
      * @param  Builder<ChatMessage>  $query
      * @return Builder<ChatMessage>
      */
-    public function scopeSentBy(Builder $query, ChatParticipantInterface|ChatParticipant $participant)
+    public function scopeSentBy(Builder $query, ChatParticipantInterface|ChatParticipant $participant): Builder
     {
         return $query->whereHas(
             'sender',

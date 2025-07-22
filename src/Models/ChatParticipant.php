@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Traits\BelongsToChatroom;
 use Mmedia\LeChat\Traits\ConnectsToBroadcast;
 use Mmedia\LeChat\Traits\IsChatParticipant;
 
@@ -14,7 +15,7 @@ use Mmedia\LeChat\Traits\IsChatParticipant;
  */
 final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements ChatParticipantInterface
 {
-    use ConnectsToBroadcast, IsChatParticipant, SoftDeletes;
+    use BelongsToChatroom, ConnectsToBroadcast, IsChatParticipant, SoftDeletes;
 
     protected $fillable = [
         'chatroom_id',
@@ -40,16 +41,6 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
         'created' => \Mmedia\LeChat\Events\ParticipantCreated::class,
         'deleted' => \Mmedia\LeChat\Events\ParticipantDeleted::class,
     ];
-
-    /**
-     * The chatroom this participant is in
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Chatroom, $this>
-     */
-    public function chatroom(): \Illuminate\Database\Eloquent\Relations\BelongsTo
-    {
-        return $this->belongsTo(Chatroom::class, 'chatroom_id');
-    }
 
     /**
      * The messages sent by this participant
@@ -120,11 +111,6 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
 
         return $query->where('participant_id', $participant->getKey())
             ->where('participant_type', $participant->getMorphClass());
-    }
-
-    public function scopeInRoom(Builder $query, Chatroom $chatroom): Builder
-    {
-        return $query->where('chatroom_id', $chatroom->getKey());
     }
 
     /**

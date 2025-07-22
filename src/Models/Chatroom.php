@@ -100,6 +100,11 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
         return $chatMessage;
     }
 
+    /**
+     * Mark a message as read by a participant.
+     *
+     * @param  ChatMessage|\DateTime|\Carbon\Carbon|null  $message  If provided, mark as read at the time of the message, otherwise mark as read now.
+     */
     public function markAsReadBy(ChatParticipantInterface|ChatParticipant $participant, ChatMessage|\DateTime|\Carbon\Carbon|null $message = null): bool
     {
         // Get the chat participant for this model in the given chat room
@@ -118,6 +123,9 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
         return $chatParticipant->markRead($this);
     }
 
+    /**
+     * Add a participant to the chatroom.
+     */
     public function addParticipant(ChatParticipantInterface $participant, string $role = 'member'): ChatParticipant
     {
         $chatParticipant = new ChatParticipant([
@@ -161,6 +169,11 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
         return false;
     }
 
+    /**
+     * Remove multiple participants from the chatroom.
+     *
+     * @param  ChatParticipantInterface[]  $participants
+     */
     public function removeParticipants(array $participants): bool
     {
         $removed = false;
@@ -230,11 +243,17 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
         return $results;
     }
 
+    /**
+     * Check if the chatroom has a participant.
+     */
     public function hasParticipant(ChatParticipantInterface|ChatParticipant $participant, bool $includeTrashed = false): bool
     {
         return $this->participants()->ofParticipant($participant)->when($includeTrashed, fn ($query) => $query->withTrashed())->exists();
     }
 
+    /**
+     * Check if the chatroom has a participant, including trashed participants.
+     */
     public function hasOrHadParticipant(ChatParticipantInterface|ChatParticipant $participant): bool
     {
         return $this->hasParticipant($participant, true);
@@ -304,6 +323,12 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
         )->values();
     }
 
+    /**
+     * Scope to load unread messages count for a participant.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Chatroom>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<Chatroom>
+     */
     public function scopeWithUnreadMessagesCountFor($query, ChatParticipantInterface|ChatParticipant $participant)
     {
         return $query->withCount(['messages as unread_messages_count' => function ($query) use ($participant) {
