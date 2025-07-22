@@ -72,7 +72,7 @@ $messages = ChatMessage::inRoom($chatroom)->get();
 ```
 
 ## Deleting messages
-Le Chat uses an overwrite-strategy on delete, which means that when you delete a message, it will not be permanently removed from the database, but the content of the message will be set to `null`. This allows you to show people that a message was deleted and keep it for auditing, but remove its content. To do this, Le Chat uses the `OverwriteDeletes` trait, which is a partial override of the default `SoftDeletes` trait. You can delete messages just as you would any other soft-deleted model:
+Le Chat uses non-reversible overwrite on delete - the message will not be permanently removed from the database, but the content of the message will be set to `null`. This allows you to show people that a message was deleted and keep it for auditing, but remove its content. To do this, Le Chat uses the `OverwriteDeletes` trait, which is a partial override of the default `SoftDeletes` trait. You can delete messages just as you would any other soft-deleted model:
 
 ```php
 $message->delete();
