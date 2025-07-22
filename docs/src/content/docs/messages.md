@@ -81,6 +81,8 @@ $sender = $message->sender; // Returns the participant who sent the message
 ```
 This returns the `ChatParticipant` morph model, which represents the participant who sent the message. This is by design, letting you work with a unified interface for all participants, regardless of their underlying model.
 
+Remember that not all messages have a sender. For example, system messages do not have a sender, so the `sender` relationship may return `null` in those cases.
+
 ### Returning the actual model that sent the message
 This will return an instance of the `ChatParticipant` model, which you can then use to get the actual model that sent the message (e.g., a User model).
 ```php

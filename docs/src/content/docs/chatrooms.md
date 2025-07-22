@@ -18,6 +18,9 @@ use Mmedia\LeChat\Models\Chatroom;
 $chatroom = Chatroom::create([
     'name' => 'General Chat',
     'description' => 'A chatroom for general discussions',
+    'metadata' => [
+        'foo' => 'bar', // Optional metadata for the chatroom
+    ],
 ]);
 ```
 

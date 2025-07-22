@@ -7,7 +7,7 @@ description: Documentation for Le Chat routing.
 Le Chat provides a powerful set of API routes for managing chatrooms and sending messages. These routes are automatically registered by the package.
 
 ## Configuration
-Routes are enabled by default. If you publish the package configuration file, you can customize the middleware and prefix used for the API routes in `config/chat.php`:
+Routes are enabled by default. You can customize the middleware and prefix used for the API routes in `config/chat.php`:
 
 ```php
 'features' => [

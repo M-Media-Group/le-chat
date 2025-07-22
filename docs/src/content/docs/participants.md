@@ -110,6 +110,25 @@ If you want to use a different date range, you can use the `whereHasUnreadMessag
 $users = User::whereHasUnreadMessages(7, true)->get(); // unread messages sent in the last 7 days, including system messages
 ```
 
+## Getting a personal chatroom
+You can retrieve a "personal chatroom" for a participant, which is a chatroom that only contains that participant. This is useful for sending notifications or system messages that are not part of any other chatroom.
+
+```php
+$personalChatroom = $teacher->getOrCreatePersonalChatroom(); // Will return the first chatroom that only contains the teacher as a participant
+```
+
+If you want to configure the personal chatroom if its created, you can pass an array of attributes to the `getOrCreatePersonalChatroom` method:
+
+```php
+$teacher->getOrCreatePersonalChatroom([
+    'name' => 'My Personal Chatroom',
+    'description' => 'This is my personal chatroom for notifications and system messages, and sometimes notes.',
+    'metadata' => [
+        'foo' => 'bar', // Optional metadata for the personal chatroom
+    ],
+]);
+```
+
 ## Working with the intermediate morph model
 Le Chat uses an intermediate morph model called `ChatParticipant` to manage the relationships between your chattable models and the chatrooms they participate in.
 
@@ -118,7 +137,7 @@ This model represents a participant in a chatroom and contains additional inform
 The intermediate model is more than just a pivot table; it allows you to have a unified representation of all participants in a chatroom, separate from your own models. This allows you to maximise the separation of concerns between your application logic and the chat functionality.
 
 ### Getting the intermediate model from your model
-You can retrieve the `ChatParticipant` instance for a specific participant using the `chatParticipant` method on your model:
+You can retrieve the `ChatParticipant` instance for a specific participant using the `asParticipantIn` method on your model:
 ```php
 $chatParticipant = $teacher->asParticipantIn($chatroom);
 ```
@@ -172,20 +191,4 @@ $chatrooms = Chatroom::hasParticipant([$teacher, $chatParticipant]); // Will ret
 The model itself also implements the `ChatParticipantInterface`, and uses the trait, so you can use it in the same way as your own models:
 ```php
 $chatParticipant->sendMessageTo($student, 'Hello from the chat participant!');
-```
-
-## Getting a personal chatroom
-You can retrieve a "personal chatroom" for a participant, which is a chatroom that only contains that participant. This is useful for sending notifications or system messages that are not part of any other chatroom.
-
-```php
-$personalChatroom = $teacher->getOrCreatePersonalChatroom(); // Will return the first chatroom that only contains the teacher as a participant
-```
-
-If you want to configure the personal chatroom if its created, you can pass an array of attributes to the `getOrCreatePersonalChatroom` method:
-
-```php
-$teacher->getOrCreatePersonalChatroom([
-    'name' => 'My Personal Chatroom',
-    'description' => 'This is my personal chatroom for notifications and system messages, and sometimes notes.',
-]);
 ```
