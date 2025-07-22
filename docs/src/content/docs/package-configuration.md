@@ -47,3 +47,12 @@ Routes are enabled by default. If you publish the package configuration file, yo
     ]),
 ],
 ```
+
+### Encryption of Messages at Rest
+You can enable the encryption of messages at rest by adding the following feature to your configuration:
+```php
+// config/chat.php
+'features' => [
+    Features::encryptMessagesAtRest(),
+],
+```

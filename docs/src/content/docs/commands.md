@@ -35,3 +35,19 @@ Schedule::command(NotifyUsersOfRecentUnreadMessages::class, ['--days' => 1])
     ->dailyAt('09:00')
     ->description('Notify users of recent unread messages from the last day');
 ```
+
+## `le-chat:encrypt-messages`
+This command is used to encrypt all chat messages in the database. It will attempt to encrypt each message, and if the message is already encrypted, it will skip it.
+This is useful for securing chat messages at rest.
+### Example usage
+```bash
+php artisan le-chat:encrypt-messages
+```
+
+## `le-chat:decrypt-messages`
+This command is used to decrypt all chat messages in the database. It will attempt to decrypt each message, and if the message is not encrypted, it will skip it.
+This is useful for reverting the encryption of chat messages if needed.
+### Example usage
+```bash
+php artisan le-chat:decrypt-messages
+```

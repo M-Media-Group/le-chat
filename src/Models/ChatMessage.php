@@ -2,9 +2,12 @@
 
 namespace Mmedia\LeChat\Models;
 
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Traits\BelongsToChatroom;
 
 final class ChatMessage extends \Illuminate\Database\Eloquent\Model
@@ -40,6 +43,40 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
     {
         // Mark the message as read by the participant
         return $participant->markRead($this);
+    }
+
+    /**
+     * Get the message attribute, decrypting it if encryption is enabled.
+     *
+     * @return CastsAttribute<string, string>
+     *
+     * @throws \Illuminate\Contracts\Encryption\DecryptException
+     * @throws \Illuminate\Contracts\Encryption\EncryptException
+     */
+    protected function message(): CastsAttribute
+    {
+        $usesEncryption = Features::enabled(Features::encryptMessagesAtRest());
+
+        /** Try to encrypt but catch DecryptException */
+        $decryptSoftly = function ($value) use ($usesEncryption) {
+            if ($usesEncryption) {
+                try {
+                    return decrypt($value);
+                } catch (DecryptException $e) {
+                    $allowsSoftDecryption = Features::optionEnabled(Features::encryptMessagesAtRest(), 'return_failed_decrypt', false);
+
+                    // If decryption fails, return the original value
+                    return $allowsSoftDecryption ? $value : throw $e;
+                }
+            }
+
+            return $value;
+        };
+
+        return CastsAttribute::make(
+            get: fn (string $value) => $usesEncryption ? $decryptSoftly($value) : $value,
+            set: fn (string $value) => $usesEncryption ? encrypt($value) : $value
+        )->shouldCache();
     }
 
     /**

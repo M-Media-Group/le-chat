@@ -47,4 +47,19 @@ class Features
 
         return 'routes';
     }
+
+    /**
+     * Enable the encryption of messages at rest.
+     *
+     * @return string
+     */
+    public static function encryptMessagesAtRest(array $options = [])
+    {
+        if (! empty($options)) {
+            config(['chat-options.encrypt-messages-at-rest' => $options]);
+        }
+
+        // This feature does not require any specific options, so we return a simple string.
+        return 'encrypt-messages-at-rest';
+    }
 }

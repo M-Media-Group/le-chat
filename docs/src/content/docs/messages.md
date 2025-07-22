@@ -88,3 +88,36 @@ This will return an instance of the `ChatParticipant` model, which you can then 
 ```php
 $senderModel = $message->sender->participatingModel; // Returns the actual model that sent the message
 ```
+
+## Encrypting messages at rest
+Le Chat supports encrypting messages at rest. This means that messages are stored in an encrypted format in the database, ensuring that they are secure even if the database is compromised.
+
+Enable this feature in the [package configuration](/package-configuration) by adding the `encryptMessagesAtRest` feature.
+
+### Migrating existing messages to encrypted format and back
+If you have existing messages in the database that you want to encrypt, you can use the `le-chat:encrypt-messages` command to migrate them to the encrypted format:
+```bash
+php artisan le-chat:encrypt-messages
+```
+This command will go through all messages in the database and encrypt them.
+
+If you need to reverse this process and decrypt the messages, you can use the `le-chat:decrypt-messages` command:
+```bash
+php artisan le-chat:decrypt-messages
+```
+
+This command will go through all messages in the database and decrypt them.
+
+### Allowing failed decryption
+When your application is switching from unencrypted to encrypted messages but already has messages in the database, and for some reason you are not yet able to run the Artisan commands, you can allow failed decryption by setting the `return_failed_decrypt` option to `true` in the feature configuration:
+```php
+// config/chat.php
+'features' => [
+    Features::encryptMessagesAtRest([
+        'return_failed_decrypt' => true,
+    ]),
+],
+```
+This will allow your application to return the original message content if decryption fails, instead of throwing an exception. This is useful for transitioning existing messages to encrypted storage without losing data.
+
+You should NOT rely on this feature as it may be unsafe. Instead, when switching to encrypted messages, you should migrate your existing messages to the encrypted format with the provided commands.

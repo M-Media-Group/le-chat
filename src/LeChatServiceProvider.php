@@ -2,6 +2,8 @@
 
 namespace Mmedia\LeChat;
 
+use Mmedia\LeChat\Commands\DecryptMessages;
+use Mmedia\LeChat\Commands\EncryptMessages;
 use Mmedia\LeChat\Commands\LeChatCommand;
 use Mmedia\LeChat\Commands\NotifyUsersOfRecentUnreadMessages;
 use Spatie\LaravelPackageTools\Package;
@@ -23,6 +25,8 @@ class LeChatServiceProvider extends PackageServiceProvider
             ->discoversMigrations()
             ->hasRoutes('channels')
             ->hasCommand(LeChatCommand::class)
+            ->hasCommand(EncryptMessages::class)
+            ->hasCommand(DecryptMessages::class)
             ->hasCommand(NotifyUsersOfRecentUnreadMessages::class);
 
         if (Features::enabled(Features::routes())) {
