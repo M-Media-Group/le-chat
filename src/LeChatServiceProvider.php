@@ -3,6 +3,7 @@
 namespace Mmedia\LeChat;
 
 use Mmedia\LeChat\Commands\DecryptMessages;
+use Mmedia\LeChat\Commands\DeleteMessages;
 use Mmedia\LeChat\Commands\EncryptMessages;
 use Mmedia\LeChat\Commands\LeChatCommand;
 use Mmedia\LeChat\Commands\NotifyUsersOfRecentUnreadMessages;
@@ -27,6 +28,7 @@ class LeChatServiceProvider extends PackageServiceProvider
             ->hasCommand(LeChatCommand::class)
             ->hasCommand(EncryptMessages::class)
             ->hasCommand(DecryptMessages::class)
+            ->hasCommand(DeleteMessages::class)
             ->hasCommand(NotifyUsersOfRecentUnreadMessages::class);
 
         if (Features::enabled(Features::routes())) {

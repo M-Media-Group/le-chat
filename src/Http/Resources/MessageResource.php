@@ -21,6 +21,7 @@ class MessageResource extends JsonResource
             'sender_id' => $this->sender_id,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+            'deleted_at' => $this->deleted_at,
             'sender' => new ChatParticipantResource($this->whenLoaded('sender')),
         ];
     }

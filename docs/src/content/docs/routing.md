@@ -35,6 +35,7 @@ Retrieves a list of all chatrooms that the authenticated user is a participant i
             "sender_id": 2,
             "created_at": "2025-07-19T17:38:16.000000Z",
             "updated_at": "2025-07-19T17:38:16.000000Z",
+            "deleted_at": null,
             "sender": {
                 "id": 2,
                 "participant_id": 1,

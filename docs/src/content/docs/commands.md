@@ -51,3 +51,13 @@ This is useful for reverting the encryption of chat messages if needed.
 ```bash
 php artisan le-chat:decrypt-messages
 ```
+
+## `le-chat:delete-messages`
+:::danger
+This command is not reversible.
+:::
+This command is used to delete all chat messages by setting the `message` attribute to `null` on each message. This effectively removes the content of the messages while keeping the metadata intact, such as sender, timestamps, etc.
+### Example usage
+```bash
+php artisan le-chat:delete-messages
+```

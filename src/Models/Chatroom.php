@@ -332,7 +332,7 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
     public function scopeWithUnreadMessagesCountFor($query, ChatParticipantInterface|ChatParticipant $participant)
     {
         return $query->withCount(['messages as unread_messages_count' => function ($query) use ($participant) {
-            $query->visibleTo($participant)->unreadBy($participant);
+            $query->visibleTo($participant)->unreadBy($participant)->withoutTrashed();
         }]);
     }
 }

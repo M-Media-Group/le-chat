@@ -9,10 +9,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Traits\BelongsToChatroom;
+use Mmedia\LeChat\Traits\OverwriteDeletes;
 
 final class ChatMessage extends \Illuminate\Database\Eloquent\Model
 {
-    use BelongsToChatroom, SoftDeletes;
+    use BelongsToChatroom, OverwriteDeletes, SoftDeletes {
+        OverwriteDeletes::runSoftDelete insteadof SoftDeletes;
+        OverwriteDeletes::restore insteadof SoftDeletes;
+    }
 
     protected $fillable = [
         'chatroom_id',
@@ -21,10 +25,24 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
         'reply_to_id',
     ];
 
+    /**
+     * The attributes that will be set, and to what they will be set to, on soft delete.
+     */
+    protected $deletable = [
+        'message' => null,
+    ];
+
     // Events
     protected $dispatchesEvents = [
         'created' => \Mmedia\LeChat\Events\MessageCreated::class,
     ];
+
+    /**
+     * Removes the global scope for soft deletes.
+     *
+     * @return void
+     */
+    public static function bootSoftDeletes() {}
 
     /**
      * The sender of this message
@@ -55,6 +73,14 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
      */
     protected function message(): CastsAttribute
     {
+        if (! $this->getRawOriginal('message')) {
+            // If the message is null, return an empty string
+            return CastsAttribute::make(
+                get: fn () => '',
+                set: fn ($value) => $value
+            )->shouldCache();
+        }
+
         $usesEncryption = Features::enabled(Features::encryptMessagesAtRest());
 
         /** Try to encrypt but catch DecryptException */

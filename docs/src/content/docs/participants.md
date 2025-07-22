@@ -110,6 +110,8 @@ If you want to use a different date range, you can use the `whereHasUnreadMessag
 $users = User::whereHasUnreadMessages(7, true)->get(); // unread messages sent in the last 7 days, including system messages
 ```
 
+Le Chat will not consider deleted messages as unread, so if a message was deleted, it will not be counted as unread.
+
 ## Getting a personal chatroom
 You can retrieve a "personal chatroom" for a participant, which is a chatroom that only contains that participant. This is useful for sending notifications or system messages that are not part of any other chatroom.
 

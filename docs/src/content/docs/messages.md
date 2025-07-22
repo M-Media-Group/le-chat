@@ -71,6 +71,34 @@ So far, we have been retrieving messages across all chatrooms. If you want to sc
 $messages = ChatMessage::inRoom($chatroom)->get();
 ```
 
+## Deleting messages
+Le Chat uses an overwrite-strategy on delete, which means that when you delete a message, it will not be permanently removed from the database, but the content of the message will be set to `null`. This allows you to show people that a message was deleted and keep it for auditing, but remove its content. To do this, Le Chat uses the `OverwriteDeletes` trait, which is a partial override of the default `SoftDeletes` trait. You can delete messages just as you would any other soft-deleted model:
+
+```php
+$message->delete();
+```
+
+This will set the `message` attribute to `null` and set a `deleted_at` timestamp, allowing you to keep track of when the message was deleted.
+
+If you try to restore a message that has been deleted, you will get an exception, as the content of the message cannot be restored.
+
+Le Chat will not apply a global scope for soft deletes on the `ChatMessage` model, so you can retrieve deleted messages without any issues.
+
+To actually delete the message from the database, you can use the `forceDelete` method:
+
+```php
+$message->forceDelete();
+```
+
+:::danger
+This following command is not reversible.
+:::
+
+If you want to delete all message contents in all messages, you can use the `le-chat:delete-messages` Artisan command:
+```bash
+php artisan le-chat:delete-messages
+```
+
 ## Working with the message model
 The `ChatMessage` model has several useful methods that you can use to work with messages.
 

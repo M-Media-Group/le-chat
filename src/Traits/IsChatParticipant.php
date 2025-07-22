@@ -442,6 +442,9 @@ trait IsChatParticipant
             $messagesTable = (new ChatMessage)->getTable();
             $participantsTable = (new ChatParticipant)->getTable();
 
+            // Where not deleted
+            $messagesQuery->withoutTrashed();
+
             if ($daysAgo !== null) {
                 $messagesQuery->whereDate("{$messagesTable}.created_at", '>=', now()->subDays($daysAgo));
             }
@@ -486,6 +489,7 @@ trait IsChatParticipant
     {
         $this->loadCount([
             'messages as unread_messages_count' => fn ($query) => $query->visibleTo($this)->unreadBy($this)
+                ->withoutTrashed()
                 ->when(! $includeSystemMessages, function ($q) {
                     // Exclude system messages
                     $q->whereNotNull('sender_id');
