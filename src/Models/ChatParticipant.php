@@ -121,7 +121,7 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
     protected function isConnected(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->getIsConnectedViaSockets(
+            get: fn () => $this->isConnectedViaSockets(
                 localId: 'participant_id',
                 channelName: $this->chatroom->broadcastChannel(),
                 type: 'presence'

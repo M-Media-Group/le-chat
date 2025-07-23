@@ -42,7 +42,7 @@ class NewMessage extends Notification implements ShouldQueue
         $connected = false;
 
         // Check if notifiable has ConnectsToBroadcast trait
-        if (method_exists($notifiable, 'getIsConnectedViaSockets')) {
+        if (method_exists($notifiable, 'isConnectedViaSockets')) {
             $connected = $notifiable->is_connected;
         } else {
             $connected = $this->participant->is_connected;

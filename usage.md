@@ -277,6 +277,8 @@ $users = User::whereHasUnreadMessages(7, true)->get(); // unread messages sent i
 $users = User::whereHasUnreadMessagesToday(true)->get(); // unread messages sent today, including system messages
 ```
 
+Le Chat will not consider deleted messages as unread, so if a message was deleted, it will not be counted as unread.
+
 #### Loading unread messages count
 You can load the unread messages count for a participant in a chatroom using the `loadUnreadMessagesCount` method. This will load the `unread_messages_count` attribute on the participant model.
 
@@ -355,10 +357,10 @@ $user->isConnectedToChatroomViaSockets($chatroom);
 $chatParticipant->is_connected;
 
 # OR, if using the trait (note, this will check the model-specific broadcasting channel, not the chatroom channel)
-$user->getIsConnectedViaSockets();
+$user->isConnectedViaSockets();
 ```
 
-If you want to use this feature for your own models, you can use the `ConnectsToBroadcast` trait, which will provide the `getIsConnectedViaSockets` method. This method will return true if the participant is connected to the chatroom via sockets, false if they are not, and null if the connection could not be determined (e.g. if the broadcast driver does not support it).
+If you want to use this feature for your own models, you can use the `ConnectsToBroadcast` trait, which will provide the `isConnectedViaSockets` method. This method will return true if the participant is connected to the chatroom via sockets, false if they are not, and null if the connection could not be determined (e.g. if the broadcast driver does not support it).
 
 Under the hood, it makes an API call to the websocket server to check if the participant is connected to the chatroom.
 
@@ -368,7 +370,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
  protected function isConnected(): CastsAttribute
 {
     return CastsAttribute::make(
-        get: fn() => $this->getIsConnectedViaSockets()
+        get: fn() => $this->isConnectedViaSockets()
     )->shouldCache();
 }
 ```
@@ -377,7 +379,7 @@ This will check using the `broadcastChannel` of the model, if the user is curren
 
 If you want to check if the model is connected to a presence channel, you can pass the chatroom name and type as parameters to the method:
 ```php
-$chatParticipant->getIsConnectedViaSockets(
+$chatParticipant->isConnectedViaSockets(
     type: 'presence',
     channelName: $this->broadcastChannel(), // or any other chatroom name
     localId: 'id' // the local ID of the model, defaults to 'id'. This is the ID column on the model that will be used to check if the participant is connected to the chatroom - this is only relevant in presence channels. In private channels, we can only determine if the participant is connected or not, not which participant is connected.

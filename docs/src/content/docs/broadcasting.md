@@ -123,7 +123,7 @@ $yourModel = YourModel::find($id);
 
 $yourModel->is_connected; // Returns true if connected to own private channel
 // OR
-$yourModel->getIsConnectedViaSockets(); // True if connected, otherwise false. If the connection could not be determined, it will return null.
+$yourModel->isConnectedViaSockets(); // True if connected, otherwise false. If the connection could not be determined, it will return null.
 ```
 
 The default channel is the private channel for the model as defined by the native Laravel `broadcastChannel()` method.
@@ -132,7 +132,7 @@ The default channel is the private channel for the model as defined by the nativ
 If you want to check for a specific channel, you can pass the channel name as an argument:
 
 ```php
-if ($yourModel->getIsConnectedViaSockets('your.channel.name', 'private')) {
+if ($yourModel->isConnectedViaSockets('your.channel.name', 'private')) {
     // The model is connected to the specified private channel
 } else {
     // The model is not connected to the specified channel

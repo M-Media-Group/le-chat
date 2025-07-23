@@ -28,7 +28,7 @@ $teacher->sendMessageTo($chatroom, 'Hi class!');
 ### The message lifecycle
 When you send a message, Le Chat will automatically create a chatroom if one doesn't already exist between only the participants and the sender.
 
-If you send a message to a single participant, Le Chat will create a chatroom with just those two participants (the sender and the recipient). If you add another participant to the chatroom, the next time you `sendMessageTo` the original participant and NOT an array of all the participants, Le Chat will create a new private chatroom with just the sender and the participant.
+If you send a message to a single participant, Le Chat will create a chatroom with just those two participants (the sender and the recipient). If you add another participant to the chatroom, the next time you call `sendMessageTo` with only the original participant and NOT an array of all the participants, Le Chat will create a new private chatroom with just the sender and the participant.
 
 ```php
 $firstMessage = $teacher->sendMessageTo($student, 'Hello!');

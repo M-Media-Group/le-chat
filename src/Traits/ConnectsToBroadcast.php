@@ -32,7 +32,7 @@ trait ConnectsToBroadcast
      * @throws \RuntimeException if the broadcast driver is not set or is not supported.
      * @throws \Exception if there is an error checking the participant connection status.
      */
-    public function getIsConnectedViaSockets(?string $channelName = null, string $type = 'private', ?string $localId = null): ?bool
+    public function isConnectedViaSockets(?string $channelName = null, string $type = 'private', ?string $localId = null): ?bool
     {
         if (! $channelName && $this instanceof HasBroadcastChannel) {
             $channelName = $this->broadcastChannel();
@@ -97,7 +97,7 @@ trait ConnectsToBroadcast
     protected function isConnected(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->getIsConnectedViaSockets()
+            get: fn () => $this->isConnectedViaSockets()
         )->shouldCache();
     }
 }
