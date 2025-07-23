@@ -56,3 +56,18 @@ You can enable the encryption of messages at rest by adding the following featur
     Features::encryptMessagesAtRest(),
 ],
 ```
+
+
+#### Allowing failed decryption
+When your application is switching from unencrypted to encrypted messages but already has messages in the database, and for some reason you are not yet able to run the Artisan commands to migrate, you can allow failed decryption by setting the `return_failed_decrypt` option to `true` in the feature configuration:
+```php
+// config/chat.php
+'features' => [
+    Features::encryptMessagesAtRest([
+        'return_failed_decrypt' => true,
+    ]),
+],
+```
+This will allow your application to return the original message content if decryption fails, instead of throwing an exception. This is useful for transitioning existing messages to encrypted storage without losing data.
+
+You should NOT rely on this feature as it may be unsafe. Instead, when switching to encrypted messages, you should migrate your existing messages to the encrypted format with the provided commands.
