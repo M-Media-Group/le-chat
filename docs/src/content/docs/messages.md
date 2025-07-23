@@ -72,6 +72,10 @@ $messages = ChatMessage::inRoom($chatroom)->get();
 ```
 
 ## Deleting messages
+:::danger
+This following actions are not reversible.
+:::
+
 Le Chat uses non-reversible overwrite on delete - the message will not be permanently removed from the database, but the content of the message will be set to `null`. This allows you to show people that a message was deleted and keep it for auditing, but remove its content. To do this, Le Chat uses the `OverwriteDeletes` trait, which is a partial override of the default `SoftDeletes` trait. You can delete messages just as you would any other soft-deleted model:
 
 ```php
@@ -89,10 +93,6 @@ To actually delete the message from the database, you can use the `forceDelete` 
 ```php
 $message->forceDelete();
 ```
-
-:::danger
-This following command is not reversible.
-:::
 
 If you want to delete all message contents in all messages, you can use the `le-chat:delete-messages` Artisan command:
 ```bash
