@@ -70,8 +70,6 @@ trait ConnectsToBroadcast
                 ['info' => 'users']
             );
 
-            Log::info('Response from Reverb: '.json_encode($response, JSON_PRETTY_PRINT));
-
             if ($isPrivate) {
                 return $response->occupied;
             }
