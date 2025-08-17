@@ -23,6 +23,8 @@ class MessageResource extends JsonResource
             'updated_at' => $this->updated_at,
             'deleted_at' => $this->deleted_at,
             'sender' => new ChatParticipantResource($this->whenLoaded('sender')),
+            'replies' => MessageResource::collection($this->whenLoaded('replies')),
+            'parent_message' => new MessageResource($this->whenLoaded('parentMessage')),
         ];
     }
 }

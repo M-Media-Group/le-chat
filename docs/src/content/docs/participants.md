@@ -41,6 +41,21 @@ $teacher->sendMessageTo([$student, $thirdParticipant], 'Hi all!'); // This will 
 $teacher->sendMessageTo($firstMessage->chatroom, 'Hi all!'); // This will use the chatroom directly
 ```
 
+## Directly replying to messages
+You can also reply directly to a message by using the `replyTo` method on the `ChatMessage` model:
+
+```php
+// The first, original message
+$firstMessage = $teacher->sendMessageTo($student, 'Hello!');
+
+$student->replyTo($firstMessage, 'Hi there!');
+
+// You can also use the original sendMessageTo method, passing the original message as the target
+$student->sendMessageTo($firstMessage, 'Hi all!');
+```
+
+This will create a direct relationship between the original message and the reply.
+
 ## Seeing messages
 Different participants will see different messages in the same chatrooms depending on when they joined and left the chatroom.
 ```php
@@ -60,6 +75,19 @@ $messages = $teacher->getMessages(includeBeforeJoined: true); // Will return all
 You can paginate the messages for a participant using the `getMessages` method with optional first two parameters for limit and offset:
 ```php
 $messages = $teacher->getMessages(limit: 10, offset: 0); // Will return the first 10 messages visible to the teacher
+```
+
+### Including replies and parent messages
+You can include replies when retrieving messages by using the `withReplies` parameter:
+
+```php
+$messages = $teacher->getMessages(withReplies: true); // Will return all messages including direct replies
+```
+
+If you want to include the parent message (the message that the given message is a reply to), you can use the `withParentMessage` parameter:
+
+```php
+$messages = $teacher->getMessages(withParentMessage: true); // Will return all messages including parent messages
 ```
 
 ### Building in a query

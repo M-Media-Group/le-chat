@@ -170,10 +170,13 @@ trait IsChatParticipant
      *
      * @return \Illuminate\Support\Collection<int, ChatMessage>
      */
-    public function getMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): Collection
+    public function getMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false, $withReplies = false, $withParentMessage = false): Collection
     {
         // Get the messages using the visibleMessages method
-        return $this->visibleMessages($limit, $offset, $includeBeforeJoined)->get();
+        return $this->visibleMessages($limit, $offset, $includeBeforeJoined)
+            ->when($withReplies, fn ($query) => $query->with('replies'))
+            ->when($withParentMessage, fn ($query) => $query->with('parentMessage'))
+            ->get();
     }
 
     /**
@@ -288,6 +291,22 @@ trait IsChatParticipant
         ])->fresh();
     }
 
+    private function sendMessageAsReplyTo(ChatMessage $message, string $replyMessage): ChatMessage
+    {
+        if (! $this->canSendMessageToChatRoom($message->chatroom)) {
+            throw new \Exception('Cannot send a message to the chat room because the current model is not an active participant in the chat room. If the model is deleted, you need to create a new chatroom.');
+        }
+
+        // Create a new reply message in the same chat room as the original message
+        return $message->chatroom->messages()->create([
+            'sender_id' => $this instanceof ChatParticipant
+                ? $this->getKey()
+                : $this->asParticipantIn($message->chatroom, true)->getKey(),
+            'message' => $replyMessage,
+            'reply_to_id' => $message->getKey(),
+        ])->fresh();
+    }
+
     /**
      * Sends a message to a participant, creating a new chat room if necessary.
      */
@@ -304,15 +323,19 @@ trait IsChatParticipant
     /**
      * Sends a message to a chat or a participant
      *
-     * @param  Chatroom|ChatParticipant|ChatParticipantInterface|ChatParticipantInterface[]  $recipient
+     * @param  ChatMessage|Chatroom|ChatParticipant|ChatParticipantInterface|ChatParticipantInterface[]  $recipient
      */
     public function sendMessageTo(
-        Chatroom|ChatParticipantInterface|array $recipient,
+        ChatMessage|Chatroom|ChatParticipantInterface|array $recipient,
         string $message,
         bool $forceNewChannel = false,
         array $newChannelConfiguration = [],
         array $asParticipantConfiguration = []
     ): ChatMessage {
+        if ($recipient instanceof ChatMessage) {
+            return $this->sendMessageAsReplyTo($recipient, $message);
+        }
+
         if ($recipient instanceof Chatroom) {
             return $this->sendMessageToChatRoom($recipient, $message);
         }
@@ -350,6 +373,14 @@ trait IsChatParticipant
 
         // Send the message to the best channel
         return $this->sendMessageToChatRoom($bestChannel, $message);
+    }
+
+    /**
+     * Replies to a message in the chat.
+     */
+    public function replyTo(ChatMessage $originalMessage, string $message): ChatMessage
+    {
+        return $this->sendMessageAsReplyTo($originalMessage, $message);
     }
 
     /**

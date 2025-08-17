@@ -55,12 +55,37 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
     }
 
     /**
+     * The direct, 1-level deep replies to this message.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<ChatMessage>
+     */
+    public function replies(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ChatMessage::class, 'reply_to_id');
+    }
+
+    /**
+     * The message that the current message is replying to
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<ChatMessage, $this>
+     */
+    public function parentMessage(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(ChatMessage::class, 'reply_to_id');
+    }
+
+    /**
      * Mark the message as read by a participant.
      */
     public function markAsReadBy(ChatParticipantInterface|ChatParticipant $participant): bool
     {
         // Mark the message as read by the participant
         return $participant->markRead($this);
+    }
+
+    public function replyAs(ChatParticipantInterface|ChatParticipant $participant, string $content): ChatMessage
+    {
+        return $participant->replyTo($this, $content);
     }
 
     /**

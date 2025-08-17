@@ -64,6 +64,26 @@ $message->markAsReadBy($participant);
 
 This will mark the given message, and all previous messages in the chatroom, as read for the specified participant.
 
+## Working with replies
+To reply to a message, you can use the `replyAs` method on the `ChatMessage` model:
+
+```php
+$message->replyAs($participant, $replyContent);
+```
+### Retrieving replies to a message
+You can retrieve all 1-level deep replies to a given message using the `replies` relationship on the `ChatMessage` model:
+
+```php
+$replies = $message->replies;
+```
+
+### Retrieving the parent message
+If a message is a reply to another message, you can retrieve the parent message of a reply using the `parentMessage` relationship on the `ChatMessage` model:
+
+```php
+$parentMessage = $message->parentMessage;
+```
+
 ## Scoping messages to their chatrooms
 So far, we have been retrieving messages across all chatrooms. If you want to scope messages to a specific chatroom, you can use the `chatroom` relationship on the `ChatMessage` model.
 
