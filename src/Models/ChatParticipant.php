@@ -42,6 +42,9 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
         'deleted' => \Mmedia\LeChat\Events\ParticipantDeleted::class,
     ];
 
+    // Always load the participating model
+    protected $with = ['participatingModel'];
+
     /**
      * The messages sent by this participant
      *
