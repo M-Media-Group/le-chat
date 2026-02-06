@@ -114,7 +114,7 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
                 try {
                     return decrypt($value);
                 } catch (DecryptException $e) {
-                    $allowsSoftDecryption = Features::optionEnabled(Features::encryptMessagesAtRest(), 'return_failed_decrypt', false);
+                    $allowsSoftDecryption = Features::optionEnabled(Features::encryptMessagesAtRest(), 'return_failed_decrypt');
 
                     // If decryption fails, return the original value
                     return $allowsSoftDecryption ? $value : throw $e;
