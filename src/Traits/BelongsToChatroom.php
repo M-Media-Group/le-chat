@@ -3,8 +3,8 @@
 namespace Mmedia\LeChat\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
-use Mmedia\LeChat\Models\Chatroom;
 use Mmedia\LeChat\Models\ChatMessage;
+use Mmedia\LeChat\Models\Chatroom;
 
 /**
  * @template M of \Illuminate\Database\Eloquent\Model
