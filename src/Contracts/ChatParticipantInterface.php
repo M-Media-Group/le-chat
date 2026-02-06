@@ -48,6 +48,11 @@ interface ChatParticipantInterface extends TargetedMessageSender
     public function getKey();
 
     /**
+     * Replies to a message in the chat.
+     */
+    public function replyTo(ChatMessage $originalMessage, string $message): ChatMessage;
+
+    /**
      * Determines if this model is a participant in the given chat room.
      */
     public function isParticipantIn(Chatroom $chatRoom, bool $includeTrashed = false): bool;

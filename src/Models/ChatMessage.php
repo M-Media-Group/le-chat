@@ -57,7 +57,7 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
     /**
      * The direct, 1-level deep replies to this message.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<ChatMessage>
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<ChatMessage, $this>
      */
     public function replies(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
