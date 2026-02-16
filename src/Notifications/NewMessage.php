@@ -27,6 +27,9 @@ class NewMessage extends Notification implements ShouldQueue
     public function __construct(ChatMessage $message, ChatParticipant $participant)
     {
         $this->message = $message;
+        // Load chatroom so is_connected doesnt throw lazy-loading violations
+        $participant->loadMissing('chatroom');
+
         $this->participant = $participant;
     }
 

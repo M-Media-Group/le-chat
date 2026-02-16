@@ -21,6 +21,11 @@ class SendMessageCreatedNotification implements ShouldQueue
         // For each participant in the chatroom, send a notification
         $chatroom = $event->message->chatroom;
         $participants = $chatroom->getNotifiableParticipants();
+
+        // Required to prevent lazy-loading errors downstream
+        $participants->each(function ($participant) use ($chatroom) {
+            $participant->setRelation('chatroom', $chatroom);
+        });
         foreach ($participants as $participant) {
             // If the participant is the sender, skip sending notification
             if ($participant->id === $event->message->sender_id) {

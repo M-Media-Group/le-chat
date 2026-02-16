@@ -90,7 +90,7 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
     public function participatingModel(): \Illuminate\Database\Eloquent\Relations\MorphTo
     {
         return $this->morphTo(
-            'participant',
+            null,
             'participant_type',
             'participant_id',
         );
