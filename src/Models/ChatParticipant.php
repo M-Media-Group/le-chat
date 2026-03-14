@@ -4,8 +4,14 @@ namespace Mmedia\LeChat\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Notifications\Notifiable;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Events\ParticipantCreated;
+use Mmedia\LeChat\Events\ParticipantDeleted;
 use Mmedia\LeChat\Traits\BelongsToChatroom;
 use Mmedia\LeChat\Traits\ConnectsToBroadcast;
 use Mmedia\LeChat\Traits\IsChatParticipant;
@@ -13,7 +19,7 @@ use Mmedia\LeChat\Traits\IsChatParticipant;
 /**
  * @phpstan-type ChatParticipantModel \Illuminate\Database\Eloquent\Model&\Mmedia\LeChat\Contracts\ChatParticipantInterface
  */
-final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implements ChatParticipantInterface
+final class ChatParticipant extends Model implements ChatParticipantInterface
 {
     use BelongsToChatroom, ConnectsToBroadcast, IsChatParticipant, SoftDeletes;
 
@@ -38,8 +44,8 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
     ];
 
     protected $dispatchesEvents = [
-        'created' => \Mmedia\LeChat\Events\ParticipantCreated::class,
-        'deleted' => \Mmedia\LeChat\Events\ParticipantDeleted::class,
+        'created' => ParticipantCreated::class,
+        'deleted' => ParticipantDeleted::class,
     ];
 
     // Always load the participating model
@@ -48,9 +54,9 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
     /**
      * The messages sent by this participant
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<ChatMessage, $this>
+     * @return HasMany<ChatMessage, $this>
      */
-    public function sentMessages(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function sentMessages(): HasMany
     {
         return $this->hasMany(ChatMessage::class, 'sender_id');
     }
@@ -58,9 +64,9 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
     /**
      * All the messages in the chatroom this participant is in
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<ChatMessage, $this>
+     * @return HasMany<ChatMessage, $this>
      */
-    public function messages(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function messages(): HasMany
     {
         $chatMessageInstance = new ChatMessage;
 
@@ -85,9 +91,9 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
     /**
      * The participant model (the user or other model this participant represents)
      *
-     * @return \Illuminate\Database\Eloquent\Relations\MorphTo<ChatParticipantModel, $this>
+     * @return MorphTo<ChatParticipantModel, $this>
      */
-    public function participatingModel(): \Illuminate\Database\Eloquent\Relations\MorphTo
+    public function participatingModel(): MorphTo
     {
         return $this->morphTo(
             null,
@@ -187,7 +193,7 @@ final class ChatParticipant extends \Illuminate\Database\Eloquent\Model implemen
     {
         return CastsAttribute::make(
             get: fn () => $this->participant_type && in_array(
-                \Illuminate\Notifications\Notifiable::class,
+                Notifiable::class,
                 class_uses_recursive($this->participant_type)
             )
         )->shouldCache();

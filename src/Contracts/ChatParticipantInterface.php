@@ -2,7 +2,11 @@
 
 namespace Mmedia\LeChat\Contracts;
 
+use Illuminate\Database\Eloquent\Concerns\HasRelationships;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Collection;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
@@ -15,7 +19,7 @@ interface ChatParticipantInterface extends TargetedMessageSender
     /**
      * Get the chat participants for this model (the inverse of the morphTo on ChatParticipant).
      *
-     * @return \Illuminate\Database\Eloquent\Relations\MorphMany<ChatParticipant, T>
+     * @return MorphMany<ChatParticipant, T>
      */
     public function chatParticipants(): MorphMany;
 
@@ -32,7 +36,7 @@ interface ChatParticipantInterface extends TargetedMessageSender
     /**
      * Get the class name for polymorphic relations.
      *
-     * @see \Illuminate\Database\Eloquent\Concerns\HasRelationships::getMorphClass()
+     * @see HasRelationships::getMorphClass()
      *
      * @return class-string<T>
      */
@@ -41,7 +45,7 @@ interface ChatParticipantInterface extends TargetedMessageSender
     /**
      * Get the value of the model's primary key.
      *
-     * @see \Illuminate\Database\Eloquent\Model::getKey()
+     * @see Model::getKey()
      *
      * @return mixed
      */
@@ -80,16 +84,16 @@ interface ChatParticipantInterface extends TargetedMessageSender
     /**
      * Get the messages that are visible to this participant.
      *
-     * @return \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder<ChatMessage>
+     * @return Builder|\Illuminate\Database\Eloquent\Builder<ChatMessage>
      */
-    public function visibleMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder;
+    public function visibleMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): Builder|\Illuminate\Database\Eloquent\Builder;
 
     /**
      * Loads all messages for the given model via the participant relationship. Filtered to only messages created after column created_at in the pivot table.
      *
-     * @return \Illuminate\Support\Collection<int, ChatMessage>
+     * @return Collection<int, ChatMessage>
      */
-    public function getMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): \Illuminate\Support\Collection;
+    public function getMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): Collection;
 
     /**
      * Returns or creates a chatroom where only the current model is present, e.g. a private chatroom.

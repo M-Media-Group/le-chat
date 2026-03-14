@@ -3,15 +3,20 @@
 namespace Mmedia\LeChat\Models;
 
 use Illuminate\Contracts\Encryption\DecryptException;
+use Illuminate\Contracts\Encryption\EncryptException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Traits\BelongsToChatroom;
 use Mmedia\LeChat\Traits\OverwriteDeletes;
 
-final class ChatMessage extends \Illuminate\Database\Eloquent\Model
+final class ChatMessage extends Model
 {
     use BelongsToChatroom, OverwriteDeletes, SoftDeletes {
         OverwriteDeletes::runSoftDelete insteadof SoftDeletes;
@@ -34,7 +39,7 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
 
     // Events
     protected $dispatchesEvents = [
-        'created' => \Mmedia\LeChat\Events\MessageCreated::class,
+        'created' => MessageCreated::class,
     ];
 
     /**
@@ -47,9 +52,9 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
     /**
      * The sender of this message
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<ChatParticipant, $this>
+     * @return BelongsTo<ChatParticipant, $this>
      */
-    public function sender(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function sender(): BelongsTo
     {
         return $this->belongsTo(ChatParticipant::class, 'sender_id');
     }
@@ -57,9 +62,9 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
     /**
      * The direct, 1-level deep replies to this message.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<ChatMessage, $this>
+     * @return HasMany<ChatMessage, $this>
      */
-    public function replies(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function replies(): HasMany
     {
         return $this->hasMany(ChatMessage::class, 'reply_to_id');
     }
@@ -67,9 +72,9 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
     /**
      * The message that the current message is replying to
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<ChatMessage, $this>
+     * @return BelongsTo<ChatMessage, $this>
      */
-    public function parentMessage(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function parentMessage(): BelongsTo
     {
         return $this->belongsTo(ChatMessage::class, 'reply_to_id');
     }
@@ -93,8 +98,8 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
      *
      * @return CastsAttribute<string, string>
      *
-     * @throws \Illuminate\Contracts\Encryption\DecryptException
-     * @throws \Illuminate\Contracts\Encryption\EncryptException
+     * @throws DecryptException
+     * @throws EncryptException
      */
     protected function message(): CastsAttribute
     {
@@ -175,8 +180,8 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
      *
      * @internal
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<ChatMessage>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<ChatMessage>
+     * @param  Builder<ChatMessage>  $query
+     * @return Builder<ChatMessage>
      */
     public function scopeAfterParticipantJoined(
         Builder $query,
@@ -205,8 +210,8 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
     /**
      * Scope where messages are before the participant was deleted.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<ChatMessage>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<ChatMessage>
+     * @param  Builder<ChatMessage>  $query
+     * @return Builder<ChatMessage>
      */
     public function scopeBeforeParticipantDeleted(
         $query,
@@ -249,8 +254,8 @@ final class ChatMessage extends \Illuminate\Database\Eloquent\Model
     /**
      * Returns all messages created before the given participants read_at timestamp.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<ChatMessage>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<ChatMessage>
+     * @param  Builder<ChatMessage>  $query
+     * @return Builder<ChatMessage>
      */
     public function scopeUnreadBy(
         $query,

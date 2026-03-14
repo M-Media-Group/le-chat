@@ -3,6 +3,8 @@
 namespace Mmedia\LeChat\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\Chatroom;
 
@@ -11,16 +13,16 @@ use Mmedia\LeChat\Models\Chatroom;
  *
  * @mixin M
  *
- * @phpstan-require-extends \Illuminate\Database\Eloquent\Model
+ * @phpstan-require-extends Model
  */
 trait BelongsToChatroom
 {
     /**
      * The chatroom this participant is in
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Chatroom, $this>
+     * @return BelongsTo<Chatroom, $this>
      */
-    public function chatroom(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function chatroom(): BelongsTo
     {
         return $this->belongsTo(Chatroom::class, 'chatroom_id');
     }

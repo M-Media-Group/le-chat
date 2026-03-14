@@ -2,7 +2,9 @@
 
 namespace Mmedia\LeChat\Http\Controllers;
 
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Routing\Controller;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Http\Resources\ChatroomResource;
@@ -14,7 +16,7 @@ class ChatroomController extends Controller
     /**
      * Display a listing of the chatrooms.
      */
-    public function index(Request $request): \Illuminate\Http\Resources\Json\AnonymousResourceCollection|\Illuminate\Http\JsonResponse
+    public function index(Request $request): AnonymousResourceCollection|JsonResponse
     {
         $user = $request->user();
 
@@ -38,7 +40,7 @@ class ChatroomController extends Controller
     /**
      * Show the form for creating a new chatroom.
      */
-    public function show(Request $request, Chatroom $chatroom): ChatroomResource|\Illuminate\Http\JsonResponse
+    public function show(Request $request, Chatroom $chatroom): ChatroomResource|JsonResponse
     {
         $user = $request->user();
 
@@ -60,7 +62,7 @@ class ChatroomController extends Controller
     /**
      * Store a newly created chatroom in storage.
      */
-    public function store(Request $request): \Illuminate\Http\JsonResponse
+    public function store(Request $request): JsonResponse
     {
         $user = $request->user();
 
@@ -83,7 +85,7 @@ class ChatroomController extends Controller
     /**
      * Update the specified chatroom in storage.
      */
-    public function update(Request $request, Chatroom $chatroom): \Illuminate\Http\JsonResponse
+    public function update(Request $request, Chatroom $chatroom): JsonResponse
     {
         $user = $request->user();
 
@@ -110,7 +112,7 @@ class ChatroomController extends Controller
     /**
      * Store a message in the chatroom.
      */
-    public function storeMessage(Request $request): \Illuminate\Http\JsonResponse
+    public function storeMessage(Request $request): JsonResponse
     {
         $user = $request->user();
 
@@ -143,7 +145,7 @@ class ChatroomController extends Controller
     /**
      * Mark the chatroom as read.
      */
-    public function markAsRead(Request $request, Chatroom $chatroom): \Illuminate\Http\JsonResponse
+    public function markAsRead(Request $request, Chatroom $chatroom): JsonResponse
     {
         $user = $request->user();
 

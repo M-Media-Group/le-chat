@@ -2,6 +2,7 @@
 
 namespace Mmedia\LeChat\Commands;
 
+use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -26,7 +27,7 @@ class LeChatCommand extends Command
         // $this->info('Response from Reverb: ' . json_encode($users, JSON_PRETTY_PRINT));
 
         // Get the user
-        $fromUser = \App\Models\User::find($fromId);
+        $fromUser = User::find($fromId);
         if (! $fromUser) {
             $this->error('User not found');
 
@@ -34,7 +35,7 @@ class LeChatCommand extends Command
         }
 
         // Load chatroom
-        $otherUser = \App\Models\User::find($otherUserId);
+        $otherUser = User::find($otherUserId);
         if (! $otherUser) {
             $this->error('Other user not found');
 

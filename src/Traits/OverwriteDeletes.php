@@ -3,9 +3,10 @@
 namespace Mmedia\LeChat\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 /**
- * @mixin \Illuminate\Database\Eloquent\Model
+ * @mixin Model
  *
  * @template T of \Illuminate\Database\Eloquent\SoftDeletes
  *

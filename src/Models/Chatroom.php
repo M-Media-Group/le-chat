@@ -2,10 +2,16 @@
 
 namespace Mmedia\LeChat\Models;
 
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 
-final class Chatroom extends \Illuminate\Database\Eloquent\Model
+final class Chatroom extends Model
 {
     use SoftDeletes;
 
@@ -23,9 +29,9 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
     /**
      * The messages exchanged in this chatroom
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<ChatMessage, $this>
+     * @return HasMany<ChatMessage, $this>
      */
-    public function messages(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function messages(): HasMany
     {
         return $this->hasMany(ChatMessage::class);
     }
@@ -35,9 +41,9 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
      *
      * @note we DO NOT use latestOfMany here because it does not support soft deletes. It will cause latestMessage to fail if the user has been removed from the chatroom - this is because it tries to access the latest message that might not be visible to the user, and the subsequent visibleTo filters out the only message.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasOne<ChatMessage, $this>
+     * @return HasOne<ChatMessage, $this>
      */
-    public function latestMessage(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function latestMessage(): HasOne
     {
         return $this->hasOne(ChatMessage::class)->orderByDesc(ChatMessage::CREATED_AT);
     }
@@ -45,9 +51,9 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
     /**
      * Each chatroom has one or more ChatParticipants. The ChatParticipant contains a morph to the user or other model
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<ChatParticipant, $this>
+     * @return HasMany<ChatParticipant, $this>
      */
-    public function participants(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function participants(): HasMany
     {
         return $this->hasMany(ChatParticipant::class);
     }
@@ -55,9 +61,9 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
     /**
      * Each chatroom has one or more ChatParticipants. The ChatParticipant contains a morph to the user or other model
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<ChatParticipant, $this>
+     * @return HasMany<ChatParticipant, $this>
      */
-    public function participantsWithTrashed(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function participantsWithTrashed(): HasMany
     {
         return $this->hasMany(ChatParticipant::class)->withTrashed();
     }
@@ -103,9 +109,9 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
     /**
      * Mark a message as read by a participant.
      *
-     * @param  ChatMessage|\DateTime|\Carbon\Carbon|null  $message  If provided, mark as read at the time of the message, otherwise mark as read now.
+     * @param  ChatMessage|\DateTime|Carbon|null  $message  If provided, mark as read at the time of the message, otherwise mark as read now.
      */
-    public function markAsReadBy(ChatParticipantInterface|ChatParticipant $participant, ChatMessage|\DateTime|\Carbon\Carbon|null $message = null): bool
+    public function markAsReadBy(ChatParticipantInterface|ChatParticipant $participant, ChatMessage|\DateTime|Carbon|null $message = null): bool
     {
         // Get the chat participant for this model in the given chat room
         $chatParticipant = $this->participant($participant, true);
@@ -116,7 +122,7 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
         // Mark as read at the time of the message or now
         if ($message instanceof ChatMessage) {
             return $chatParticipant->markRead($message);
-        } elseif ($message instanceof \DateTime || $message instanceof \Carbon\Carbon) {
+        } elseif ($message instanceof \DateTime || $message instanceof Carbon) {
             return $chatParticipant->markReadUntil($this, $message);
         }
 
@@ -271,10 +277,10 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
      * Get chatrooms that have at least the given participants.
      *
      * @param  (ChatParticipantInterface|ChatParticipant)[]  $participant
-     * @return \Illuminate\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
     public function scopeHavingParticipants(
-        \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder $query,
+        \Illuminate\Database\Query\Builder|Builder $query,
         array $participants,
         bool $includeTrashed = false
     ) {
@@ -292,10 +298,10 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
      * Get the chatrooms that have exactly the given participants.
      *
      * @param  (ChatParticipantInterface|ChatParticipant)[]  $participant
-     * @return \Illuminate\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
     public function scopeHavingExactlyParticipants(
-        \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder $query,
+        \Illuminate\Database\Query\Builder|Builder $query,
         array $participants,
         bool $includeTrashed = false
     ) {
@@ -314,9 +320,9 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
      * Get participants that morph into models with the Notifiable trait.
      * This is useful for sending notifications to participants.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, ChatParticipant>
+     * @return Collection<int, ChatParticipant>
      */
-    public function getNotifiableParticipants(): \Illuminate\Database\Eloquent\Collection
+    public function getNotifiableParticipants(): Collection
     {
         return $this->participants->filter(
             fn (ChatParticipant $participant) => $participant->is_notifiable
@@ -326,8 +332,8 @@ final class Chatroom extends \Illuminate\Database\Eloquent\Model
     /**
      * Scope to load unread messages count for a participant.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<Chatroom>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<Chatroom>
+     * @param  Builder<Chatroom>  $query
+     * @return Builder<Chatroom>
      */
     public function scopeWithUnreadMessagesCountFor($query, ChatParticipantInterface|ChatParticipant $participant)
     {

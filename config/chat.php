@@ -3,6 +3,9 @@
 // config for Mmedia/LeChat
 
 use Mmedia\LeChat\Features;
+use Mmedia\LeChat\Listeners\SendMessageCreatedNotification;
+use Mmedia\LeChat\Listeners\SendParticipantCreatedNotification;
+use Mmedia\LeChat\Listeners\SendParticipantDeletedNotification;
 
 return [
     /**
@@ -42,7 +45,7 @@ return [
      *
      * Set to null to disable the listener.
      */
-    'new_message_listener' => \Mmedia\LeChat\Listeners\SendMessageCreatedNotification::class,
+    'new_message_listener' => SendMessageCreatedNotification::class,
 
     /**
      * The listener for new participants.
@@ -51,7 +54,7 @@ return [
      *
      * Set to null to disable the listener.
      */
-    'new_participant_listener' => \Mmedia\LeChat\Listeners\SendParticipantCreatedNotification::class,
+    'new_participant_listener' => SendParticipantCreatedNotification::class,
 
     /**
      * The listener for deleted participants.
@@ -60,7 +63,7 @@ return [
      *
      * Set to null to disable the listener.
      */
-    'participant_deleted_listener' => \Mmedia\LeChat\Listeners\SendParticipantDeletedNotification::class,
+    'participant_deleted_listener' => SendParticipantDeletedNotification::class,
 
     'features' => [
         Features::routes([

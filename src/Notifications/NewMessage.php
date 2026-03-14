@@ -10,6 +10,8 @@ use Illuminate\Notifications\Notification;
 use Mmedia\LeChat\Http\Resources\MessageResource;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
+use NotificationChannels\WebPush\WebPushChannel;
+use NotificationChannels\WebPush\WebPushMessage;
 
 class NewMessage extends Notification implements ShouldQueue
 {
@@ -54,11 +56,11 @@ class NewMessage extends Notification implements ShouldQueue
         if (! $connected) {
             // Check if the WebPush channel class exists before adding it.
             // Use the fully qualified class name as a string.
-            if (class_exists(\NotificationChannels\WebPush\WebPushChannel::class)) {
+            if (class_exists(WebPushChannel::class)) {
                 // You can also add a check to see if the notifiable model
                 // has the necessary 'routeNotificationForWebPush' method.
                 if (method_exists($notifiable, 'routeNotificationForWebPush')) {
-                    $via[] = \NotificationChannels\WebPush\WebPushChannel::class;
+                    $via[] = WebPushChannel::class;
                 }
             }
         }
@@ -79,7 +81,7 @@ class NewMessage extends Notification implements ShouldQueue
     public function toWebPush($notifiable, $notification)
     {
         // Now, instantiate the WebPushMessage using its fully qualified name
-        $webPushMessageClass = \NotificationChannels\WebPush\WebPushMessage::class;
+        $webPushMessageClass = WebPushMessage::class;
 
         return (new $webPushMessageClass)
             // The title is the name of the sender

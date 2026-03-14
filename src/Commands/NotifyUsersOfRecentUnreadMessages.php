@@ -2,7 +2,9 @@
 
 namespace Mmedia\LeChat\Commands;
 
+use App\Models\User;
 use Illuminate\Console\Command;
+use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Notifications\DailyUnreadMessagesNotification;
 
 class NotifyUsersOfRecentUnreadMessages extends Command
@@ -14,13 +16,13 @@ class NotifyUsersOfRecentUnreadMessages extends Command
     public function handle(): int
     {
         // If the user class is not an instance of ChatParticipantInterface, throw an error
-        if (! class_exists(\App\Models\User::class) || ! is_subclass_of(\App\Models\User::class, \Mmedia\LeChat\Contracts\ChatParticipantInterface::class)) {
+        if (! class_exists(User::class) || ! is_subclass_of(User::class, ChatParticipantInterface::class)) {
             $this->error('The User model must implement the ChatParticipantInterface contract to use this command.');
 
             return self::FAILURE;
         }
         $days = $this->option('days');
-        $users = \App\Models\User::whereHasUnreadMessages($days)->get();
+        $users = User::whereHasUnreadMessages($days)->get();
 
         // Log how many users have unread messages today
         $this->info("Found {$users->count()} users with unread messages in the last {$days} days.");

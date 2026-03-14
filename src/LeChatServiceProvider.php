@@ -7,6 +7,10 @@ use Mmedia\LeChat\Commands\DeleteMessages;
 use Mmedia\LeChat\Commands\EncryptMessages;
 use Mmedia\LeChat\Commands\LeChatCommand;
 use Mmedia\LeChat\Commands\NotifyUsersOfRecentUnreadMessages;
+use Mmedia\LeChat\Events\MessageCreated;
+use Mmedia\LeChat\Events\ParticipantCreated;
+use Mmedia\LeChat\Events\ParticipantDeleted;
+use Mmedia\LeChat\Listeners\UpdatedChatParticipantReadAtOnMessageCreated;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -43,7 +47,7 @@ class LeChatServiceProvider extends PackageServiceProvider
 
         if ($newMessageListener && class_exists($newMessageListener)) {
             $this->app['events']->listen(
-                \Mmedia\LeChat\Events\MessageCreated::class,
+                MessageCreated::class,
                 $newMessageListener
             );
         }
@@ -52,7 +56,7 @@ class LeChatServiceProvider extends PackageServiceProvider
 
         if ($newParticipantListener && class_exists($newParticipantListener)) {
             $this->app['events']->listen(
-                \Mmedia\LeChat\Events\ParticipantCreated::class,
+                ParticipantCreated::class,
                 $newParticipantListener
             );
         }
@@ -61,15 +65,15 @@ class LeChatServiceProvider extends PackageServiceProvider
 
         if ($participantDeletedListener && class_exists($participantDeletedListener)) {
             $this->app['events']->listen(
-                \Mmedia\LeChat\Events\ParticipantDeleted::class,
+                ParticipantDeleted::class,
                 $participantDeletedListener
             );
         }
 
         if (config('chat.update_sender_read_at_on_message_created', true)) {
             $this->app['events']->listen(
-                \Mmedia\LeChat\Events\MessageCreated::class,
-                \Mmedia\LeChat\Listeners\UpdatedChatParticipantReadAtOnMessageCreated::class
+                MessageCreated::class,
+                UpdatedChatParticipantReadAtOnMessageCreated::class
             );
         }
     }
