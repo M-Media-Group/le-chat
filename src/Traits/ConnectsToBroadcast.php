@@ -1,22 +1,25 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Mmedia\LeChat\Traits;
 
 use Illuminate\Contracts\Broadcasting\HasBroadcastChannel;
 use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Trait ConnectsToBroadcast
- *
  * This trait provides methods to check if a model is connected to a broadcast channel via sockets.
  *
  * It supports both private and presence channels.
  *
- * @template M of \Illuminate\Database\Eloquent\Model
+ * @property-read bool|null $is_connected
  *
- * @mixin M
+ * @mixin Model
+ *
+ * @phpstan-require-extends Model
  */
 trait ConnectsToBroadcast
 {
@@ -76,7 +79,7 @@ trait ConnectsToBroadcast
 
             $users = $response->users;
 
-            $isConnected = collect($users)->contains(function ($user) use ($localId) {
+            $isConnected = collect($users)->contains(function (object $user) use ($localId): bool {
                 return (int) $user->id === (int) $this->$localId;
             });
         } catch (\Exception $e) {
@@ -92,10 +95,13 @@ trait ConnectsToBroadcast
     /**
      * A convenience attribute to check if the participant is connected via sockets. E.g.: $model->is_connected
      */
+    /**
+     * @return CastsAttribute<bool|null, never>
+     */
     protected function isConnected(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->isConnectedViaSockets()
+            get: fn (): ?bool => $this->isConnectedViaSockets()
         )->shouldCache();
     }
 }

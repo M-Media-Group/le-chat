@@ -11,10 +11,24 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 
+/**
+ * @property int $id
+ * @property string|null $name
+ * @property string|null $description
+ * @property array<string, mixed>|null $metadata
+ * @property \Illuminate\Support\Carbon|null $deleted_at
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read Collection<int, ChatMessage> $messages
+ * @property-read ChatMessage|null $latestMessage
+ * @property-read Collection<int, ChatParticipant> $participants
+ * @property-read Collection<int, ChatParticipant> $participantsWithTrashed
+ */
 final class Chatroom extends Model
 {
     use SoftDeletes;
 
+    /** @var list<string> */
     protected $fillable = [
         'name',
         'description',
@@ -22,6 +36,7 @@ final class Chatroom extends Model
     ];
 
     // Cast
+    /** @var array<string, string> */
     protected $casts = [
         'metadata' => 'array',
     ];

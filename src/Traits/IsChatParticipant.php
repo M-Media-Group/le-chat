@@ -1,12 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Mmedia\LeChat\Traits;
 
 use Carbon\Carbon;
 use DateTime;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasManyDeep;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Notifications\Notifiable;
@@ -15,6 +17,7 @@ use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
+use Staudenmeir\EloquentHasManyDeep\HasManyDeep;
 use Staudenmeir\EloquentHasManyDeep\HasRelationships;
 
 /**
@@ -25,6 +28,7 @@ use Staudenmeir\EloquentHasManyDeep\HasRelationships;
  * @template M of \Illuminate\Database\Eloquent\Model
  *
  * @mixin M
+ * @mixin Model
  *
  * @phpstan-require-extends Model
  *
@@ -62,8 +66,10 @@ trait IsChatParticipant
 
     /**
      * Get the chat rooms this model is a participant in.
+     *
+     * @return HasManyDeep<Chatroom, ChatParticipant>
      */
-    public function chatRooms()
+    public function chatRooms(): HasManyDeep
     {
         // We need to join ChatRooms through the ChatParticipants table.
         // Start from the Chatroom model query builder.
@@ -73,7 +79,10 @@ trait IsChatParticipant
         );
     }
 
-    public function messages()
+    /**
+     * @return HasManyDeep<ChatMessage, ChatParticipant>
+     */
+    public function messages(): HasManyDeep
     {
         // We need to get ChatMessages that are linked to a ChatParticipant
         // where that ChatParticipant is linked to this model.
@@ -89,9 +98,9 @@ trait IsChatParticipant
      *
      * Compared to above, this uses EXISTS (the above uses inner joins). It may be more efficient in some cases.
      *
-     * @return Builder<Chatroom>|\Illuminate\Database\Eloquent\Builder<Chatroom>
+     * @return Builder<Chatroom>|EloquentBuilder<Chatroom>
      */
-    public function chatRoomsBuilder(): Builder|\Illuminate\Database\Eloquent\Builder
+    public function chatRoomsBuilder(): Builder|EloquentBuilder
     {
         // We need to join ChatRooms through the ChatParticipants table.
         // Start from the Chatroom model query builder.
@@ -103,7 +112,7 @@ trait IsChatParticipant
      *
      * @return HasManyDeep<ChatMessage, ChatParticipant>
      */
-    public function sentMessages()
+    public function sentMessages(): HasManyDeep
     {
         // We need to get ChatMessages that are linked to a ChatParticipant
         // where that ChatParticipant is linked to this model.
@@ -119,9 +128,9 @@ trait IsChatParticipant
      *
      * Compared to above, this uses EXISTS (the above uses inner joins). It may be more efficient in some cases.
      *
-     * @return Builder<ChatMessage>
+     * @return Builder|EloquentBuilder<ChatMessage>
      */
-    public function sentMessagesBuilder(): Builder|\Illuminate\Database\Eloquent\Builder
+    public function sentMessagesBuilder(): Builder|EloquentBuilder
     {
         // We need to get ChatMessages that are linked to a ChatParticipant
         // where that ChatParticipant is linked to this model.
@@ -133,9 +142,9 @@ trait IsChatParticipant
     /**
      * Loads all messages for the given model via the participant relationship. Filtered to only messages created after column created_at in the pivot table.
      *
-     * @return Builder<ChatMessage>
+     * @return Builder|EloquentBuilder<ChatMessage>
      */
-    private function getMessagesQuery(bool $includeBeforeJoined = false): Builder|\Illuminate\Database\Eloquent\Builder
+    private function getMessagesQuery(bool $includeBeforeJoined = false): Builder|EloquentBuilder
     {
 
         // Start building a query on the ChatMessage model
@@ -148,8 +157,10 @@ trait IsChatParticipant
 
     /**
      * Get the messages that are visible to this participant.
+     *
+     * @return Builder|EloquentBuilder<ChatMessage>
      */
-    public function visibleMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): Builder|\Illuminate\Database\Eloquent\Builder
+    public function visibleMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): Builder|EloquentBuilder
     {
         // Start building a query on the ChatMessage model
         $query = $this->getMessagesQuery($includeBeforeJoined);
@@ -173,7 +184,7 @@ trait IsChatParticipant
      *
      * @return Collection<int, ChatMessage>
      */
-    public function getMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false, $withReplies = false, $withParentMessage = false): Collection
+    public function getMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false, bool $withReplies = false, bool $withParentMessage = false): Collection
     {
         // Get the messages using the visibleMessages method
         return $this->visibleMessages($limit, $offset, $includeBeforeJoined)
@@ -239,7 +250,7 @@ trait IsChatParticipant
     /**
      * Get all messages sent by this model across all their chat participants.
      *
-     * @return Collection<ChatMessage, $this>
+     * @return Collection<int, ChatMessage>
      */
     private function getMessagesSentToChatRoom(Chatroom $chatRoom): Collection
     {
@@ -252,7 +263,7 @@ trait IsChatParticipant
     /**
      * Get all messages sent by this model across all their chat participants.
      *
-     * @return Collection<ChatMessage, $this>
+     * @return Collection<int, ChatMessage>
      */
     public function getMessagesSentTo(Chatroom|ChatParticipantInterface|ChatParticipant $target): Collection
     {
@@ -470,7 +481,11 @@ trait IsChatParticipant
         return $participant ? $participant->is_connected : null;
     }
 
-    public function scopeWhereHasUnreadMessages($query, ?int $daysAgo = null, bool $includeSystemMessages = false)
+    /**
+     * @param  EloquentBuilder<static>  $query
+     * @return EloquentBuilder<static>
+     */
+    public function scopeWhereHasUnreadMessages(EloquentBuilder $query, ?int $daysAgo = null, bool $includeSystemMessages = false): EloquentBuilder
     {
         return $query->whereHas('messages', function ($messagesQuery) use ($daysAgo, $includeSystemMessages) {
             $messagesTable = (new ChatMessage)->getTable();
@@ -513,13 +528,17 @@ trait IsChatParticipant
         });
     }
 
-    public function scopeWhereHasUnreadMessagesToday($query, bool $includeSystemMessages = false)
+    /**
+     * @param  EloquentBuilder<static>  $query
+     * @return EloquentBuilder<static>
+     */
+    public function scopeWhereHasUnreadMessagesToday(EloquentBuilder $query, bool $includeSystemMessages = false): EloquentBuilder
     {
         // Call the whereHasUnreadMessages method with 0 days ago to get today's unread messages
         return $query->whereHasUnreadMessages(0, $includeSystemMessages);
     }
 
-    public function loadUnreadMessagesCount(bool $includeSystemMessages = false): self
+    public function loadUnreadMessagesCount(bool $includeSystemMessages = false): static
     {
         $this->loadCount([
             'messages as unread_messages_count' => fn ($query) => $query->visibleTo($this)->unreadBy($this)
@@ -546,10 +565,13 @@ trait IsChatParticipant
     /**
      * A participant is notifiable if they use the Notifiable trait.
      */
+    /**
+     * @return CastsAttribute<bool, never>
+     */
     protected function isNotifiable(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => in_array(
+            get: fn (): bool => in_array(
                 Notifiable::class,
                 class_uses_recursive($this)
             )

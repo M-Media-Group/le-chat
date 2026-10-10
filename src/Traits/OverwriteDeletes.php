@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Mmedia\LeChat\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
@@ -20,10 +22,8 @@ trait OverwriteDeletes
 {
     /**
      * Perform the actual delete query on this model instance.
-     *
-     * @return void
      */
-    protected function runSoftDelete()
+    protected function runSoftDelete(): void
     {
         $query = $this->setKeysForSaveQuery($this->newModelQuery());
 
@@ -54,13 +54,17 @@ trait OverwriteDeletes
     /**
      * Restore a soft-deleted model instance.
      *
-     * @return bool
+     * @throws \BadMethodCallException always
      */
-    public function restore()
+    public function restore(): bool
     {
         throw new \BadMethodCallException('Restoring soft-deleted models with overwrites is not supported, because the data cannot be recovered.');
     }
 
+    /**
+     * @param  Builder<static>  $query
+     * @return Builder<static>
+     */
     public function scopeWithTrashed(Builder $query, bool $withTrashed = true): Builder
     {
         if (! $withTrashed) {
@@ -71,11 +75,19 @@ trait OverwriteDeletes
         return $query;
     }
 
+    /**
+     * @param  Builder<static>  $query
+     * @return Builder<static>
+     */
     public function scopeWithoutTrashed(Builder $query): Builder
     {
         return $query->whereNull($this->getQualifiedDeletedAtColumn());
     }
 
+    /**
+     * @param  Builder<static>  $query
+     * @return Builder<static>
+     */
     public function scopeOnlyTrashed(Builder $query): Builder
     {
         return $query->whereNotNull($this->getQualifiedDeletedAtColumn());

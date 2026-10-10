@@ -6,16 +6,31 @@ use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Contracts\Encryption\EncryptException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Traits\BelongsToChatroom;
 use Mmedia\LeChat\Traits\OverwriteDeletes;
 
+/**
+ * @property int $id
+ * @property int|null $sender_id
+ * @property int $chatroom_id
+ * @property int|null $reply_to_id
+ * @property Carbon|null $deleted_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read ChatParticipant|null $sender
+ * @property-read Collection<int, ChatMessage> $replies
+ * @property-read ChatMessage|null $parentMessage
+ * @property-read Chatroom|null $chatroom
+ */
 final class ChatMessage extends Model
 {
     use BelongsToChatroom, OverwriteDeletes, SoftDeletes {
@@ -23,6 +38,7 @@ final class ChatMessage extends Model
         OverwriteDeletes::restore insteadof SoftDeletes;
     }
 
+    /** @var list<string> */
     protected $fillable = [
         'chatroom_id',
         'sender_id',
@@ -32,12 +48,15 @@ final class ChatMessage extends Model
 
     /**
      * The attributes that will be set, and to what they will be set to, on soft delete.
+     *
+     * @var array<string, mixed>
      */
     protected $deletable = [
         'message' => null,
     ];
 
     // Events
+    /** @var array<string, class-string> */
     protected $dispatchesEvents = [
         'created' => MessageCreated::class,
     ];

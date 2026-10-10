@@ -4,11 +4,13 @@ namespace Mmedia\LeChat\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Events\ParticipantCreated;
 use Mmedia\LeChat\Events\ParticipantDeleted;
@@ -18,11 +20,29 @@ use Mmedia\LeChat\Traits\IsChatParticipant;
 
 /**
  * @phpstan-type ChatParticipantModel \Illuminate\Database\Eloquent\Model&\Mmedia\LeChat\Contracts\ChatParticipantInterface
+ *
+ * @property int $id
+ * @property int $chatroom_id
+ * @property string $participant_type
+ * @property int $participant_id
+ * @property string $role
+ * @property string|null $reference_id
+ * @property Carbon|null $deleted_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property Carbon|null $read_at
+ * @property-read null|string $can_manage_participants
+ * @property-read Collection<int, ChatMessage> $sentMessages
+ * @property-read Collection<int, ChatMessage> $messages
+ * @property-read ChatParticipant|null $participatingModel
+ * @property-read Chatroom|null $chatroom
+ * @property-read Collection<int, ChatParticipant> $chatParticipants
  */
 final class ChatParticipant extends Model implements ChatParticipantInterface
 {
     use BelongsToChatroom, ConnectsToBroadcast, IsChatParticipant, SoftDeletes;
 
+    /** @var list<string> */
     protected $fillable = [
         'chatroom_id',
         'participant_id',
@@ -39,16 +59,19 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
     ];
 
     // Casts
+    /** @var array<string, string> */
     protected $casts = [
         'read_at' => 'datetime',
     ];
 
+    /** @var array<string, class-string> */
     protected $dispatchesEvents = [
         'created' => ParticipantCreated::class,
         'deleted' => ParticipantDeleted::class,
     ];
 
     // Always load the participating model
+    /** @var list<string> */
     protected $with = ['participatingModel'];
 
     /**
