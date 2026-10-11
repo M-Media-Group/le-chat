@@ -12,6 +12,10 @@ class TestCase extends Orchestra
     {
         parent::setUp();
 
+        foreach (glob(__DIR__.'/../database/migrations/*.stub') as $migrationFile) {
+            (require $migrationFile)->up();
+        }
+
         Factory::guessFactoryNamesUsing(
             fn (string $modelName) => 'Mmedia\\LeChat\\Database\\Factories\\'.class_basename($modelName).'Factory'
         );
