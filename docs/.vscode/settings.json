@@ -1,0 +1,11 @@
+{
+    "intelephense.diagnostics.undefinedTypes": true,
+    "intelephense.diagnostics.undefinedFunctions": true,
+    "intelephense.diagnostics.undefinedConstants": true,
+    "intelephense.diagnostics.undefinedClassConstants": true,
+    "intelephense.diagnostics.undefinedMethods": true,
+    "intelephense.diagnostics.undefinedProperties": true,
+    "intelephense.diagnostics.argumentCount": true,
+    // This is the one that catches type mismatches:
+    "intelephense.diagnostics.typeErrors": true
+}
