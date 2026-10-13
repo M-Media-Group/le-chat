@@ -11,11 +11,9 @@ use Mmedia\LeChat\Models\ChatParticipant;
  */
 class ParticipantTyping extends BaseParticipantEvent
 {
-    public function __construct(public ChatParticipant $participant, public bool $isTyping = true)
+    public function __construct(ChatParticipant $participant, public bool $isTyping = true)
     {
-        if (Broadcast::socket()) {
-            $this->dontBroadcastToCurrentUser();
-        }
+        return parent::__construct($participant);
     }
 
     /**
