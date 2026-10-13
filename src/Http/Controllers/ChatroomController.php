@@ -8,6 +8,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Routing\Controller;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Http\Resources\ChatroomResource;
+use Mmedia\LeChat\Http\Resources\MessageResource;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
 
@@ -54,7 +55,10 @@ class ChatroomController extends Controller
 
         $chatroom->load(['participants', 'messages' => function ($query) use ($user) {
             $query->visibleTo($user)->with('sender');
-        }]);
+        }])
+            ->loadCount(['messages as unread_messages_count' => function ($query) use ($user) {
+                $query->visibleTo($user)->unreadBy($user)->withoutTrashed();
+            }]);
 
         return new ChatroomResource($chatroom);
     }
@@ -79,7 +83,7 @@ class ChatroomController extends Controller
 
         $chatroom->addParticipant($user, 'admin');
 
-        return response()->json($chatroom, 201);
+        return response()->json(new ChatroomResource($chatroom), 201);
     }
 
     /**
@@ -106,7 +110,7 @@ class ChatroomController extends Controller
 
         $chatroom->update($request->only('name', 'description'));
 
-        return response()->json($chatroom, 200);
+        return response()->json(new ChatroomResource($chatroom), 200);
     }
 
     /**
@@ -131,12 +135,12 @@ class ChatroomController extends Controller
             : ChatParticipant::findOrFail($request->to_entity_id);
 
         try {
-            $user->sendMessageTo(
+            $message = $user->sendMessageTo(
                 $model,
                 $request->message
             );
 
-            return response()->json(['message' => 'Message sent successfully'], 201);
+            return response()->json(new MessageResource($message), 201);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to send message', 'message' => $e->getMessage()], 400);
         }
