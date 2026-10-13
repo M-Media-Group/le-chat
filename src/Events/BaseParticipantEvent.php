@@ -5,14 +5,14 @@ namespace Mmedia\LeChat\Events;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Broadcast;
 use Mmedia\LeChat\Http\Resources\ChatParticipantResource;
 use Mmedia\LeChat\Models\ChatParticipant;
 
-class BaseParticipantEvent implements ShouldBroadcast
+class BaseParticipantEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 

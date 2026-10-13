@@ -17,6 +17,16 @@ use Mmedia\LeChat\Events\MessageCreated;
 The event contains the following properties:
 - `message`: The `ChatMessage` model that was created.
 
+### Message Updated
+This event is fired when a message is updated in a chatroom. You can listen to this event to perform actions such as logging changes or updating the UI.
+
+```php
+use Mmedia\LeChat\Events\MessageUpdated;
+```
+
+The event contains the following properties:
+- `message`: The `ChatMessage` model that was updated.
+
 ### Participant Created
 This event is fired when a participant is added to a chatroom. You can use this event to perform actions such as notifying the participant or updating the UI.
 ```php
@@ -34,3 +44,16 @@ use Mmedia\LeChat\Events\ParticipantDeleted;
 
 The event contains the following properties:
 - `participant`: The `ChatParticipant` model that was deleted. To get your own linked model, you can use the `participatingModel` property, like `$event->participant->participatingModel`.
+
+### Participant Typing
+Normally, typing indicators are sent client to client using a whisper. However, if a server-side participant needs to indicate typing status, the `ParticipantTyping` event can be used.
+
+For example, Le Chat uses this internally if you use the AI SDK to indicate when the AI is "typing" a response.
+
+```php
+use Mmedia\LeChat\Events\ParticipantTyping;
+```
+
+The event contains the following properties:
+- `participant`: The `ChatParticipant` model that is typing. To get your own linked model, you can use the `participatingModel` property, like `$event->participant->participatingModel`.
+- `is_typing`: A boolean indicating whether the participant is currently typing.

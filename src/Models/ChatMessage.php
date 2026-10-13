@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Events\MessageCreated;
+use Mmedia\LeChat\Events\MessageUpdated;
 use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Traits\BelongsToChatroom;
 use Mmedia\LeChat\Traits\OverwriteDeletes;
@@ -59,6 +60,7 @@ final class ChatMessage extends Model
     /** @var array<string, class-string> */
     protected $dispatchesEvents = [
         'created' => MessageCreated::class,
+        'updated' => MessageUpdated::class,
     ];
 
     /**
