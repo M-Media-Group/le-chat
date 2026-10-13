@@ -28,7 +28,9 @@ abstract class BaseMessageEvent implements ShouldBroadcastNow
      */
     public function __construct(ChatMessage $message)
     {
+        $message->loadMissing('chatroom');
         $this->message = $message;
+
         if (Broadcast::socket()) {
             $this->dontBroadcastToCurrentUser();
         }
