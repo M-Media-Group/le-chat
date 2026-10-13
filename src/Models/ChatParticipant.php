@@ -148,6 +148,11 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
             if ($participant->reference_id) {
                 return $query->where('reference_id', $participant->reference_id);
             }
+
+            if ($participant->participant_id !== null && $participant->participant_type !== null) {
+                return $query->where('participant_id', $participant->participant_id)
+                    ->where('participant_type', $participant->participant_type);
+            }
         }
 
         return $query->where('participant_id', $id)
