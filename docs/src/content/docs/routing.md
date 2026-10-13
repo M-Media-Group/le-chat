@@ -128,5 +128,7 @@ The required parameters are:
 - `to_entity_id`: The ID of the chatroom or chat participant to send the message to.
 - `message`: The content of the message to be sent.
 
+Returns the created message with a `201` status code and the message data formatted using the `MessageResource`.
+
 ## Missing routes
 Le Chat does not implement routes for adding or removing participants from chatrooms on purpose, as this will highly depend on your application logic and requirements. You can implement these routes in your application as needed.
