@@ -20,4 +20,7 @@ interface TargetedMessageSender
      * Gets all the messages sent to a chat or a specific participant
      */
     public function getMessagesSentTo(Chatroom|ChatParticipantInterface $target): Collection;
+
+    /** Sends a typing status to a chat or a specific participant */
+    public function sendTypingStatusTo(Chatroom|ChatParticipantInterface $target, bool $isTyping): void;
 }

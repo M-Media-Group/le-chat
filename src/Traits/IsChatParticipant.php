@@ -14,6 +14,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Contracts\TargetedMessageSender;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
@@ -33,6 +34,7 @@ use Staudenmeir\EloquentHasManyDeep\HasRelationships;
  * @phpstan-require-extends Model
  *
  * @phpstan-require-implements ChatParticipantInterface
+ * @phpstan-require-implements TargetedMessageSender
  *
  * @see ChatParticipantInterface
  */
@@ -303,6 +305,44 @@ trait IsChatParticipant
                 : $this->asParticipantIn($chatRoom, true)->getKey(),
             'message' => $message,
         ])->fresh();
+    }
+
+    private function sendTypingStatusToChatRoom(Chatroom $chatRoom, bool $isTyping): void
+    {
+        if (! $this->canSendMessageToChatRoom($chatRoom)) {
+            throw new \Exception('Cannot send typing status to the chat room because the current model is not an active participant in the chat room. If the model is deleted, you need to create a new chatroom.');
+        }
+
+        $chatParticipant = $this instanceof ChatParticipant
+            ? $this
+            : $this->asParticipantIn($chatRoom, true);
+
+        if ($isTyping) {
+            $chatParticipant->startTyping();
+        } else {
+            $chatParticipant->stopTyping();
+        }
+    }
+
+    private function sendTypingStatusToParticipant(ChatParticipantInterface $participant, bool $isTyping): void
+    {
+        $bestChannel = $this->getBestChannelForParticipants([$participant]);
+        if (! $bestChannel) {
+            throw new \Exception('No chat room found for the given participant');
+        }
+
+        $this->sendTypingStatusToChatRoom($bestChannel, $isTyping);
+    }
+
+    public function sendTypingStatusTo(Chatroom|ChatParticipantInterface $target, bool $isTyping): void
+    {
+        if ($target instanceof Chatroom) {
+            $this->sendTypingStatusToChatRoom($target, $isTyping);
+        } elseif ($target instanceof ChatParticipantInterface) {
+            $this->sendTypingStatusToParticipant($target, $isTyping);
+        } else {
+            throw new \Exception('Invalid target for sending typing status');
+        }
     }
 
     private function sendMessageAsReplyTo(ChatMessage $message, string $replyMessage, array $messageConfiguration = []): ChatMessage

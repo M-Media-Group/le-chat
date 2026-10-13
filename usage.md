@@ -117,6 +117,15 @@ $messageId = $teacher->sendMessageTo($student, $message, true, [
 ], [
     'display_name' => 'Biology Teacher',
 ]); // will create a new chatroom with the given name, description and metadata, and will add the teacher as a participant with the given display name. The display name will be used to display the teacher in the chatroom, instead of the model's name.
+
+$messageId = $teacher->sendMessageTo(
+    $student,
+    $message,
+    messageConfiguration: [
+    'metadata' => [
+        'language' => 'English',
+    ],
+]); // will create a new chatroom with the given message configuration, including the specified metadata.
 ```
 
 $messageId = $teacher->sendMessageTo([$studentA, $studentB], $message); // will re-use the latest chatroom where only the teacher and both students are in, or if not found, will create a new chatroom with both participants. The new chatroom will be created with the teacher as the owner and the students as participantss
@@ -411,9 +420,7 @@ foreach ($notifiableParticipants as $participant) {
 When a new message is created, the `\Mmedia\LeChat\Events\MessageCreated::class` event is fired. This event contains the `Message` model instance, which is an instance of `ChatMessage`.
 
 #### Event and chatroom broadcasting
-When a new message is created, the `\Mmedia\LeChat\Events\MessageCreated::class` event is fired. This event contains the `Message` model instance, which is an instance of `ChatMessage`.
-
-If you have broadcasting enabled, the event will be broadcasted to the chatroom chatroom. The chatroom name uses the Laravel Broadcasting convention, so it will be `Mmedia.LeChat.Models.Chatroom.{chatroom_id}`. This is a presence channel, so you can join it in your frontend application like this:
+If you have broadcasting enabled, the event will be broadcasted to the chatroom. The chatroom name uses the Laravel Broadcasting convention, so it will be `Mmedia.LeChat.Models.Chatroom.{chatroom_id}`. This is a presence channel, so you can join it in your frontend application like this:
 ```typescript
 import Echo from 'laravel-echo';
 

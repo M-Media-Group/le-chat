@@ -223,10 +223,25 @@ The model itself also implements the `ChatParticipantInterface`, and uses the tr
 $chatParticipant->sendMessageTo($student, 'Hello from the chat participant!');
 ```
 
-### Sending typing indicators as a `ChatParticipant`
-Normally, typing indicators are sent client to client using a whisper. However, if you need to emit an event with the typing status of a participant server-side, you can use the `startTyping` and `stopTyping` methods provided by the `ChatParticipant` model.
+### Sending typing indicators
+Normally, typing indicators are sent client to client using a whisper. However, if you need to emit an event with the typing status of a participant server-side, you can use the provided methods.
+
+Typing indicators states are not persisted server-side; they are meant to provide real-time feedback to other participants in the chat.
+
+#### As a `ChatParticipant`
+The `startTyping` and `stopTyping` methods are provided by the `ChatParticipant` model.
 
 ```php
 $chatParticipant->startTyping(); // Indicates that the participant is typing
 $chatParticipant->stopTyping(); // Indicates that the participant has stopped typing
+```
+
+#### As a `Participant`
+If you are working with your own participant model directly, you can use the `sendTypingStatusTo` method to broadcast typing indicators to other participants in the chatroom or to specific participants.
+
+```php
+$teacher->sendTypingStatusTo($chatroom, true); // Broadcasts an event that the teacher has started typing to the chatroom
+
+$teacher->sendTypingStatusTo($student, true); // Indicates to the channel (where teacher and student are present) that the teacher is typing to to the chatroom
+
 ```
