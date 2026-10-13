@@ -220,7 +220,11 @@ final class ChatMessage extends Model
 
         return $query->when(($participant instanceof ChatParticipant),
             function ($query) use ($participant, $selfInstance) {
-                $query->where($selfInstance->getQualifiedCreatedAtColumn(), '>=', $participant->getCreatedAtColumn());
+                $query->where(
+                    $selfInstance->getQualifiedCreatedAtColumn(),
+                    '>=',
+                    $participant->getQualifiedCreatedAtColumn()
+                );
             },
             // If we have a ChatParticipantInterface, we need to do this dynamically - because we need to join/match on the chatroom_id column in the ChatMessage
             function ($query) use ($participant, $selfInstance, $instance) {
