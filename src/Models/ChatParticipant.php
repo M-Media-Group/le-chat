@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Events\ParticipantCreated;
 use Mmedia\LeChat\Events\ParticipantDeleted;
+use Mmedia\LeChat\Events\ParticipantTyping;
 use Mmedia\LeChat\Traits\BelongsToChatroom;
 use Mmedia\LeChat\Traits\ConnectsToBroadcast;
 use Mmedia\LeChat\Traits\IsChatParticipant;
@@ -137,11 +138,19 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
         Builder $query,
         ChatParticipantInterface|ChatParticipant $participant
     ): Builder {
+        $id = $participant->getKey();
+
         if ($participant instanceof ChatParticipant) {
-            return $query->where('id', $participant->getKey());
+            if ($id) {
+                return $query->where('id', $id);
+            }
+
+            if ($participant->reference_id) {
+                return $query->where('reference_id', $participant->reference_id);
+            }
         }
 
-        return $query->where('participant_id', $participant->getKey())
+        return $query->where('participant_id', $id)
             ->where('participant_type', $participant->getMorphClass());
     }
 
@@ -159,6 +168,22 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
                 type: 'presence'
             )
         )->shouldCache();
+    }
+
+    /**
+     * Broadcast that this participant is typing in the chatroom.
+     */
+    public function startTyping(): void
+    {
+        ParticipantTyping::dispatch($this, true);
+    }
+
+    /**
+     * Broadcast that this participant stopped typing in the chatroom.
+     */
+    public function stopTyping(): void
+    {
+        ParticipantTyping::dispatch($this, false);
     }
 
     public function getDisplayName(): ?string

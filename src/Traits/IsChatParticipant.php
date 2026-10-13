@@ -305,20 +305,20 @@ trait IsChatParticipant
         ])->fresh();
     }
 
-    private function sendMessageAsReplyTo(ChatMessage $message, string $replyMessage): ChatMessage
+    private function sendMessageAsReplyTo(ChatMessage $message, string $replyMessage, array $messageConfiguration = []): ChatMessage
     {
         if (! $this->canSendMessageToChatRoom($message->chatroom)) {
             throw new \Exception('Cannot send a message to the chat room because the current model is not an active participant in the chat room. If the model is deleted, you need to create a new chatroom.');
         }
 
         // Create a new reply message in the same chat room as the original message
-        return $message->chatroom->messages()->create([
+        return $message->chatroom->messages()->create(array_merge($messageConfiguration, [
             'sender_id' => $this instanceof ChatParticipant
                 ? $this->getKey()
                 : $this->asParticipantIn($message->chatroom, true)->getKey(),
             'message' => $replyMessage,
             'reply_to_id' => $message->getKey(),
-        ])->fresh();
+        ]))->fresh();
     }
 
     /**
@@ -344,10 +344,11 @@ trait IsChatParticipant
         string $message,
         bool $forceNewChannel = false,
         array $newChannelConfiguration = [],
-        array $asParticipantConfiguration = []
+        array $asParticipantConfiguration = [],
+        array $messageConfiguration = [],
     ): ChatMessage {
         if ($recipient instanceof ChatMessage) {
-            return $this->sendMessageAsReplyTo($recipient, $message);
+            return $this->sendMessageAsReplyTo($recipient, $message, $messageConfiguration);
         }
 
         if ($recipient instanceof Chatroom) {
@@ -392,9 +393,9 @@ trait IsChatParticipant
     /**
      * Replies to a message in the chat.
      */
-    public function replyTo(ChatMessage $originalMessage, string $message): ChatMessage
+    public function replyTo(ChatMessage $originalMessage, string $message, array $messageConfiguration = []): ChatMessage
     {
-        return $this->sendMessageAsReplyTo($originalMessage, $message);
+        return $this->sendMessageAsReplyTo($originalMessage, $message, $messageConfiguration);
     }
 
     /**
@@ -554,12 +555,12 @@ trait IsChatParticipant
 
     public function getDisplayName(): ?string
     {
-        return $this->name ?? $this->email;
+        return $this->name ?? $this->getAttribute('email');
     }
 
     public function getAvatarUrl(): ?string
     {
-        return $this->avatar ?? $this->gravatar;
+        return $this->avatar ?? $this->getAttribute('gravatar');
     }
 
     /**

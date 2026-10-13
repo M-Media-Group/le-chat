@@ -54,7 +54,7 @@ interface ChatParticipantInterface extends TargetedMessageSender
     /**
      * Replies to a message in the chat.
      */
-    public function replyTo(ChatMessage $originalMessage, string $message): ChatMessage;
+    public function replyTo(ChatMessage $originalMessage, string $message, array $messageConfiguration = []): ChatMessage;
 
     /**
      * Determines if this model is a participant in the given chat room.

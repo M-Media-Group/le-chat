@@ -14,7 +14,7 @@ interface TargetedMessageSender
      * @param  bool  $forceNewChannel  create a new channel even if one exists
      * @param  array  $newChannelConfiguration  configuration for the new channel if one is created
      */
-    public function sendMessageTo(ChatMessage|Chatroom|ChatParticipantInterface|array $recipient, string $message, bool $forceNewChannel = false, array $newChannelConfiguration = []): ChatMessage;
+    public function sendMessageTo(ChatMessage|Chatroom|ChatParticipantInterface|array $recipient, string $message, bool $forceNewChannel = false, array $newChannelConfiguration = [], array $messageConfiguration = []): ChatMessage;
 
     /**
      * Gets all the messages sent to a chat or a specific participant

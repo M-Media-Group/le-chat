@@ -24,6 +24,7 @@ use Mmedia\LeChat\Traits\OverwriteDeletes;
  * @property int|null $sender_id
  * @property int $chatroom_id
  * @property int|null $reply_to_id
+ * @property array<string, mixed>|null $metadata
  * @property Carbon|null $deleted_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -45,6 +46,12 @@ final class ChatMessage extends Model
         'sender_id',
         'message',
         'reply_to_id',
+        'metadata',
+    ];
+
+    /** @var array<string, string> */
+    protected $casts = [
+        'metadata' => 'array',
     ];
 
     /**
@@ -109,9 +116,9 @@ final class ChatMessage extends Model
         return $participant->markRead($this);
     }
 
-    public function replyAs(ChatParticipantInterface|ChatParticipant $participant, string $content): ChatMessage
+    public function replyAs(ChatParticipantInterface|ChatParticipant $participant, string $content, array $messageConfiguration = []): ChatMessage
     {
-        return $participant->replyTo($this, $content);
+        return $participant->replyTo($this, $content, $messageConfiguration);
     }
 
     /**
