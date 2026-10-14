@@ -67,7 +67,7 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
 
                 try {
                     $response = $agent->continue($conversationId, as: $message->sender?->participatingModel)->prompt(
-                        RequesterEnvelope::current($message->sender?->display_name ?? '', $message->message)
+                        RequesterEnvelope::current($message->sender->display_name ?? '', $message->message)
                     );
                 } finally {
                     // Also runs when the model fails, so the indicator never sticks

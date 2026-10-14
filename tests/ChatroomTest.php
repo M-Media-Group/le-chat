@@ -13,7 +13,7 @@ it('syncs participants while retaining existing participants', function () {
     $chatroom = Chatroom::create(['name' => 'General Chat']);
     $otherRoom = Chatroom::create(['name' => 'Other Chat']);
     $existingParticipant = ChatParticipant::create([
-        'chatroom_id' => $chatroom->getKey(),
+        'chatroom_id' => $otherRoom->getKey(),
         'reference_id' => 'existing',
     ]);
     $newParticipant = ChatParticipant::create([

@@ -303,7 +303,7 @@ class ChatroomConversationStore extends DatabaseConversationStore
 
         if ($record->model->sender_id) {
             $message->content = RequesterEnvelope::earlier(
-                $record->model->sender?->display_name ?? '',
+                $record->model->sender->display_name ?? '',
                 $message->content,
             );
         }
