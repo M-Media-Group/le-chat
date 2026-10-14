@@ -220,11 +220,15 @@ class ChatroomConversationStore extends DatabaseConversationStore
         // Follow-ups ("the second one", "why?") refer to the newest assistant turn, so it keeps its tool calls.
         $newestAssistantId = $records->last(fn (object $record) => $record->role !== 'user')?->id;
 
-        return $records->flatMap(fn (object $record): array => match (true) {
+        $messages = $records->flatMap(fn (object $record): array => match (true) {
             $record->role === 'user' => [$this->userMessageFrom($record)],
             $this->collapses($record, $newestAssistantId) => $this->textOnlyTurn($record),
             default => $this->assistantTurnFrom($record),
-        });
+        })->values();
+
+        $firstUserMessage = $messages->search(fn (Message $message): bool => $message->role->value === 'user');
+
+        return $firstUserMessage === false ? collect() : $messages->slice($firstUserMessage)->values();
     }
 
     public function paginateConversationMessages(string $conversationId, int $perPage = 15, string $cursorName = 'cursor', Cursor|string|null $cursor = null): CursorPaginator

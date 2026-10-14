@@ -3,6 +3,7 @@
 namespace Mmedia\LeChat\Listeners;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Laravel\Ai\Approvals\PendingApproval;
 use Laravel\Ai\Contracts\ConversationStore;
 use Mmedia\LeChat\Ai\ChatroomConversationStore;
@@ -28,9 +29,9 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
     public function middleware(MessageCreated $event): array
     {
         return [
-            // (new WithoutOverlapping('le-chat-ai:'.$event->message->chatroom_id))
-            //     ->releaseAfter(1)
-            //     ->expireAfter(600),
+            (new WithoutOverlapping('le-chat-ai:'.$event->message->chatroom_id))
+                ->releaseAfter(30)
+                ->expireAfter(600),
         ];
     }
 
