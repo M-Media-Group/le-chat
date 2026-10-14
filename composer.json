@@ -24,6 +24,7 @@
         "staudenmeir/eloquent-has-many-deep": "^1.7"
     },
     "require-dev": {
+        "laravel/ai": "^1.2",
         "laravel/pint": "^1.14",
         "nunomaduro/collision": "^8.1.1||^7.10.0",
         "larastan/larastan": "^2.9||^3.0",

@@ -565,7 +565,9 @@ class ChatroomConversationStore extends DatabaseConversationStore
         return $record->id !== $newestAssistantId
             && $record->status === MessageStatus::Completed->value
             && in_array($this->activeAgentClass, config(
-                'chat-options'.Features::aiSdkIntegration().'.collapse_tool_history', []), true);
+                'chat-options'.Features::aiSdkIntegration().'.collapse_tool_history',
+                []
+            ), true);
     }
 
     /**

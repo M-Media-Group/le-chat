@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Ai\Contracts\ConversationStore;
@@ -16,6 +17,7 @@ use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Step;
 use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\Data\ToolCall;
+use Laravel\Ai\Responses\Data\ToolResult;
 use Mmedia\LeChat\Ai\ChatroomConversationStore;
 use Mmedia\LeChat\Ai\RequesterEnvelope;
 use Mmedia\LeChat\Events\MessageCreated;
@@ -152,6 +154,75 @@ it('reconstructs completed tool turns through the SDK store helpers', function (
 
     expect($assistantMessage->toolCalls->first()->id)->toBe('call-1')
         ->and(aiStoreTestStore()->getLatestConversationMessages($id, 10)->last())->toBeInstanceOf(ToolResultMessage::class);
+});
+
+it('starts bounded provider history at a user turn when it cuts off a tool turn', function () {
+    $type = aiStoreTestOwner()->getMorphClass();
+    $id = aiStoreTestStore()->storeConversation($type, aiStoreTestOwner()->getKey(), 'Bounded tool history');
+
+    aiStoreTestStore()->storeUserMessage($id, $type, aiStoreTestOwner()->getKey(), AiStoreAgent::class, new UserMessage('Earlier request'));
+
+    $room = Chatroom::query()->where('metadata->ai->conversation_id', $id)->firstOrFail();
+    $agentParticipant = $room->participants()->where('reference_id', 'ai-agent:'.AiStoreAgent::class)->firstOrFail();
+
+    $room->sendMessageAs($agentParticipant, 'Tool result', ['metadata' => ['ai' => [
+        'role' => 'assistant',
+        'agent' => AiStoreAgent::class,
+        'meta' => ['provider' => 'gemini', 'model' => 'test-model'],
+        'status' => 'completed',
+        'steps' => [[
+            'content' => '',
+            'tool_calls' => [[
+                'id' => 'call-1',
+                'name' => 'example_tool',
+                'arguments' => [],
+                'result' => 'done',
+            ]],
+            'replay_blocks' => [],
+            'provider_tool_calls' => [],
+        ]],
+    ]]]);
+
+    aiStoreTestStore()->storeUserMessage($id, $type, aiStoreTestOwner()->getKey(), AiStoreAgent::class, new UserMessage('Latest request'));
+
+    $messages = aiStoreTestStore()->getLatestConversationMessages($id, 2);
+
+    expect($messages->map(fn ($message) => $message->role->value)->all())->toBe(['user'])
+        ->and($messages->first()->content)->toContain('Latest request');
+});
+
+it('stops listing an approval after its tool call is resolved', function () {
+    $type = aiStoreTestOwner()->getMorphClass();
+    $id = aiStoreTestStore()->storeConversation($type, aiStoreTestOwner()->getKey(), 'Resolved approval');
+
+    aiStoreTestStore()->storeUserMessage($id, $type, aiStoreTestOwner()->getKey(), AiStoreAgent::class, new UserMessage('Remove an attribute'));
+
+    $room = Chatroom::query()->where('metadata->ai->conversation_id', $id)->firstOrFail();
+    $agentParticipant = $room->participants()->where('reference_id', 'ai-agent:'.AiStoreAgent::class)->firstOrFail();
+
+    $room->sendMessageAs($agentParticipant, '', ['metadata' => ['ai' => [
+        'role' => 'assistant',
+        'agent' => AiStoreAgent::class,
+        'meta' => ['provider' => 'provider-a', 'model' => 'test-model'],
+        'status' => 'paused',
+        'steps' => [[
+            'content' => '',
+            'tool_calls' => [[
+                'id' => 'pending-call',
+                'name' => 'example_tool',
+                'arguments' => [],
+                'approval_reason' => 'Needs approval.',
+            ]],
+            'replay_blocks' => [],
+            'provider_tool_calls' => [],
+        ]],
+    ]]]);
+
+    expect(aiStoreTestStore()->pendingApprovalsFor($id))->toHaveCount(1);
+
+    aiStoreTestStore()->storeApprovalResults($id, [new ToolResult('pending-call', 'example_tool', [], 'done')]);
+
+    expect(aiStoreTestStore()->pendingApprovalsFor($id))->toBe([]);
 });
 
 it('retains opaque provider replay data when storing completed turns', function () {
@@ -318,4 +389,17 @@ it('posts a generic chatroom message when the AI listener finally fails', functi
     (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($failureMessage));
 
     expect($room->messages()->count())->toBe($messageCount);
+});
+
+it('serializes queued assistant responses by chatroom', function () {
+    $room = Chatroom::create(['name' => 'Room']);
+    $message = $room->sendMessage('Hello');
+
+    $middleware = (new PromptAgentsOnMessageCreated)->middleware(new MessageCreated($message));
+
+    expect($middleware)->toHaveCount(1)
+        ->and($middleware[0])->toBeInstanceOf(WithoutOverlapping::class)
+        ->and($middleware[0]->key)->toBe('le-chat-ai:'.$room->getKey())
+        ->and($middleware[0]->releaseAfter)->toBe(30)
+        ->and($middleware[0]->expiresAfter)->toBe(600);
 });
