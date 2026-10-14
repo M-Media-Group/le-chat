@@ -16,7 +16,6 @@ class NotifyUsersOfRecentUnreadMessages extends Command
     public function handle(): int
     {
         // If the user class is not an instance of ChatParticipantInterface, throw an error
-        // @phpstan-ignore function.alreadyNarrowedType
         if (! class_exists(User::class) || ! is_subclass_of(User::class, ChatParticipantInterface::class)) {
             $this->error('The User model must implement the ChatParticipantInterface contract to use this command.');
 

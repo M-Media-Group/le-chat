@@ -593,6 +593,7 @@ class ChatroomConversationStore extends DatabaseConversationStore
             ->when($lock, fn ($query) => $query->lockForUpdate())
             ->orderByDesc('id')
             ->get()
+            ->toBase()
             ->map(fn (ChatMessage $message) => $this->recordFrom($message, $agentIds));
     }
 

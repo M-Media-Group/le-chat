@@ -8,3 +8,12 @@ parameters:
         - config
         - database
     tmpDir: build/phpstan
+    excludePaths:
+        - database/factories/ModelFactory.php
+    ignoreErrors:
+        # Host-app and optional dependencies that are not installed in the package.
+        -
+            identifier: class.notFound
+            paths:
+                - src/Commands/LeChatCommand.php
+                - src/Notifications/NewMessage.php
