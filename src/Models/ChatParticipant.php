@@ -26,8 +26,8 @@ use Mmedia\LeChat\Traits\IsChatParticipant;
  *
  * @property int $id
  * @property int $chatroom_id
- * @property string $participant_type
- * @property int $participant_id
+ * @property string|null $participant_type
+ * @property int|null $participant_id
  * @property string $role
  * @property string|null $reference_id
  * @property Carbon|null $deleted_at
