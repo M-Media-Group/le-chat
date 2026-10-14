@@ -222,7 +222,7 @@ final class ChatMessage extends Model
             return $query->where(
                 $selfInstance->getQualifiedCreatedAtColumn(),
                 '>=',
-                $participant->getQualifiedCreatedAtColumn()
+                $participant->getAttribute($participant->getCreatedAtColumn())
             );
         }
 
