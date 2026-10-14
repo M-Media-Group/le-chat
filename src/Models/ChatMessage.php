@@ -163,11 +163,9 @@ final class ChatMessage extends Model
      */
     public function scopeSentBy(Builder $query, ChatParticipantInterface|ChatParticipant $participant): Builder
     {
-        return $query->whereHas(
-            'sender',
-            function ($query) use ($participant) {
-                return $query->ofParticipant($participant);
-            }
+        return $query->whereIn(
+            $query->getModel()->qualifyColumn('sender_id'),
+            ChatParticipant::query()->ofParticipant($participant)->select('id')
         );
     }
 

@@ -302,11 +302,12 @@ final class Chatroom extends Model
         bool $includeTrashed = false
     ): Builder {
         foreach ($participants as $participant) {
-            $query->whereHas(
-                'participants',
-                fn (Builder $q) => $q
+            $query->whereIn(
+                $query->getModel()->getQualifiedKeyName(),
+                ChatParticipant::query()
                     ->ofParticipant($participant)
-                    ->withTrashed($includeTrashed),
+                    ->withTrashed($includeTrashed)
+                    ->select('chatroom_id')
             );
         }
 
