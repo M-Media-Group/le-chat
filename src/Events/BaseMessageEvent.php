@@ -9,8 +9,8 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Broadcast;
-use Mmedia\LeChat\Http\Resources\MessageResource;
 use Mmedia\LeChat\Models\ChatMessage;
+use Mmedia\LeChat\Support\BroadcastPayload;
 
 abstract class BaseMessageEvent implements ShouldBroadcastNow
 {
@@ -43,7 +43,7 @@ abstract class BaseMessageEvent implements ShouldBroadcastNow
      */
     public function broadcastWith(): array
     {
-        return MessageResource::make($this->message)->resolve();
+        return BroadcastPayload::forMessage($this->message);
     }
 
     /**

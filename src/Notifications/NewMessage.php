@@ -7,9 +7,9 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Mmedia\LeChat\Http\Resources\MessageResource;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
+use Mmedia\LeChat\Support\BroadcastPayload;
 use NotificationChannels\WebPush\WebPushChannel;
 use NotificationChannels\WebPush\WebPushMessage;
 
@@ -137,8 +137,6 @@ class NewMessage extends Notification implements ShouldQueue
      */
     public function toBroadcast(object $notifiable): BroadcastMessage
     {
-        $messageResource = MessageResource::make($this->message)->resolve();
-
-        return new BroadcastMessage($messageResource);
+        return new BroadcastMessage(BroadcastPayload::forMessage($this->message));
     }
 }
