@@ -218,12 +218,8 @@ final class ChatMessage extends Model
             );
         }
 
-        return $query->where($selfInstance->getQualifiedCreatedAtColumn(), '>=', function ($query) use ($participant, $instance, $selfInstance) {
-            $query->select($instance->getQualifiedCreatedAtColumn())
-                ->from($instance->getTable())
-                ->whereColumn('chatroom_id', $selfInstance->qualifyColumn('chatroom_id'))
-                ->where('participant_id', $participant->getKey())
-                ->where('participant_type', $participant->getMorphClass());
+        return $query->where($selfInstance->getQualifiedCreatedAtColumn(), '>=', function ($query) use ($participant, $instance) {
+            $this->selectParticipantColumn($query, $instance->getQualifiedCreatedAtColumn(), $participant);
         });
     }
 
@@ -250,19 +246,9 @@ final class ChatMessage extends Model
         }
 
         return $query->where(function ($query) use ($participant, $selfInstance, $instance) {
-            $query->where($selfInstance->getQualifiedCreatedAtColumn(), '<=', function ($query) use ($participant, $instance, $selfInstance) {
-                $query->select($instance->getQualifiedDeletedAtColumn())
-                    ->from($instance->getTable())
-                    ->whereColumn('chatroom_id', $selfInstance->qualifyColumn('chatroom_id'))
-                    ->where('participant_id', $participant->getKey())
-                    ->where('participant_type', $participant->getMorphClass());
-            })->orWhereRaw('(
-                SELECT '.$instance->getQualifiedDeletedAtColumn().'
-                FROM '.$instance->getTable().'
-                WHERE '.$instance->getTable().'.chatroom_id = '.$selfInstance->qualifyColumn('chatroom_id').'
-                  AND participant_id = ?
-                  AND participant_type = ?
-            ) IS NULL', [$participant->getKey(), $participant->getMorphClass()]);
+            $query->where($selfInstance->getQualifiedCreatedAtColumn(), '<=', function ($query) use ($participant, $instance) {
+                $this->selectParticipantColumn($query, $instance->getQualifiedDeletedAtColumn(), $participant);
+            })->orWhereRaw(...$this->participantColumnIsNullSql($instance->getQualifiedDeletedAtColumn(), $participant));
         });
     }
 
@@ -286,19 +272,43 @@ final class ChatMessage extends Model
         }
 
         return $query->where(function ($query) use ($participant, $selfInstance, $instance) {
-            $query->where($selfInstance->getQualifiedCreatedAtColumn(), '>', function ($query) use ($participant, $instance, $selfInstance) {
-                $query->select($instance->qualifyColumn('read_at'))
-                    ->from($instance->getTable())
-                    ->whereColumn('chatroom_id', $selfInstance->qualifyColumn('chatroom_id'))
-                    ->where('participant_id', $participant->getKey())
-                    ->where('participant_type', $participant->getMorphClass());
-            })->orWhereRaw('(
-                SELECT '.$instance->qualifyColumn('read_at').'
+            $query->where($selfInstance->getQualifiedCreatedAtColumn(), '>', function ($query) use ($participant, $instance) {
+                $this->selectParticipantColumn($query, $instance->qualifyColumn('read_at'), $participant);
+            })->orWhereRaw(...$this->participantColumnIsNullSql($instance->qualifyColumn('read_at'), $participant));
+        });
+    }
+
+    /**
+     * Select a column of the participant row belonging to this message's chatroom.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     */
+    private function selectParticipantColumn($query, string $column, ChatParticipantInterface $participant): void
+    {
+        $instance = new ChatParticipant;
+
+        $query->select($column)
+            ->from($instance->getTable())
+            ->whereColumn('chatroom_id', $this->qualifyColumn('chatroom_id'))
+            ->where('participant_id', $participant->getKey())
+            ->where('participant_type', $participant->getMorphClass());
+    }
+
+    /**
+     * SQL and bindings checking that the participant's column is NULL.
+     *
+     * @return array{0: string, 1: array<int, mixed>}
+     */
+    private function participantColumnIsNullSql(string $column, ChatParticipantInterface $participant): array
+    {
+        $instance = new ChatParticipant;
+
+        return ['(
+                SELECT '.$column.'
                 FROM '.$instance->getTable().'
-                WHERE '.$instance->getTable().'.chatroom_id = '.$selfInstance->qualifyColumn('chatroom_id').'
+                WHERE '.$instance->getTable().'.chatroom_id = '.$this->qualifyColumn('chatroom_id').'
                   AND participant_id = ?
                   AND participant_type = ?
-            ) IS NULL', [$participant->getKey(), $participant->getMorphClass()]);
-        });
+            ) IS NULL', [$participant->getKey(), $participant->getMorphClass()]];
     }
 }

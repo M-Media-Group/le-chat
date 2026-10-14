@@ -1,0 +1,21 @@
+{
+    "path": [
+        "src"
+    ],
+    "format": [
+        "php"
+    ],
+    "reporters": [
+        "console"
+    ],
+    "minLines": 10,
+    "minTokens": 100,
+    "mode": "weak",
+    "threshold": 1,
+    "failOnEmpty": true,
+    "ignore": [
+        "**/*.md",
+        "**/tests/**",
+        "**/vendor/**"
+    ]
+}

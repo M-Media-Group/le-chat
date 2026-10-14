@@ -1,7 +1,7 @@
 {
     "name": "mmedia/le-chat",
     "type": "library",
-    "version": "0.4.3",
+    "version": "0.4.4",
     "description": "Add chat functionality to your Laravel application.",
     "keywords": [
         "Michal",
@@ -55,7 +55,8 @@
         "analyse": "vendor/bin/phpstan analyse",
         "test": "vendor/bin/pest",
         "test-coverage": "vendor/bin/pest --coverage",
-        "format": "vendor/bin/pint"
+        "format": "vendor/bin/pint",
+        "find-duplicate-code": "npx --yes jscpd@5.4.1"
     },
     "config": {
         "sort-packages": true,

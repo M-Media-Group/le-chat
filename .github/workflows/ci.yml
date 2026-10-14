@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    env:
+      TZ: UTC
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+          extensions: mbstring, intl, pdo_sqlite, sqlite3, bcmath, gd, fileinfo
+
+      - name: Validate composer.json
+        run: composer validate --strict --no-check-publish --no-check-lock
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer/files
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.json') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      # Advisories appear without code changes, so on PRs this reports but does not block.
+      - name: Security audit
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
+        run: composer audit --locked
+
+      - name: Duplicate code
+        run: composer run find-duplicate-code
+
+      - name: Pint
+        run: vendor/bin/pint --test
+
+      - name: PHPStan
+        run: vendor/bin/phpstan analyse --memory-limit=2G --no-progress --error-format=github
+
+      - name: Tests
+        run: vendor/bin/pest --ci
+
+  # Matrix of supported PHP/Laravel versions, mirroring the package's declared constraints.
+  compatibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4', '8.3']
+        laravel: ['12.*', '11.*']
+        stability: [prefer-lowest, prefer-stable]
+        include:
+          - laravel: 12.*
+            testbench: 10.*
+          - laravel: 11.*
+            testbench: 9.*
+
+    name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.stability }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer:v2
+          extensions: mbstring, intl, pdo_sqlite, sqlite3, bcmath, gd, fileinfo
+
+      - name: Install dependencies
+        run: |
+          composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
+          composer update --${{ matrix.stability }} --prefer-dist --no-interaction --no-progress
+
+      - name: Tests
+        run: vendor/bin/pest --ci
+
+  release:
+    needs: [ci, compatibility]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect version bump
+        id: version
+        run: |
+          current=$(jq -r '.version // empty' composer.json)
+          previous=$(git show "${{ github.event.before }}:composer.json" 2>/dev/null | jq -r '.version // empty' || true)
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          if [ -n "$current" ] && [ "$current" != "$previous" ] && ! git rev-parse -q --verify "refs/tags/v$current" >/dev/null; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release
+        if: steps.version.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.version.outputs.current }}" \
+            --target "${{ github.sha }}" \
+            --title "v${{ steps.version.outputs.current }}" \
+            --generate-notes
