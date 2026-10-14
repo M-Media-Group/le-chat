@@ -124,21 +124,13 @@ final class ChatMessage extends Model
     /**
      * Get the message attribute, decrypting it if encryption is enabled.
      *
-     * @return CastsAttribute<string, string>
+     * @return CastsAttribute<string, string|null>
      *
      * @throws DecryptException
      * @throws EncryptException
      */
     protected function message(): CastsAttribute
     {
-        if (! $this->getRawOriginal('message')) {
-            // If the message is null, return an empty string
-            return CastsAttribute::make(
-                get: fn () => '',
-                set: fn ($value) => $value
-            )->shouldCache();
-        }
-
         $usesEncryption = Features::enabled(Features::encryptMessagesAtRest());
 
         /** Try to encrypt but catch DecryptException */
@@ -158,8 +150,8 @@ final class ChatMessage extends Model
         };
 
         return CastsAttribute::make(
-            get: fn (string $value) => $usesEncryption ? $decryptSoftly($value) : $value,
-            set: fn (string $value) => $usesEncryption ? encrypt($value) : $value
+            get: fn (?string $value): string => $value === null ? '' : ($usesEncryption ? $decryptSoftly($value) : $value),
+            set: fn (?string $value): ?string => $usesEncryption && $value !== null ? encrypt($value) : $value,
         )->shouldCache();
     }
 
@@ -275,46 +267,38 @@ final class ChatMessage extends Model
     }
 
     /**
-     * Returns all messages created before the given participants read_at timestamp.
+     * Returns messages created after the given participant's read timestamp.
      *
      * @param  Builder<ChatMessage>  $query
      * @return Builder<ChatMessage>
      */
     public function scopeUnreadBy(
-        $query,
+        Builder $query,
         ChatParticipantInterface|ChatParticipant $participant
-    ) {
+    ): Builder {
         $instance = new ChatParticipant;
         $selfInstance = new self;
 
-        return $query
-            ->when(($participant instanceof ChatParticipant),
-                function ($query) use ($participant, $selfInstance) {
+        if ($participant instanceof ChatParticipant) {
+            return $participant->read_at === null
+                ? $query
+                : $query->where($selfInstance->getQualifiedCreatedAtColumn(), '>', $participant->read_at);
+        }
 
-                    // Needs to be a where group to support the case where the participant is not deleted
-                    $query->where(function ($query) use ($participant, $selfInstance) {
-                        $query->where($selfInstance->getQualifiedCreatedAtColumn(), '<=', $participant->qualifyColumn('read_at'))
-                            ->orWhereNull($participant->qualifyColumn('read_at'));
-                    });
-                },
-                // If we have a ChatParticipantInterface, we need to do this dynamically - because we need to join/match on the chatroom_id column in the ChatMessage
-                function ($query) use ($participant, $selfInstance, $instance) {
-                    $query->where(function ($query) use ($participant, $selfInstance, $instance) {
-                        $query->where($selfInstance->getQualifiedCreatedAtColumn(), '>', function ($query) use ($participant, $instance, $selfInstance) {
-                            $query->select($instance->qualifyColumn('read_at'))
-                                ->from($instance->getTable())
-                                ->whereColumn('chatroom_id', $selfInstance->qualifyColumn('chatroom_id'))
-                                ->where('participant_id', $participant->getKey())
-                                ->where('participant_type', $participant->getMorphClass());
-                        })->orWhereRaw('(
-                            SELECT '.$instance->qualifyColumn('read_at').'
-                            FROM '.$instance->getTable().'
-                            WHERE '.$instance->getTable().'.chatroom_id = '.$selfInstance->qualifyColumn('chatroom_id').'
-                              AND participant_id = ?
-                              AND participant_type = ?
-                        ) IS NULL', [$participant->getKey(), $participant->getMorphClass()]);
-                    });
-                }
-            );
+        return $query->where(function ($query) use ($participant, $selfInstance, $instance) {
+            $query->where($selfInstance->getQualifiedCreatedAtColumn(), '>', function ($query) use ($participant, $instance, $selfInstance) {
+                $query->select($instance->qualifyColumn('read_at'))
+                    ->from($instance->getTable())
+                    ->whereColumn('chatroom_id', $selfInstance->qualifyColumn('chatroom_id'))
+                    ->where('participant_id', $participant->getKey())
+                    ->where('participant_type', $participant->getMorphClass());
+            })->orWhereRaw('(
+                SELECT '.$instance->qualifyColumn('read_at').'
+                FROM '.$instance->getTable().'
+                WHERE '.$instance->getTable().'.chatroom_id = '.$selfInstance->qualifyColumn('chatroom_id').'
+                  AND participant_id = ?
+                  AND participant_type = ?
+            ) IS NULL', [$participant->getKey(), $participant->getMorphClass()]);
+        });
     }
 }

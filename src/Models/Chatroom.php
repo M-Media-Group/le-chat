@@ -292,35 +292,39 @@ final class Chatroom extends Model
     /**
      * Get chatrooms that have at least the given participants.
      *
-     * @param  (ChatParticipantInterface|ChatParticipant)[]  $participant
+     * @param  Builder<static>  $query
+     * @param  array<ChatParticipantInterface|ChatParticipant>  $participants
      * @return Builder<static>
      */
     public function scopeHavingParticipants(
-        \Illuminate\Database\Query\Builder|Builder $query,
+        Builder $query,
         array $participants,
         bool $includeTrashed = false
-    ) {
-        return $query->whereHas(
-            'participants',
-            function ($query) use ($participants, $includeTrashed) {
-                foreach ($participants as $participant) {
-                    return $query->ofParticipant($participant)->when($includeTrashed, fn ($query) => $query->withTrashed());
-                }
-            }
-        );
+    ): Builder {
+        foreach ($participants as $participant) {
+            $query->whereHas(
+                'participants',
+                fn (Builder $q) => $q
+                    ->ofParticipant($participant)
+                    ->withTrashed($includeTrashed),
+            );
+        }
+
+        return $query;
     }
 
     /**
      * Get the chatrooms that have exactly the given participants.
      *
-     * @param  (ChatParticipantInterface|ChatParticipant)[]  $participant
+     * @param  Builder<static>  $query
+     * @param  array<ChatParticipantInterface|ChatParticipant>  $participants
      * @return Builder<static>
      */
     public function scopeHavingExactlyParticipants(
-        \Illuminate\Database\Query\Builder|Builder $query,
+        Builder $query,
         array $participants,
         bool $includeTrashed = false
-    ) {
+    ): Builder {
         $total = count($participants);
 
         return $query->havingParticipants($participants, $includeTrashed)
