@@ -69,10 +69,14 @@ trait IsChatParticipant
     {
         // We need to join ChatRooms through the ChatParticipants table.
         // Start from the Chatroom model query builder.
-        return $this->hasManyDeepFromRelations(
+        $relation = $this->hasManyDeepFromRelations(
             $this->chatParticipants(),
-            (new ChatParticipant)->chatroom()
+            (new ChatParticipant)->chatroom(),
         );
+
+        $this->assertChatroomRelation($relation);
+
+        return $relation;
     }
 
     /**
@@ -83,10 +87,14 @@ trait IsChatParticipant
         // We need to get ChatMessages that are linked to a ChatParticipant
         // where that ChatParticipant is linked to this model.
         // Start from the ChatMessage model query builder.
-        return $this->hasManyDeepFromRelations(
+        $relation = $this->hasManyDeepFromRelations(
             $this->chatParticipants(),
-            (new ChatParticipant)->messages()
+            (new ChatParticipant)->messages(),
         );
+
+        $this->assertMessageRelation($relation);
+
+        return $relation;
     }
 
     /**
@@ -113,10 +121,38 @@ trait IsChatParticipant
         // We need to get ChatMessages that are linked to a ChatParticipant
         // where that ChatParticipant is linked to this model.
         // Start from the ChatMessage model query builder.
-        return $this->hasManyDeepFromRelations(
+        $relation = $this->hasManyDeepFromRelations(
             $this->chatParticipants(),
-            (new ChatParticipant)->sentMessages()
+            (new ChatParticipant)->sentMessages(),
         );
+
+        $this->assertMessageRelation($relation);
+
+        return $relation;
+    }
+
+    /**
+     * Assert that the given relation is a valid chatroom relation. Also helps static analysis tools understand the type.
+     *
+     * @phpstan-assert HasManyDeep<Chatroom, $this> $relation
+     */
+    private function assertChatroomRelation(mixed $relation): void
+    {
+        if (! ($relation instanceof HasManyDeep) || ! ($relation->getRelated() instanceof Chatroom)) {
+            throw new \LogicException('The chatroom relationship must target Chatroom models.');
+        }
+    }
+
+    /**
+     * Assert that the given relation is a valid message relation. Also helps static analysis tools understand the type.
+     *
+     * @phpstan-assert HasManyDeep<ChatMessage, $this> $relation
+     */
+    private function assertMessageRelation(mixed $relation): void
+    {
+        if (! ($relation instanceof HasManyDeep) || ! ($relation->getRelated() instanceof ChatMessage)) {
+            throw new \LogicException('The message relationships must target ChatMessage models.');
+        }
     }
 
     /**
