@@ -3,6 +3,7 @@
 namespace Mmedia\LeChat\Listeners;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Support\Facades\Notification;
 use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\Notifications\NewMessage;
 
@@ -35,7 +36,7 @@ class SendMessageCreatedNotification implements ShouldQueue
             if (! $actualParticipant) {
                 continue;
             }
-            $actualParticipant->notify(new NewMessage($event->message, $participant));
+            Notification::send([$actualParticipant], new NewMessage($event->message, $participant));
         }
     }
 }

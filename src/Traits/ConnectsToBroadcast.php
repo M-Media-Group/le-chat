@@ -48,11 +48,11 @@ trait ConnectsToBroadcast
         }
 
         // Throw an error if the type is not 'presence' or 'private'
-        if (! in_array($type, ['presence', 'private'])) {
+        if (! in_array($type, ['presence', 'private'], true)) {
             throw new \InvalidArgumentException('The type must be either "presence" or "private".');
         }
 
-        if (! in_array(Broadcast::getDefaultDriver(), ['pusher', 'reverb'])) {
+        if (! in_array(Broadcast::getDefaultDriver(), ['pusher', 'reverb'], true)) {
             Log::warning('Broadcast driver is not pusher or reverb, cannot check participant connection status.');
 
             return null;

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Mmedia\LeChat\Traits;
 
-use Carbon\Carbon;
 use DateTime;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
@@ -13,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Contracts\TargetedMessageSender;
@@ -46,7 +46,7 @@ trait IsChatParticipant
     /**
      * The chat participants for this model (the inverse of the morphTo on ChatParticipant).
      *
-     * @return MorphMany<ChatParticipant, M>
+     * @return MorphMany<ChatParticipant, $this>
      */
     public function chatParticipants(): MorphMany
     {
@@ -70,7 +70,7 @@ trait IsChatParticipant
     /**
      * Get the chat rooms this model is a participant in.
      *
-     * @return HasManyDeep<Chatroom, ChatParticipant>
+     * @return HasManyDeep<Chatroom, $this>
      */
     public function chatRooms(): HasManyDeep
     {
@@ -83,7 +83,7 @@ trait IsChatParticipant
     }
 
     /**
-     * @return HasManyDeep<ChatMessage, ChatParticipant>
+     * @return HasManyDeep<ChatMessage, $this>
      */
     public function messages(): HasManyDeep
     {
@@ -101,7 +101,7 @@ trait IsChatParticipant
      *
      * Compared to above, this uses EXISTS (the above uses inner joins). It may be more efficient in some cases.
      *
-     * @return Builder<Chatroom>|EloquentBuilder<Chatroom>
+     * @return Builder|EloquentBuilder<Chatroom>
      */
     public function chatRoomsBuilder(): Builder|EloquentBuilder
     {
@@ -113,7 +113,7 @@ trait IsChatParticipant
     /**
      * Get all messages sent by this model across all their chat participants.
      *
-     * @return HasManyDeep<ChatMessage, ChatParticipant>
+     * @return HasManyDeep<ChatMessage, $this>
      */
     public function sentMessages(): HasManyDeep
     {
@@ -378,7 +378,7 @@ trait IsChatParticipant
     /**
      * Sends a message to a chat or a participant
      *
-     * @param  ChatMessage|Chatroom|ChatParticipant|ChatParticipantInterface|ChatParticipantInterface[]  $recipient
+     * @param  ChatMessage|Chatroom|ChatParticipantInterface|array<ChatParticipantInterface>  $recipient
      */
     public function sendMessageTo(
         ChatMessage|Chatroom|ChatParticipantInterface|array $recipient,
@@ -397,7 +397,7 @@ trait IsChatParticipant
         }
 
         // Normalize the recipient to an array of ChatParticipantInterface
-        if ($recipient instanceof ChatParticipantInterface || $recipient instanceof ChatParticipant) {
+        if ($recipient instanceof ChatParticipantInterface) {
             $recipient = [$recipient];
         }
 
@@ -601,7 +601,9 @@ trait IsChatParticipant
 
     public function getAvatarUrl(): ?string
     {
-        return $this->avatar ?? $this->getAttribute('gravatar');
+        $avatarUrl = $this->getAttribute('avatar') ?? $this->getAttribute('gravatar');
+
+        return is_string($avatarUrl) ? $avatarUrl : null;
     }
 
     /**
@@ -615,7 +617,8 @@ trait IsChatParticipant
         return CastsAttribute::make(
             get: fn (): bool => in_array(
                 Notifiable::class,
-                class_uses_recursive($this)
+                class_uses_recursive($this),
+                true,
             )
         )->shouldCache();
     }

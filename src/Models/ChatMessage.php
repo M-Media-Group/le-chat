@@ -218,25 +218,21 @@ final class ChatMessage extends Model
         $instance = new ChatParticipant;
         $selfInstance = new self;
 
-        return $query->when(($participant instanceof ChatParticipant),
-            function ($query) use ($participant, $selfInstance) {
-                $query->where(
-                    $selfInstance->getQualifiedCreatedAtColumn(),
-                    '>=',
-                    $participant->getQualifiedCreatedAtColumn()
-                );
-            },
-            // If we have a ChatParticipantInterface, we need to do this dynamically - because we need to join/match on the chatroom_id column in the ChatMessage
-            function ($query) use ($participant, $selfInstance, $instance) {
-                $query->where($selfInstance->getQualifiedCreatedAtColumn(), '>=', function ($query) use ($participant, $instance, $selfInstance) {
-                    $query->select($instance->getQualifiedCreatedAtColumn())
-                        ->from($instance->getTable())
-                        ->whereColumn('chatroom_id', $selfInstance->qualifyColumn('chatroom_id'))
-                        ->where('participant_id', $participant->getKey())
-                        ->where('participant_type', $participant->getMorphClass());
-                });
-            }
-        );
+        if ($participant instanceof ChatParticipant) {
+            return $query->where(
+                $selfInstance->getQualifiedCreatedAtColumn(),
+                '>=',
+                $participant->getQualifiedCreatedAtColumn()
+            );
+        }
+
+        return $query->where($selfInstance->getQualifiedCreatedAtColumn(), '>=', function ($query) use ($participant, $instance, $selfInstance) {
+            $query->select($instance->getQualifiedCreatedAtColumn())
+                ->from($instance->getTable())
+                ->whereColumn('chatroom_id', $selfInstance->qualifyColumn('chatroom_id'))
+                ->where('participant_id', $participant->getKey())
+                ->where('participant_type', $participant->getMorphClass());
+        });
     }
 
     /**

@@ -37,7 +37,7 @@ class ChatroomChannel
         $chatroom = $data->chatroom;
 
         // Send the message to the chatroom
-        $data->sender ? $chatroom->sendMessageAs($data->sender, $data->message, $data->attributes ?? [])
-            : $chatroom->sendMessage($data->message, $data->attributes ?? []);
+        $data->sender ? $chatroom->sendMessageAs($data->sender, $data->message, $data->attributes)
+            : $chatroom->sendMessage($data->message, $data->attributes);
     }
 }

@@ -77,7 +77,7 @@ public function toChatroom(object $notifiable): ChatroomChannelMessage
     return (new ChatroomChannelMessage)
         ->message("Severe weather alert start")
         ->attributes(['created_at' => now()->addDays(1)]) // Additional attributes to be force-filled when creating the message
-        ->chatroom($chatroom); // The ID of the chatroom to send the notification
+        ->chatroom($chatroom); // The chatroom to send the notification to
 }
 ```
 
@@ -89,7 +89,7 @@ public function toChatroom(object $notifiable): ChatroomChannelMessage
     return (new ChatroomChannelMessage)
         ->message("I just got my first A+!")
         // IMPORTANT: specify the chatroom first if your sender is not a ChatParticipant, but one of your own models
-        ->chatroom($chatroom) // The ID of the chatroom to send the notification
+        ->chatroom($chatroom) // The chatroom to send the notification to
         ->sender($notifiable); // The participant to send the notification as
 }
 ```

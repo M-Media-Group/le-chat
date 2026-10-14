@@ -5,6 +5,7 @@ namespace Mmedia\LeChat\Contracts;
 use Illuminate\Database\Eloquent\Concerns\HasRelationships;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Mmedia\LeChat\Models\ChatMessage;
@@ -19,19 +20,23 @@ interface ChatParticipantInterface extends TargetedMessageSender
     /**
      * Get the chat participants for this model (the inverse of the morphTo on ChatParticipant).
      *
-     * @return MorphMany<ChatParticipant, T>
+     * @return MorphMany<ChatParticipant, *>
      */
     public function chatParticipants(): MorphMany;
 
     /**
      * Get the chat rooms this model is a participant in.
+     *
+     * @return Relation<Chatroom, *, mixed>
      */
-    public function chatRooms();
+    public function chatRooms(): Relation;
 
     /**
      * Get all messages sent by this model across all their chat participants.
+     *
+     * @return Relation<ChatMessage, *, mixed>
      */
-    public function sentMessages();
+    public function sentMessages(): Relation;
 
     /**
      * Get the class name for polymorphic relations.

@@ -233,12 +233,12 @@ final class Chatroom extends Model
         // 3. Find which participants to ADD.
         //    These are keys present in the new map but not in the current map.
         $keysToAdd = $newParticipantMap->keys()->diff($currentParticipantMap->keys());
-        $participantsToAdd = $newParticipantMap->whereIn(null, $keysToAdd);
+        $participantsToAdd = $newParticipantMap->only($keysToAdd->all());
 
         // 4. Find which participants to REMOVE.
         //    These are keys present in the current map but not in the new map.
         $keysToRemove = $currentParticipantMap->keys()->diff($newParticipantMap->keys());
-        $participantsToRemove = $currentParticipantMap->whereIn(null, $keysToRemove);
+        $participantsToRemove = $currentParticipantMap->only($keysToRemove->all());
 
         $results = [
             'added' => [],

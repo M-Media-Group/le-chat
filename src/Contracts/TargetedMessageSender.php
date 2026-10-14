@@ -11,6 +11,7 @@ interface TargetedMessageSender
     /**
      * Sends a message to a chat or a participant
      *
+     * @param  ChatMessage|Chatroom|ChatParticipantInterface|array<ChatParticipantInterface>  $recipient
      * @param  bool  $forceNewChannel  create a new channel even if one exists
      * @param  array  $newChannelConfiguration  configuration for the new channel if one is created
      */

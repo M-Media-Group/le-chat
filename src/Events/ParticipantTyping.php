@@ -2,7 +2,6 @@
 
 namespace Mmedia\LeChat\Events;
 
-use Illuminate\Support\Facades\Broadcast;
 use Mmedia\LeChat\Http\Resources\ChatParticipantResource;
 use Mmedia\LeChat\Models\ChatParticipant;
 
@@ -13,7 +12,7 @@ class ParticipantTyping extends BaseParticipantEvent
 {
     public function __construct(ChatParticipant $participant, public bool $isTyping = true)
     {
-        return parent::__construct($participant);
+        parent::__construct($participant);
     }
 
     /**

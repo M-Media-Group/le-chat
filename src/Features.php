@@ -20,7 +20,7 @@ class Features
      */
     public static function enabled(string $feature)
     {
-        return in_array($feature, config('chat.features', []));
+        return in_array($feature, config('chat.features', []), true);
     }
 
     /**

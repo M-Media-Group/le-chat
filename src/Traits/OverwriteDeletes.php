@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * @mixin Model
  *
- * @template T of \Illuminate\Database\Eloquent\SoftDeletes
+ * @template T of Model
  *
  * @mixin T
  *

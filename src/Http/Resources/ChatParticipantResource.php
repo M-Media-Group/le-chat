@@ -4,7 +4,9 @@ namespace Mmedia\LeChat\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Mmedia\LeChat\Models\ChatParticipant;
 
+/** @mixin ChatParticipant */
 class ChatParticipantResource extends JsonResource
 {
     /**

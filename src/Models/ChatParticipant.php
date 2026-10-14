@@ -22,6 +22,8 @@ use Mmedia\LeChat\Traits\IsChatParticipant;
 /**
  * @phpstan-type ChatParticipantModel \Illuminate\Database\Eloquent\Model&\Mmedia\LeChat\Contracts\ChatParticipantInterface
  *
+ * @implements ChatParticipantInterface<ChatParticipant>
+ *
  * @property int $id
  * @property int $chatroom_id
  * @property string $participant_type
@@ -115,7 +117,7 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
     /**
      * The participant model (the user or other model this participant represents)
      *
-     * @return MorphTo<ChatParticipantModel, $this>
+     * @return MorphTo<Model, $this>
      */
     public function participatingModel(): MorphTo
     {
@@ -193,12 +195,16 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
 
     public function getDisplayName(): ?string
     {
-        return $this->participatingModel?->getDisplayName();
+        return $this->participatingModel instanceof ChatParticipantInterface
+            ? $this->participatingModel->getDisplayName()
+            : null;
     }
 
     public function getAvatarUrl(): ?string
     {
-        return $this->participatingModel?->getAvatarUrl();
+        return $this->participatingModel instanceof ChatParticipantInterface
+            ? $this->participatingModel->getAvatarUrl()
+            : null;
     }
 
     /**
@@ -247,7 +253,8 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
         return CastsAttribute::make(
             get: fn () => $this->participant_type && in_array(
                 Notifiable::class,
-                class_uses_recursive($this->participant_type)
+                class_uses_recursive($this->participant_type),
+                true,
             )
         )->shouldCache();
     }

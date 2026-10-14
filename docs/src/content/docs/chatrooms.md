@@ -132,7 +132,10 @@ This creates a new message that is not associated with any sender, effectively t
 Sometimes you may need to add additional arguments to the `sendMessage` method, such as a specific type or additional metadata. You can do this by passing an array of options:
 ```php
 $chatroom->sendMessage('Severe weather alert start', [
-    'created_at' => now()->addDays(1)
+    'created_at' => now()->addDays(1),
+    'metadata' => [
+        'city' => 'San Francisco'
+    ]
 ]);
 ```
 
