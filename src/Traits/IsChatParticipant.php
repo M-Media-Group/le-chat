@@ -625,7 +625,12 @@ trait IsChatParticipant
 
     public function getDisplayName(): ?string
     {
-        $name = $this instanceof ChatParticipant ? $this->name ?? $this->getAttribute('email') : $this->getAttribute('email');
+        $name = null;
+        if ($this instanceof ChatParticipant) {
+            $name = $this->name ?? $this->getAttribute('email');
+        } else {
+            $name = $this->getAttribute('name') ?? $this->getAttribute('email');
+        }
 
         return is_string($name) ? $name : null;
     }
