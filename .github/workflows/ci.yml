@@ -114,13 +114,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect version bump
+      - name: Detect unreleased version
         id: version
         run: |
           current=$(jq -r '.version // empty' composer.json)
-          previous=$(git show "${{ github.event.before }}:composer.json" 2>/dev/null | jq -r '.version // empty' || true)
           echo "current=$current" >> "$GITHUB_OUTPUT"
-          if [ -n "$current" ] && [ "$current" != "$previous" ] && ! git rev-parse -q --verify "refs/tags/v$current" >/dev/null; then
+          # Compare to existing tags (not the previous commit) so a bump whose own CI run failed still gets released later
+          if [ -n "$current" ] && ! git rev-parse -q --verify "refs/tags/$current" >/dev/null && ! git rev-parse -q --verify "refs/tags/v$current" >/dev/null; then
             echo "release=true" >> "$GITHUB_OUTPUT"
           else
             echo "release=false" >> "$GITHUB_OUTPUT"
@@ -131,7 +131,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ steps.version.outputs.current }}" \
+          gh release create "${{ steps.version.outputs.current }}" \
             --target "${{ github.sha }}" \
-            --title "v${{ steps.version.outputs.current }}" \
+            --title "${{ steps.version.outputs.current }}" \
             --generate-notes
