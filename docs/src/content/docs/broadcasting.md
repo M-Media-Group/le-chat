@@ -47,7 +47,7 @@ Pusher and Reverb reject payloads over roughly 10KB. To avoid a `Payload too lar
 1. The `metadata` field is removed first.
 2. If the payload is still too large, the `message` field is removed as well.
 
-All other fields (such as `id` and `chatroom_id`) are always kept, so clients can detect a trimmed payload by the missing key and fetch the full message through the [REST API](/routing). The limit and trimming are handled by `Mmedia\LeChat\Support\BroadcastPayload`.
+All other fields (such as `id` and `chatroom_id`) are always kept, so clients can detect a trimmed payload by the missing key and fetch the full message with `GET /api/chatrooms/{chatroom}/messages/{message}` (see [Routing](/routing)). The limit and trimming are handled by `Mmedia\LeChat\Support\BroadcastPayload`.
 
 ## Client side
 To listen to the broadcasted events, you can use Laravel Echo or any other WebSocket client that supports presence channels. Here is an example using Laravel Echo:

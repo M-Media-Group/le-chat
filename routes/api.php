@@ -9,6 +9,10 @@ Route::group(['middleware' => config('chat-options.routes.middleware'), 'prefix'
 
     Route::post('/chatrooms/{chatroom}/messages', [ChatroomController::class, 'storeMessage']);
 
+    Route::get('/chatrooms/{chatroom}/messages/{message}', [ChatroomController::class, 'showMessage'])
+        ->whereNumber('message')
+        ->name('chatrooms.messages.show');
+
     Route::post('/chatrooms/{chatroom}/mark-as-read', [ChatroomController::class, 'markAsRead'])
         ->name('chatrooms.markAsRead');
 

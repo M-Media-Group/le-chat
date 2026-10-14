@@ -126,6 +126,23 @@ class ChatroomController extends Controller
     }
 
     /**
+     * Show a single message
+     */
+    public function showMessage(Request $request, Chatroom $chatroom, int $message): MessageResource|JsonResponse
+    {
+        $user = $this->participantUser($request);
+
+        $this->abortUnlessHasOrHadParticipant($chatroom, $user);
+
+        $found = $chatroom->messages()
+            ->visibleTo($user)
+            ->with('sender')
+            ->findOrFail($message);
+
+        return new MessageResource($found);
+    }
+
+    /**
      * Mark the chatroom as read.
      */
     public function markAsRead(Request $request, Chatroom $chatroom): JsonResponse

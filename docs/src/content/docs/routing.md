@@ -120,6 +120,9 @@ Updates the specified chatroom in storage. Only participants that are an 'admin'
 ### POST /api/chatrooms/{chatroom}/mark-as-read
 Marks a chatroom as read for the authenticated user.
 
+### GET /api/chatrooms/{chatroom}/messages/{message}
+Retrieves a single message of a chatroom, formatted with the `MessageResource`. The authenticated user must be or have been a participant of the chatroom, and the message must be visible to them. Use this to load the full message when a [broadcasted payload was trimmed](/broadcasting#broadcasted-data).
+
 ### POST /api/messages
 Sends a new message in a chatroom or to a chat participant. The Chatroom or ChatParticipant must exist, and the authenticated user must be a participant in the chatroom or chat with the participant.
 
