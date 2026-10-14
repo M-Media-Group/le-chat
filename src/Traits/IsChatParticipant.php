@@ -563,7 +563,7 @@ trait IsChatParticipant
     }
 
     /**
-     * @param  EloquentBuilder<Model>  $messagesQuery
+     * @param  EloquentBuilder<covariant Model>  $messagesQuery
      */
     private function constrainToUnreadMessages(EloquentBuilder $messagesQuery, ?int $daysAgo, bool $includeSystemMessages): void
     {

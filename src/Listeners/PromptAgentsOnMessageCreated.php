@@ -35,10 +35,18 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
         ];
     }
 
+    /**
+     * Typed as the SDK contract so static analysis doesn't narrow the container binding to our store.
+     */
+    private function conversationStore(): ConversationStore
+    {
+        return app(ConversationStore::class);
+    }
+
     public function handle(MessageCreated $event): void
     {
         $message = $event->message;
-        $store = app(ConversationStore::class);
+        $store = $this->conversationStore();
 
         if (! $store instanceof ChatroomConversationStore || ! $this->isFromPerson($message)) {
             return;
