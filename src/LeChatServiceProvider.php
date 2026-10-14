@@ -37,9 +37,13 @@ class LeChatServiceProvider extends PackageServiceProvider
             ->hasCommand(DecryptMessages::class)
             ->hasCommand(DeleteMessages::class)
             ->hasCommand(NotifyUsersOfRecentUnreadMessages::class);
+    }
 
+    // Package config is merged only after configurePackage(), so features can't be read there
+    public function packageRegistered(): void
+    {
         if (Features::enabled(Features::routes())) {
-            $package->hasRoute('api');
+            $this->package->hasRoute('api');
         }
     }
 
