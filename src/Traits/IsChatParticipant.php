@@ -625,12 +625,14 @@ trait IsChatParticipant
 
     public function getDisplayName(): ?string
     {
-        return $this->name ?? $this->getAttribute('email');
+        $name = $this instanceof ChatParticipant ? $this->name ?? $this->getAttribute('email') : $this->getAttribute('email');
+
+        return is_string($name) ? $name : null;
     }
 
     public function getAvatarUrl(): ?string
     {
-        $avatarUrl = $this->getAttribute('avatar') ?? $this->getAttribute('gravatar');
+        $avatarUrl = $this instanceof ChatParticipant ? $this->avatar ?? $this->getAttribute('gravatar') : $this->getAttribute('gravatar');
 
         return is_string($avatarUrl) ? $avatarUrl : null;
     }
