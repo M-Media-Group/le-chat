@@ -14,6 +14,7 @@
 * Notifications via Laravel and WebPush
 * REST API endpoints included
 * No frontend views — bring your own UI
+* Add agents as chat participants with the Laravel AI SDK
 
 ---
 
