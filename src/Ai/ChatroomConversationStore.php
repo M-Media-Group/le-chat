@@ -314,7 +314,7 @@ class ChatroomConversationStore extends DatabaseConversationStore
     /**
      * Preserve opaque provider replay data without interpreting its format.
      *
-     * @return Collection<int, array<string, mixed>>
+     * @return Collection<int, array{content: string, tool_calls: array, reasoning: string, replay_blocks: array, provider_tool_calls: array}>
      */
     protected function stepsFor(AgentPrompt $prompt, AgentResponse $response): Collection
     {

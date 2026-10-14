@@ -23,13 +23,6 @@ use Staudenmeir\EloquentHasManyDeep\HasManyDeep;
 use Staudenmeir\EloquentHasManyDeep\HasRelationships;
 
 /**
- * @template T of \Mmedia\LeChat\Contracts\ChatParticipantInterface
- *
- * @mixin T
- *
- * @template M of \Illuminate\Database\Eloquent\Model
- *
- * @mixin M
  * @mixin Model
  *
  * @phpstan-require-extends Model

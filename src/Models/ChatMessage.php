@@ -248,35 +248,30 @@ final class ChatMessage extends Model
         $instance = new ChatParticipant;
         $selfInstance = new self;
 
-        return $query
-            ->when(($participant instanceof ChatParticipant),
-                function ($query) use ($participant, $selfInstance) {
-                    $deletedAt = $participant->getAttribute($participant->getDeletedAtColumn());
+        if ($participant instanceof ChatParticipant) {
+            $deletedAt = $participant->getAttribute($participant->getDeletedAtColumn());
 
-                    $query->when(
-                        $deletedAt !== null,
-                        fn ($query) => $query->where($selfInstance->getQualifiedCreatedAtColumn(), '<=', $deletedAt)
-                    );
-                },
-                // If we have a ChatParticipantInterface, we need to do this dynamically - because we need to join/match on the chatroom_id column in the ChatMessage
-                function ($query) use ($participant, $selfInstance, $instance) {
-                    $query->where(function ($query) use ($participant, $selfInstance, $instance) {
-                        $query->where($selfInstance->getQualifiedCreatedAtColumn(), '<=', function ($query) use ($participant, $instance, $selfInstance) {
-                            $query->select($instance->getQualifiedDeletedAtColumn())
-                                ->from($instance->getTable())
-                                ->whereColumn('chatroom_id', $selfInstance->qualifyColumn('chatroom_id'))
-                                ->where('participant_id', $participant->getKey())
-                                ->where('participant_type', $participant->getMorphClass());
-                        })->orWhereRaw('(
-                            SELECT '.$instance->getQualifiedDeletedAtColumn().'
-                            FROM '.$instance->getTable().'
-                            WHERE '.$instance->getTable().'.chatroom_id = '.$selfInstance->qualifyColumn('chatroom_id').'
-                              AND participant_id = ?
-                              AND participant_type = ?
-                        ) IS NULL', [$participant->getKey(), $participant->getMorphClass()]);
-                    });
-                }
+            return $query->when(
+                $deletedAt !== null,
+                fn ($query) => $query->where($selfInstance->getQualifiedCreatedAtColumn(), '<=', $deletedAt)
             );
+        }
+
+        return $query->where(function ($query) use ($participant, $selfInstance, $instance) {
+            $query->where($selfInstance->getQualifiedCreatedAtColumn(), '<=', function ($query) use ($participant, $instance, $selfInstance) {
+                $query->select($instance->getQualifiedDeletedAtColumn())
+                    ->from($instance->getTable())
+                    ->whereColumn('chatroom_id', $selfInstance->qualifyColumn('chatroom_id'))
+                    ->where('participant_id', $participant->getKey())
+                    ->where('participant_type', $participant->getMorphClass());
+            })->orWhereRaw('(
+                SELECT '.$instance->getQualifiedDeletedAtColumn().'
+                FROM '.$instance->getTable().'
+                WHERE '.$instance->getTable().'.chatroom_id = '.$selfInstance->qualifyColumn('chatroom_id').'
+                  AND participant_id = ?
+                  AND participant_type = ?
+            ) IS NULL', [$participant->getKey(), $participant->getMorphClass()]);
+        });
     }
 
     /**
