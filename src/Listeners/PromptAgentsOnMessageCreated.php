@@ -46,6 +46,7 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
     public function handle(MessageCreated $event): void
     {
         $message = $event->message;
+
         $store = $this->conversationStore();
 
         if (! $store instanceof ChatroomConversationStore || ! $this->isFromPerson($message)) {
@@ -100,7 +101,8 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
 
                 try {
                     $response = $agent->continue($conversationId, as: $message->sender?->participatingModel)->prompt(
-                        RequesterEnvelope::current($message->sender->display_name ?? '', $message->message)
+                        RequesterEnvelope::current($message->sender->display_name ?? '', $message->message),
+                        ...config('chat-options.'.Features::aiSdkIntegration().'.prompt_config', [])
                     );
                 } finally {
                     // Also runs when the model fails, so the indicator never sticks
@@ -137,5 +139,15 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
         }
 
         return ! str_starts_with((string) $message->sender?->reference_id, ChatroomConversationStore::AGENT_REFERENCE_PREFIX);
+    }
+
+    /**
+     * Calculate the number of seconds to wait before retrying the queued listener.
+     *
+     * @return list<int>
+     */
+    public function backoff(MessageCreated $event): array
+    {
+        return [1, 5, 10];
     }
 }
