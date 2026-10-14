@@ -6,6 +6,7 @@ namespace Mmedia\LeChat\Traits;
 
 use Carbon\Carbon;
 use DateTime;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
 use Illuminate\Database\Eloquent\Model;
@@ -484,7 +485,7 @@ trait IsChatParticipant
     /**
      * Mark the chat room or message as read at a specific time.
      */
-    public function markReadUntil(Chatroom|ChatMessage $roomOrMessage, DateTime|Carbon $readAt): bool
+    public function markReadUntil(Chatroom|ChatMessage $roomOrMessage, DateTime|Carbon|DateTimeInterface $readAt): bool
     {
         $chatParticipant = $this instanceof ChatParticipant
             ? $this
@@ -496,7 +497,7 @@ trait IsChatParticipant
         }
 
         // If the passed readAt is a DateTime instance, convert it to Carbon
-        if ($readAt instanceof DateTime) {
+        if (! $readAt instanceof Carbon) {
             $readAt = Carbon::instance($readAt);
         }
 

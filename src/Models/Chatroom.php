@@ -3,6 +3,7 @@
 namespace Mmedia\LeChat\Models;
 
 use Carbon\Carbon;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -126,7 +127,7 @@ final class Chatroom extends Model
      *
      * @param  ChatMessage|\DateTime|Carbon|null  $message  If provided, mark as read at the time of the message, otherwise mark as read now.
      */
-    public function markAsReadBy(ChatParticipantInterface|ChatParticipant $participant, ChatMessage|\DateTime|Carbon|null $message = null): bool
+    public function markAsReadBy(ChatParticipantInterface|ChatParticipant $participant, ChatMessage|\DateTime|DateTimeInterface|Carbon|null $message = null): bool
     {
         // Get the chat participant for this model in the given chat room
         $chatParticipant = $this->participant($participant, true);
@@ -137,7 +138,7 @@ final class Chatroom extends Model
         // Mark as read at the time of the message or now
         if ($message instanceof ChatMessage) {
             return $chatParticipant->markRead($message);
-        } elseif ($message instanceof \DateTime || $message instanceof Carbon) {
+        } elseif ($message !== null) {
             return $chatParticipant->markReadUntil($this, $message);
         }
 

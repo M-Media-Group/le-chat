@@ -36,7 +36,7 @@ interface ChatParticipantInterface extends TargetedMessageSender
     /**
      * Get the class name for polymorphic relations.
      *
-     * @see HasRelationships::getMorphClass()
+     * @see HasRelationships::getMorphClass() - it has no return type declaration in the base trait so we cannot enforce it here.
      *
      * @return class-string<T>
      */
@@ -45,7 +45,7 @@ interface ChatParticipantInterface extends TargetedMessageSender
     /**
      * Get the value of the model's primary key.
      *
-     * @see Model::getKey()
+     * @see Model::getKey() - it has no return type declaration in the base class so we cannot enforce it here.
      *
      * @return mixed
      */
@@ -69,12 +69,16 @@ interface ChatParticipantInterface extends TargetedMessageSender
     /**
      * Get the name of the "created at" column.
      *
+     * @see Model::getCreatedAtColumn() - it has no return type declaration in the base class so we cannot enforce it here.
+     *
      * @return string|null
      */
     public function getCreatedAtColumn();
 
     /**
      * Qualify the given column name with the model's table.
+     *
+     * @see Model::qualifyColumn() - it has no return type declaration in the base class so we cannot enforce it here.
      *
      * @param  string  $column
      * @return string

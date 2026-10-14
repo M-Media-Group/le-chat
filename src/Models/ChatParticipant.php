@@ -35,7 +35,7 @@ use Mmedia\LeChat\Traits\IsChatParticipant;
  * @property-read null|string $can_manage_participants
  * @property-read Collection<int, ChatMessage> $sentMessages
  * @property-read Collection<int, ChatMessage> $messages
- * @property-read ChatParticipant|null $participatingModel
+ * @property-read Model|null $participatingModel
  * @property-read Chatroom|null $chatroom
  * @property-read Collection<int, ChatParticipant> $chatParticipants
  */

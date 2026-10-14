@@ -23,18 +23,18 @@ class ChatroomChannel
 
         // If no chatroom ID is provided, throw an exception
         if (
-            ! isset($data->chatroom_id)
+            ! isset($data->chatroom)
 
             // And the notifiable doesnt have the function getOrCreatePersonalChatroom
             && ! method_exists($notifiable, 'getOrCreatePersonalChatroom')
         ) {
             throw new \Exception('Chatroom ID is required to send a chatroom notification.');
-        } elseif (! isset($data->chatroom_id)) {
+        } elseif (! isset($data->chatroom)) {
             // If the notifiable has a getOrCreatePersonalChatroom method, use it to get the chatroom ID
-            $data->chatroom_id = $notifiable->getOrCreatePersonalChatroom()->getKey();
+            $data->chatroom = $notifiable->getOrCreatePersonalChatroom();
         }
 
-        $chatroom = Chatroom::findOrFail($data->chatroom_id);
+        $chatroom = $data->chatroom;
 
         // Send the message to the chatroom
         $data->sender ? $chatroom->sendMessageAs($data->sender, $data->message, $data->attributes ?? [])
