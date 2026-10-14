@@ -74,6 +74,7 @@ trait IsChatParticipant
             (new ChatParticipant)->chatroom(),
         );
 
+        // @phpstan-ignore method.impossibleType (only in ChatParticipant context, which doesn't override chatRooms(); the deep relation's generics are invariant)
         $this->assertChatroomRelation($relation);
 
         return $relation;
@@ -558,44 +559,51 @@ trait IsChatParticipant
      */
     public function scopeWhereHasUnreadMessages(EloquentBuilder $query, ?int $daysAgo = null, bool $includeSystemMessages = false): EloquentBuilder
     {
-        return $query->whereHas('messages', function ($messagesQuery) use ($daysAgo, $includeSystemMessages) {
-            $messagesTable = (new ChatMessage)->getTable();
-            $participantsTable = (new ChatParticipant)->getTable();
+        return $query->whereHas('messages', fn ($messagesQuery) => $this->constrainToUnreadMessages($messagesQuery, $daysAgo, $includeSystemMessages));
+    }
 
-            // Where not deleted
-            $messagesQuery->withoutTrashed();
+    /**
+     * @param  EloquentBuilder<Model>  $messagesQuery
+     */
+    private function constrainToUnreadMessages(EloquentBuilder $messagesQuery, ?int $daysAgo, bool $includeSystemMessages): void
+    {
+        /** @var EloquentBuilder<ChatMessage> $messagesQuery */
+        $messagesTable = (new ChatMessage)->getTable();
+        $participantsTable = (new ChatParticipant)->getTable();
 
-            if ($daysAgo !== null) {
-                $messagesQuery->whereDate("{$messagesTable}.created_at", '>=', now()->subDays($daysAgo));
-            }
+        // Where not deleted
+        $messagesQuery->withoutTrashed();
 
-            $messagesQuery->when(! $includeSystemMessages, function ($q) use ($messagesTable) {
-                // Exclude system messages
-                $q->whereNotNull("{$messagesTable}.sender_id");
-            });
+        if ($daysAgo !== null) {
+            $messagesQuery->whereDate("{$messagesTable}.created_at", '>=', now()->subDays($daysAgo));
+        }
 
-            // 1. Participant must not be the sender of the message.
-            // The sender_id on a chat_message links to a chat_participants.id.
-            $messagesQuery->whereColumn(
-                "{$messagesTable}.sender_id",
-                '!=',
-                "{$participantsTable}.id"
-            );
+        $messagesQuery->when(! $includeSystemMessages, function ($q) use ($messagesTable) {
+            // Exclude system messages
+            $q->whereNotNull("{$messagesTable}.sender_id");
+        });
 
-            // 2. Message must have been created after the participant joined the room.
-            // This ensures the participant could have seen the message.
-            $messagesQuery->whereColumn(
-                "{$messagesTable}.created_at",
-                '>=',
-                "{$participantsTable}.created_at"
-            );
+        // 1. Participant must not be the sender of the message.
+        // The sender_id on a chat_message links to a chat_participants.id.
+        $messagesQuery->whereColumn(
+            "{$messagesTable}.sender_id",
+            '!=',
+            "{$participantsTable}.id"
+        );
 
-            // 3. Message is newer than the read timestamp OR the read timestamp is NULL.
-            // This is the key fix to handle users who have never read the chat.
-            $messagesQuery->where(function ($q) use ($messagesTable, $participantsTable) {
-                $q->whereColumn("{$messagesTable}.created_at", '>', "{$participantsTable}.read_at")
-                    ->orWhereNull("{$participantsTable}.read_at");
-            });
+        // 2. Message must have been created after the participant joined the room.
+        // This ensures the participant could have seen the message.
+        $messagesQuery->whereColumn(
+            "{$messagesTable}.created_at",
+            '>=',
+            "{$participantsTable}.created_at"
+        );
+
+        // 3. Message is newer than the read timestamp OR the read timestamp is NULL.
+        // This is the key fix to handle users who have never read the chat.
+        $messagesQuery->where(function ($q) use ($messagesTable, $participantsTable) {
+            $q->whereColumn("{$messagesTable}.created_at", '>', "{$participantsTable}.read_at")
+                ->orWhereNull("{$participantsTable}.read_at");
         });
     }
 
