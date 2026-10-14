@@ -3,7 +3,7 @@
 namespace Mmedia\LeChat\Listeners;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Laravel\Ai\Approvals\PendingApproval;
 use Laravel\Ai\Contracts\ConversationStore;
 use Mmedia\LeChat\Ai\ChatroomConversationStore;
 use Mmedia\LeChat\Ai\RequesterEnvelope;
@@ -12,6 +12,7 @@ use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
+use Throwable;
 
 /**
  * Prompts the AI agents in a chatroom when a person posts a message.
@@ -44,6 +45,28 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
         $room = $message->chatroom;
         $conversationId = $store->conversationIdOf($room);
 
+        $pendingApprovals = $store->pendingApprovalsFor($conversationId);
+
+        if ($pendingApprovals !== []) {
+            $pausedMessage = $room->messages()
+                ->where('metadata->ai->status', 'paused')
+                ->latest('id')
+                ->first();
+
+            $room->sendMessage('The assistant needs your approval before it can continue.', [
+                'metadata' => ['approval_required' => [
+                    'type' => 'approval_required',
+                    'ai' => $pausedMessage?->metadata['ai'] ?? [],
+                    'approvals' => array_map(
+                        fn (PendingApproval $approval): array => $approval->toArray(),
+                        $pendingApprovals,
+                    ),
+                ]],
+            ]);
+
+            return;
+        }
+
         $agents = $room->participants()
             ->where('reference_id', 'like', ChatroomConversationStore::AGENT_REFERENCE_PREFIX.'%')
             ->get()
@@ -75,6 +98,11 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
                 }
             });
         }
+    }
+
+    public function failed(MessageCreated $event, Throwable $exception): void
+    {
+        $event->message->chatroom->sendMessage("Sorry, I couldn't respond just now. Please try again shortly.");
     }
 
     /**

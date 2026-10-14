@@ -324,11 +324,10 @@ class ChatroomConversationStore extends DatabaseConversationStore
             return $steps;
         }
 
-        return $steps->values()->map(function (array $step, int $index) use ($response): array {
-            $step['replay_blocks'] = $response->steps->values()->get($index)->replayBlocks;
-
-            return $step;
-        });
+        return $steps->values()->map(fn (array $step, int $index): array => $this->stepWithReplayBlocks(
+            $step,
+            $response->steps->values()->get($index)->replayBlocks,
+        ));
     }
 
     protected function pausedRowFor(string $conversationId, AgentPrompt $prompt): ?object
@@ -354,7 +353,7 @@ class ChatroomConversationStore extends DatabaseConversationStore
         $steps = $this->decodedSteps($paused);
 
         if (($this->decoded($paused->meta)['provider'] ?? null) !== $response->meta->provider) {
-            $steps = $this->withoutReplayBlocks($steps);
+            $steps = $this->withoutReplayBlocksPreservingShape($steps);
         }
 
         if ($response->steps->isNotEmpty()) {
@@ -362,7 +361,7 @@ class ChatroomConversationStore extends DatabaseConversationStore
         }
 
         if (! $response->hasPendingApprovals()) {
-            $steps = $this->withoutReplayBlocks($steps);
+            $steps = $this->withoutReplayBlocksPreservingShape($steps);
         }
 
         $this->updateRecord($paused, [
@@ -403,7 +402,7 @@ class ChatroomConversationStore extends DatabaseConversationStore
                 return;
             }
 
-            $this->updateRecord($record, ['steps' => $this->plain($this->withoutReplayBlocks($steps))]);
+            $this->updateRecord($record, ['steps' => $this->plain($this->withoutReplayBlocksPreservingShape($steps))]);
         });
     }
 
@@ -653,5 +652,36 @@ class ChatroomConversationStore extends DatabaseConversationStore
     protected function plain(mixed $value): array
     {
         return json_decode(json_encode($value), true) ?? [];
+    }
+
+    /**
+     * @param  Collection<int, array{content: string, tool_calls: array, reasoning: string, replay_blocks: array, provider_tool_calls: array}>  $steps
+     * @return Collection<int, array{content: string, tool_calls: array, reasoning: string, replay_blocks: array, provider_tool_calls: array}>
+     */
+    protected function withoutReplayBlocksPreservingShape(Collection $steps): Collection
+    {
+        return $steps->map(fn (array $step): array => $this->stepWithoutReplayBlocks($step));
+    }
+
+    /**
+     * @param  array{content: string, tool_calls: array, reasoning: string, replay_blocks: array, provider_tool_calls: array}  $step
+     * @return array{content: string, tool_calls: array, reasoning: string, replay_blocks: array, provider_tool_calls: array}
+     */
+    protected function stepWithoutReplayBlocks(array $step): array
+    {
+        $step['replay_blocks'] = [];
+
+        return $step;
+    }
+
+    /**
+     * @param  array{content: string, tool_calls: array, reasoning: string, replay_blocks: array, provider_tool_calls: array}  $step
+     * @return array{content: string, tool_calls: array, reasoning: string, replay_blocks: array, provider_tool_calls: array}
+     */
+    protected function stepWithReplayBlocks(array $step, array $replayBlocks): array
+    {
+        $step['replay_blocks'] = $replayBlocks;
+
+        return $step;
     }
 }

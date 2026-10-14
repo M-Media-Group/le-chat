@@ -195,16 +195,28 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
 
     public function getDisplayName(): ?string
     {
-        return $this->participatingModel instanceof ChatParticipantInterface
-            ? $this->participatingModel->getDisplayName()
-            : null;
+        $model = $this->participatingModel;
+
+        if ($model === null || ! method_exists($model, 'getDisplayName')) {
+            return null;
+        }
+
+        $displayName = $model->getDisplayName();
+
+        return is_string($displayName) ? $displayName : null;
     }
 
     public function getAvatarUrl(): ?string
     {
-        return $this->participatingModel instanceof ChatParticipantInterface
-            ? $this->participatingModel->getAvatarUrl()
-            : null;
+        $model = $this->participatingModel;
+
+        if ($model === null || ! method_exists($model, 'getAvatarUrl')) {
+            return null;
+        }
+
+        $avatarUrl = $model->getAvatarUrl();
+
+        return is_string($avatarUrl) ? $avatarUrl : null;
     }
 
     /**

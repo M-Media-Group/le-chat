@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Ai\Contracts\ConversationStore;
@@ -15,6 +16,7 @@ use Laravel\Ai\Responses\Data\Step;
 use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\Data\ToolCall;
 use Mmedia\LeChat\Ai\ChatroomConversationStore;
+use Mmedia\LeChat\Ai\RequesterEnvelope;
 use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\LeChatServiceProvider;
 use Mmedia\LeChat\Listeners\PromptAgentsOnMessageCreated;
@@ -29,14 +31,24 @@ beforeEach(function () {
 
     require_once __DIR__.'/Stubs/AiStoreStubs.php';
 
-    Schema::create('ai_store_owners', function (Blueprint $table) {
+    Schema::create('ai_store_owners', function (Blueprint $table): void {
         $table->id();
         $table->timestamps();
     });
 
-    $this->owner = AiStoreOwner::create();
-    $this->store = new ChatroomConversationStore;
+    AiStoreOwner::create();
+    app()->instance(ChatroomConversationStore::class, new ChatroomConversationStore);
 });
+
+function aiStoreTestOwner(): Model
+{
+    return AiStoreOwner::query()->firstOrFail();
+}
+
+function aiStoreTestStore(): ChatroomConversationStore
+{
+    return app(ChatroomConversationStore::class);
+}
 
 function aiStoreTurn(string $text): array
 {
@@ -47,30 +59,30 @@ function aiStoreTurn(string $text): array
 }
 
 it('stores a conversation as a chatroom owned by an admin participant', function () {
-    $id = $this->store->storeConversation($this->owner->getMorphClass(), $this->owner->getKey(), 'Greeting');
+    $id = aiStoreTestStore()->storeConversation(aiStoreTestOwner()->getMorphClass(), aiStoreTestOwner()->getKey(), 'Greeting');
 
     $room = Chatroom::sole();
 
     expect($room->name)->toBe('Greeting')
         ->and($room->metadata['ai']['conversation_id'])->toBe($id)
-        ->and($room->participants()->where('role', 'admin')->where('participant_id', $this->owner->getKey())->exists())->toBeTrue()
-        ->and($this->store->conversationBelongsTo($id, $this->owner->getMorphClass(), $this->owner->getKey()))->toBeTrue()
-        ->and($this->store->conversationBelongsTo($id, $this->owner->getMorphClass(), 999))->toBeFalse();
+        ->and($room->participants()->where('role', 'admin')->where('participant_id', aiStoreTestOwner()->getKey())->exists())->toBeTrue()
+        ->and(aiStoreTestStore()->conversationBelongsTo($id, aiStoreTestOwner()->getMorphClass(), aiStoreTestOwner()->getKey()))->toBeTrue()
+        ->and(aiStoreTestStore()->conversationBelongsTo($id, aiStoreTestOwner()->getMorphClass(), 999))->toBeFalse();
 });
 
 it('stores user and assistant turns as chat messages with the extra fields in metadata', function () {
-    $type = $this->owner->getMorphClass();
-    $id = $this->store->storeConversation($type, $this->owner->getKey(), 'Greeting');
+    $type = aiStoreTestOwner()->getMorphClass();
+    $id = aiStoreTestStore()->storeConversation($type, aiStoreTestOwner()->getKey(), 'Greeting');
 
-    $this->store->storeUserMessage($id, $type, $this->owner->getKey(), AiStoreAgent::class, new UserMessage('Hello'));
+    aiStoreTestStore()->storeUserMessage($id, $type, aiStoreTestOwner()->getKey(), AiStoreAgent::class, new UserMessage('Hello'));
     [$prompt, $response] = aiStoreTurn('Hi there');
-    $assistantId = $this->store->storeAssistantMessage($id, $type, $this->owner->getKey(), $prompt, $response);
+    $assistantId = aiStoreTestStore()->storeAssistantMessage($id, $type, aiStoreTestOwner()->getKey(), $prompt, $response);
 
     $messages = ChatMessage::orderBy('id')->get()->filter(fn ($message) => $message->metadata !== null)->values();
 
     expect($messages)->toHaveCount(2)
         ->and($messages[0]->message)->toBe('Hello')
-        ->and($messages[0]->sender->participant_id)->toBe($this->owner->getKey())
+        ->and($messages[0]->sender->participant_id)->toBe(aiStoreTestOwner()->getKey())
         ->and($messages[1]->message)->toBe('Hi there')
         ->and($messages[1]->sender->reference_id)->toBe('ai-agent:'.AiStoreAgent::class)
         ->and($messages[1]->metadata['ai']['usage']['input_tokens'])->toBe(3)
@@ -79,32 +91,32 @@ it('stores user and assistant turns as chat messages with the extra fields in me
 });
 
 it('replays stored messages to the model in order', function () {
-    $type = $this->owner->getMorphClass();
-    $id = $this->store->storeConversation($type, $this->owner->getKey(), 'Greeting');
+    $type = aiStoreTestOwner()->getMorphClass();
+    $id = aiStoreTestStore()->storeConversation($type, aiStoreTestOwner()->getKey(), 'Greeting');
 
-    $this->store->storeUserMessage($id, $type, $this->owner->getKey(), AiStoreAgent::class, new UserMessage('Hello'));
+    aiStoreTestStore()->storeUserMessage($id, $type, aiStoreTestOwner()->getKey(), AiStoreAgent::class, new UserMessage('Hello'));
     [$prompt, $response] = aiStoreTurn('Hi there');
-    $this->store->storeAssistantMessage($id, $type, $this->owner->getKey(), $prompt, $response);
+    aiStoreTestStore()->storeAssistantMessage($id, $type, aiStoreTestOwner()->getKey(), $prompt, $response);
 
     $agentParticipant = ChatParticipant::query()->where('reference_id', 'ai-agent:'.AiStoreAgent::class)->sole();
 
     expect($agentParticipant->visibleMessages()->get()->pluck('message')->all())->toContain('Hello', 'Hi there');
 
-    $messages = $this->store->getLatestConversationMessages($id, 10);
+    $messages = aiStoreTestStore()->getLatestConversationMessages($id, 10);
 
     expect($messages->map(fn ($message) => [$message->role->value ?? $message->role, $message->content])->all())
         ->toBe([
             ['user', 'Owner has joined the chat.'],
             ['user', 'AiStoreAgent has joined the chat.'],
-            ['user', 'Hello'],
+            ['user', '<earlier from="Owner">Hello</earlier>'],
             ['assistant', 'Hi there'],
         ]);
 });
 
 it('reconstructs completed tool turns through the SDK store helpers', function () {
-    $type = $this->owner->getMorphClass();
-    $id = $this->store->storeConversation($type, $this->owner->getKey(), 'Tool turn');
-    $this->store->storeUserMessage($id, $type, $this->owner->getKey(), AiStoreAgent::class, new UserMessage('Run a tool'));
+    $type = aiStoreTestOwner()->getMorphClass();
+    $id = aiStoreTestStore()->storeConversation($type, aiStoreTestOwner()->getKey(), 'Tool turn');
+    aiStoreTestStore()->storeUserMessage($id, $type, aiStoreTestOwner()->getKey(), AiStoreAgent::class, new UserMessage('Run a tool'));
 
     $room = Chatroom::query()->where('metadata->ai->conversation_id', $id)->firstOrFail();
     $agentParticipant = $room->participants()->where('reference_id', 'ai-agent:'.AiStoreAgent::class)->firstOrFail();
@@ -128,17 +140,22 @@ it('reconstructs completed tool turns through the SDK store helpers', function (
         ]],
     ]]]);
 
-    $assistantMessage = $this->store->getLatestConversationMessages($id, 10)->first(fn ($message) => $message instanceof AssistantMessage && $message->toolCalls->isNotEmpty());
+    $assistantMessage = aiStoreTestStore()->getLatestConversationMessages($id, 10)->first(fn ($message) => $message instanceof AssistantMessage && $message->toolCalls->isNotEmpty());
 
-    expect($assistantMessage)->toBeInstanceOf(AssistantMessage::class)
-        ->and($assistantMessage->toolCalls->first()->id)->toBe('call-1')
-        ->and($this->store->getLatestConversationMessages($id, 10)->last())->toBeInstanceOf(ToolResultMessage::class);
+    expect($assistantMessage)->toBeInstanceOf(AssistantMessage::class);
+
+    if (! $assistantMessage instanceof AssistantMessage) {
+        throw new UnexpectedValueException('Expected an assistant tool-call message.');
+    }
+
+    expect($assistantMessage->toolCalls->first()->id)->toBe('call-1')
+        ->and(aiStoreTestStore()->getLatestConversationMessages($id, 10)->last())->toBeInstanceOf(ToolResultMessage::class);
 });
 
 it('retains opaque provider replay data when storing completed turns', function () {
-    $type = $this->owner->getMorphClass();
-    $id = $this->store->storeConversation($type, $this->owner->getKey(), 'Tool turn');
-    $this->store->storeUserMessage($id, $type, $this->owner->getKey(), AiStoreAgent::class, new UserMessage('Run a tool'));
+    $type = aiStoreTestOwner()->getMorphClass();
+    $id = aiStoreTestStore()->storeConversation($type, aiStoreTestOwner()->getKey(), 'Tool turn');
+    aiStoreTestStore()->storeUserMessage($id, $type, aiStoreTestOwner()->getKey(), AiStoreAgent::class, new UserMessage('Run a tool'));
 
     $prompt = new AgentPrompt(new AiStoreAgent, 'Run a tool', [], Mockery::mock(TextProvider::class), 'thinking-model');
     $response = new AgentResponse('invocation', 'Tool response', new TextUsage, new Meta('provider-a', 'test-model'));
@@ -155,7 +172,7 @@ it('retains opaque provider replay data when storing completed turns', function 
         ],
     ));
 
-    $this->store->storeAssistantMessage($id, $type, $this->owner->getKey(), $prompt, $response);
+    aiStoreTestStore()->storeAssistantMessage($id, $type, aiStoreTestOwner()->getKey(), $prompt, $response);
 
     $room = Chatroom::query()->where('metadata->ai->conversation_id', $id)->firstOrFail();
     $assistantMessage = $room->messages()->where('metadata->ai->role', 'assistant')->firstOrFail();
@@ -166,18 +183,18 @@ it('retains opaque provider replay data when storing completed turns', function 
 });
 
 it('finds the latest conversation for an owner and agent, and can continue a plain chatroom by id', function () {
-    $type = $this->owner->getMorphClass();
-    $id = $this->store->storeConversation($type, $this->owner->getKey(), 'Greeting');
-    $this->store->storeUserMessage($id, $type, $this->owner->getKey(), AiStoreAgent::class, new UserMessage('Hello'));
+    $type = aiStoreTestOwner()->getMorphClass();
+    $id = aiStoreTestStore()->storeConversation($type, aiStoreTestOwner()->getKey(), 'Greeting');
+    aiStoreTestStore()->storeUserMessage($id, $type, aiStoreTestOwner()->getKey(), AiStoreAgent::class, new UserMessage('Hello'));
 
-    expect($this->store->latestConversationId($type, $this->owner->getKey(), AiStoreAgent::class))->toBe($id);
+    expect(aiStoreTestStore()->latestConversationId($type, aiStoreTestOwner()->getKey(), AiStoreAgent::class))->toBe($id);
 
     $plain = Chatroom::create(['name' => 'Existing']);
     $plain->sendMessage('system notice');
 
-    $this->store->storeUserMessage((string) $plain->getKey(), $type, $this->owner->getKey(), AiStoreAgent::class, new UserMessage('Join in'));
+    aiStoreTestStore()->storeUserMessage((string) $plain->getKey(), $type, aiStoreTestOwner()->getKey(), AiStoreAgent::class, new UserMessage('Join in'));
 
-    expect($this->store->getLatestConversationMessages((string) $plain->getKey(), 10))->toHaveCount(4);
+    expect(aiStoreTestStore()->getLatestConversationMessages((string) $plain->getKey(), 10))->toHaveCount(4);
 });
 
 it('only replaces the SDK store when enabled', function () {
@@ -191,17 +208,17 @@ it('only replaces the SDK store when enabled', function () {
 
 it('prompts the agents in a chatroom when a person posts, and answers that message without duplicating it', function () {
     AiStoreEchoAgent::$log = [];
-    app()->instance(ConversationStore::class, $this->store);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
 
     $room = Chatroom::create(['name' => 'Room']);
-    $person = ChatParticipant::create(['chatroom_id' => $room->getKey(), 'participant_type' => $this->owner->getMorphClass(), 'participant_id' => $this->owner->getKey()]);
+    $person = ChatParticipant::create(['chatroom_id' => $room->getKey(), 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
     ChatMessage::query()->where('chatroom_id', $room->getKey())->update(['created_at' => now()->subMinute()]);
     $agent = ChatParticipant::create(['chatroom_id' => $room->getKey(), 'reference_id' => 'ai-agent:'.AiStoreEchoAgent::class, 'display_name' => 'Echo']);
 
     $message = $room->sendMessageAs($person, 'Hello agent');
     (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($message));
 
-    expect(AiStoreEchoAgent::$log)->toBe([['text' => 'Hello agent', 'history' => [
+    expect(AiStoreEchoAgent::$log)->toBe([['text' => RequesterEnvelope::current('Owner', 'Hello agent'), 'history' => [
         'Echo has joined the chat.',
     ]]])
         ->and(ChatMessage::whereNotNull('metadata->ai->role')->count())->toBe(1)
@@ -217,10 +234,10 @@ it('prompts the agents in a chatroom when a person posts, and answers that messa
 
 it('waits for pending tool approvals before sending another prompt', function () {
     AiStoreEchoAgent::$log = [];
-    app()->instance(ConversationStore::class, $this->store);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
 
     $room = Chatroom::create(['name' => 'Room']);
-    $person = ChatParticipant::create(['chatroom_id' => $room->getKey(), 'participant_type' => $this->owner->getMorphClass(), 'participant_id' => $this->owner->getKey()]);
+    $person = ChatParticipant::create(['chatroom_id' => $room->getKey(), 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
     $agent = ChatParticipant::create(['chatroom_id' => $room->getKey(), 'reference_id' => 'ai-agent:'.AiStoreEchoAgent::class, 'display_name' => 'Echo']);
 
     $originalAiMetadata = [
@@ -248,7 +265,7 @@ it('waits for pending tool approvals before sending another prompt', function ()
 
     $notice = $room->messages()->latest('id')->first();
 
-    expect($this->store->pendingApprovalsFor((string) $room->getKey()))->toHaveCount(1)
+    expect(aiStoreTestStore()->pendingApprovalsFor((string) $room->getKey()))->toHaveCount(1)
         ->and(AiStoreEchoAgent::$log)->toBe([])
         ->and($notice->message)->toBe('The assistant needs your approval before it can continue.')
         ->and($notice->metadata['approval_required']['type'])->toBe('approval_required')
@@ -262,10 +279,10 @@ it('waits for pending tool approvals before sending another prompt', function ()
 });
 
 it('posts a generic chatroom message when the AI listener finally fails', function () {
-    app()->instance(ConversationStore::class, $this->store);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
 
     $room = Chatroom::create(['name' => 'Room']);
-    $person = ChatParticipant::create(['chatroom_id' => $room->getKey(), 'participant_type' => $this->owner->getMorphClass(), 'participant_id' => $this->owner->getKey()]);
+    $person = ChatParticipant::create(['chatroom_id' => $room->getKey(), 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
     $userMessage = $room->sendMessageAs($person, 'Please help');
 
     (new PromptAgentsOnMessageCreated)->failed(
