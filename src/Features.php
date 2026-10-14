@@ -62,4 +62,18 @@ class Features
         // This feature does not require any specific options, so we return a simple string.
         return 'encrypt-messages-at-rest';
     }
+
+    /**
+     * Enable Larevel AI SDK integration
+     *
+     * @return string
+     */
+    public static function aiSdkIntegration(array $options = [])
+    {
+        if (! empty($options)) {
+            config(['chat-options.ai-sdk-integration' => $options]);
+        }
+
+        return 'ai-sdk-integration';
+    }
 }

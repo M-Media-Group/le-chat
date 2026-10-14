@@ -47,10 +47,10 @@ class LeChatServiceProvider extends PackageServiceProvider
     public function bootingPackage(): void
     {
         // Bound while booting so it wins over the AI SDK's own registration regardless of provider order
-        if (config('chat.ai.enabled') && interface_exists(ConversationStore::class)) {
+        if (Features::enabled(Features::aiSdkIntegration()) && interface_exists(ConversationStore::class)) {
             $this->app->singleton(ConversationStore::class, fn () => new ChatroomConversationStore);
 
-            if (config('chat.ai.auto_respond', true)) {
+            if (Features::optionEnabled(Features::aiSdkIntegration(), 'auto_respond')) {
                 $this->app['events']->listen(MessageCreated::class, PromptAgentsOnMessageCreated::class);
             }
         }

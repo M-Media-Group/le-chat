@@ -9,6 +9,7 @@ use Mmedia\LeChat\Ai\ChatroomConversationStore;
 use Mmedia\LeChat\Ai\RequesterEnvelope;
 use Mmedia\LeChat\Contracts\RespondsToChatMessages;
 use Mmedia\LeChat\Events\MessageCreated;
+use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
@@ -84,7 +85,7 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
                 : app($agentClass);
 
             $store->answering($message, $agentClass, function () use ($agent, $conversationId, $message, $participant) {
-                $showTyping = config('chat.ai.typing_indicators', true);
+                $showTyping = Features::optionEnabled(Features::aiSdkIntegration(), 'typing_indicators');
 
                 $showTyping && $participant->startTyping();
 

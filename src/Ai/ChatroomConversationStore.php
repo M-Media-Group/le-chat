@@ -20,6 +20,7 @@ use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\Data\ToolResult;
 use Laravel\Ai\Storage\DatabaseConversationStore;
 use Laravel\Ai\Storage\StoredMessage;
+use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
@@ -559,7 +560,8 @@ class ChatroomConversationStore extends DatabaseConversationStore
     {
         return $record->id !== $newestAssistantId
             && $record->status === MessageStatus::Completed->value
-            && in_array($this->activeAgentClass, config('le-chat.ai.collapse_tool_history', []), true);
+            && in_array($this->activeAgentClass, config(
+                'chat-options'.Features::aiSdkIntegration().'.collapse_tool_history', []), true);
     }
 
     /**

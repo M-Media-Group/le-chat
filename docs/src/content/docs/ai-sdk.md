@@ -32,8 +32,12 @@ You do not need the AI SDK's own conversation migration when this feature is ena
 ## Enabling
 ```php
 // config/chat.php
-'ai' => [
-    'enabled' => env('CHAT_AI_ENABLED', false),
+'features' => [
+    Features::aiSdkIntegration([
+        'auto_respond' => true,
+        'typing_indicators' => true,
+        'collapse_tool_history' => [],
+    ]),
 ],
 ```
 

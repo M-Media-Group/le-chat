@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Ai\Contracts\ConversationStore;
 use Laravel\Ai\Contracts\Providers\TextProvider;
@@ -18,6 +19,7 @@ use Laravel\Ai\Responses\Data\ToolCall;
 use Mmedia\LeChat\Ai\ChatroomConversationStore;
 use Mmedia\LeChat\Ai\RequesterEnvelope;
 use Mmedia\LeChat\Events\MessageCreated;
+use Mmedia\LeChat\Features;
 use Mmedia\LeChat\LeChatServiceProvider;
 use Mmedia\LeChat\Listeners\PromptAgentsOnMessageCreated;
 use Mmedia\LeChat\Models\ChatMessage;
@@ -198,9 +200,22 @@ it('finds the latest conversation for an owner and agent, and can continue a pla
 });
 
 it('only replaces the SDK store when enabled', function () {
+
+    expect(Features::enabled(Features::aiSdkIntegration()))->toBeTrue(); // Enabled by default
+
+    config(['chat.features' => []]);
+
+    expect(Features::enabled(Features::aiSdkIntegration()))->toBeFalse();
+
+    // The provider already booted with the feature enabled by default
+    unset($this->app[ConversationStore::class]);
+
     expect(app()->bound(ConversationStore::class))->toBeFalse();
 
-    config(['chat.ai.enabled' => true]);
+    config(['chat.features' => [Features::aiSdkIntegration()]]);
+
+    expect(Features::enabled(Features::aiSdkIntegration()))->toBeTrue();
+
     (new LeChatServiceProvider($this->app))->bootingPackage();
 
     expect(app(ConversationStore::class))->toBeInstanceOf(ChatroomConversationStore::class);
@@ -209,6 +224,9 @@ it('only replaces the SDK store when enabled', function () {
 it('prompts the agents in a chatroom when a person posts, and answers that message without duplicating it', function () {
     AiStoreEchoAgent::$log = [];
     app()->instance(ConversationStore::class, aiStoreTestStore());
+
+    // Drop the auto_respond listener so the handler only runs when invoked below
+    Event::forget(MessageCreated::class);
 
     $room = Chatroom::create(['name' => 'Room']);
     $person = ChatParticipant::create(['chatroom_id' => $room->getKey(), 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
