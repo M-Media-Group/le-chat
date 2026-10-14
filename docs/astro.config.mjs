@@ -36,6 +36,7 @@ export default defineConfig({
 						{ label: 'Broadcasting', slug: 'broadcasting' },
 						{ label: 'Notifications', slug: 'notifications' },
 						{ label: 'Routing', slug: 'routing' },
+						{ label: 'Laravel AI SDK', slug: 'ai-sdk' },
 						// { label: 'Resources', slug: 'package-configuration' },
 						{ label: 'Package Configuration', slug: 'package-configuration' },
 						{ label: 'Commands', slug: 'commands' },

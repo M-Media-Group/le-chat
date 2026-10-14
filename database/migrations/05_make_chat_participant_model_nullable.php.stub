@@ -1,0 +1,35 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up()
+    {
+        // Model-less participants (bots, AI agents, external users) are identified by `reference_id` instead
+        Schema::table('chat_participants', function (Blueprint $table) {
+            $table->string('participant_type')->nullable()->change();
+            $table->unsignedBigInteger('participant_id')->nullable()->change();
+
+            $table->unique(
+                ['reference_id', 'chatroom_id'],
+                'chat_participants_reference_id_chatroom_id_unique'
+            );
+
+            $table->unique(
+                ['display_name', 'chatroom_id'],
+                'chat_participants_display_name_chatroom_id_unique'
+            );
+        });
+    }
+
+    public function down()
+    {
+        Schema::table('chat_participants', function (Blueprint $table) {
+            $table->dropUnique('chat_participants_reference_id_chatroom_id_unique');
+            $table->dropUnique('chat_participants_display_name_chatroom_id_unique');
+        });
+    }
+};

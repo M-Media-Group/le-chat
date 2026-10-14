@@ -2,6 +2,8 @@
 
 namespace Mmedia\LeChat;
 
+use Laravel\Ai\Contracts\ConversationStore;
+use Mmedia\LeChat\Ai\ChatroomConversationStore;
 use Mmedia\LeChat\Commands\DecryptMessages;
 use Mmedia\LeChat\Commands\DeleteMessages;
 use Mmedia\LeChat\Commands\EncryptMessages;
@@ -10,6 +12,7 @@ use Mmedia\LeChat\Commands\NotifyUsersOfRecentUnreadMessages;
 use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\Events\ParticipantCreated;
 use Mmedia\LeChat\Events\ParticipantDeleted;
+use Mmedia\LeChat\Listeners\PromptAgentsOnMessageCreated;
 use Mmedia\LeChat\Listeners\UpdatedChatParticipantReadAtOnMessageCreated;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
@@ -43,6 +46,15 @@ class LeChatServiceProvider extends PackageServiceProvider
     // The boot
     public function bootingPackage(): void
     {
+        // Bound while booting so it wins over the AI SDK's own registration regardless of provider order
+        if (config('chat.ai.enabled') && interface_exists(ConversationStore::class)) {
+            $this->app->singleton(ConversationStore::class, fn () => new ChatroomConversationStore);
+
+            if (config('chat.ai.auto_respond', true)) {
+                $this->app['events']->listen(MessageCreated::class, PromptAgentsOnMessageCreated::class);
+            }
+        }
+
         $newMessageListener = config('chat.new_message_listener');
 
         if ($newMessageListener && class_exists($newMessageListener)) {

@@ -255,12 +255,12 @@ final class ChatMessage extends Model
         return $query
             ->when(($participant instanceof ChatParticipant),
                 function ($query) use ($participant, $selfInstance) {
+                    $deletedAt = $participant->getAttribute($participant->getDeletedAtColumn());
 
-                    // Needs to be a where group to support the case where the participant is not deleted
-                    $query->where(function ($query) use ($participant, $selfInstance) {
-                        $query->where($selfInstance->getQualifiedCreatedAtColumn(), '<=', $participant->getDeletedAtColumn())
-                            ->orWhereNull($participant->getDeletedAtColumn());
-                    });
+                    $query->when(
+                        $deletedAt !== null,
+                        fn ($query) => $query->where($selfInstance->getQualifiedCreatedAtColumn(), '<=', $deletedAt)
+                    );
                 },
                 // If we have a ChatParticipantInterface, we need to do this dynamically - because we need to join/match on the chatroom_id column in the ChatMessage
                 function ($query) use ($participant, $selfInstance, $instance) {

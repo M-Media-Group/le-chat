@@ -65,6 +65,25 @@ return [
      */
     'participant_deleted_listener' => SendParticipantDeletedNotification::class,
 
+    'ai' => [
+        /**
+         * Store Laravel AI SDK conversations as chatrooms instead of in the SDK's own tables.
+         *
+         * The agent becomes a participant in the chatroom. Requires laravel/ai.
+         */
+        'enabled' => env('CHAT_AI_ENABLED', false),
+
+        /**
+         * Prompt the agents in a chatroom (queued) when a person posts a message there.
+         */
+        'auto_respond' => true,
+
+        /**
+         * Broadcast a typing indicator for an agent while it is answering.
+         */
+        'typing_indicators' => true,
+    ],
+
     'features' => [
         Features::routes([
             'middleware' => ['api', 'auth:sanctum'],
