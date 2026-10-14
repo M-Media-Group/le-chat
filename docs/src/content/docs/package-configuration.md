@@ -3,7 +3,7 @@ title: Configuration
 description: Documentation for installing Le Chat.
 ---
 
-## Configuration
+## Introduction
 
 Le Chat comes with sensible defaults, but you can customize its behavior to fit your application's needs.
 
