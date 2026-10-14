@@ -2,7 +2,6 @@
 
 // config for Mmedia/LeChat
 
-use Laravel\Ai\Enums\Lab;
 use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Listeners\SendMessageCreatedNotification;
 use Mmedia\LeChat\Listeners\SendParticipantCreatedNotification;
@@ -75,11 +74,7 @@ return [
             'auto_respond' => true,
             'typing_indicators' => true,
             'collapse_tool_history' => [],
-            'prompt_config' => [
-                'provider' => [
-                    Lab::Gemini->value => 'gemini-3.1-flash-lite',
-                ],
-            ],
+            'prompt_config' => [],
         ]),
     ],
 ];
