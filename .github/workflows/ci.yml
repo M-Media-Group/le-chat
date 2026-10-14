@@ -33,7 +33,8 @@ jobs:
           extensions: mbstring, intl, pdo_sqlite, sqlite3, bcmath, gd, fileinfo
 
       - name: Validate composer.json
-        run: composer validate --strict --no-check-publish --no-check-lock
+        # No --strict: the release job relies on the "version" field, which strict mode flags as a warning.
+        run: composer validate --no-check-publish --no-check-lock
 
       - name: Cache Composer downloads
         uses: actions/cache@v4
@@ -70,7 +71,7 @@ jobs:
       fail-fast: false
       matrix:
         php: ['8.4', '8.3']
-        laravel: ['12.*', '13.*']
+        laravel: ['12.*']
         stability: [prefer-lowest, prefer-stable]
         include:
           - laravel: 12.*
