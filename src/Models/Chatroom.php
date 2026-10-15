@@ -7,6 +7,7 @@ use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -55,13 +56,26 @@ final class Chatroom extends Model
     /**
      * Get the latest message in the chatroom.
      *
-     * @note we DO NOT use latestOfMany here because it does not support soft deletes. It will cause latestMessage to fail if the user has been removed from the chatroom - this is because it tries to access the latest message that might not be visible to the user, and the subsequent visibleTo filters out the only message.
+     * @note this returns the latest message in the chatroom, if any. If you need the latest visible message for a given user, use the scope `withLatestMessageFor`
      *
      * @return HasOne<ChatMessage, $this>
      */
     public function latestMessage(): HasOne
     {
-        return $this->hasOne(ChatMessage::class)->orderByDesc(ChatMessage::CREATED_AT);
+        return $this->hasOne(ChatMessage::class)->latestOfMany();
+    }
+
+    // Chatroom
+    /** Virtual column set by withLatestMessageFor(). */
+    protected $hidden = ['_latest_message_id'];
+
+    /**
+     * @return BelongsTo<ChatMessage, $this>
+     *
+     * @internal Populated through withLatestMessageFor(). */
+    public function _latestVisibleMessage(): BelongsTo
+    {
+        return $this->belongsTo(ChatMessage::class, '_latest_message_id');
     }
 
     /**
@@ -361,5 +375,32 @@ final class Chatroom extends Model
         return $query->withCount(['messages as unread_messages_count' => function ($query) use ($participant) {
             $query->visibleTo($participant)->unreadBy($participant)->withoutTrashed();
         }]);
+    }
+
+    /**
+     * Eager load each room's newest message the participant may see, as one bounded lookup per room.
+     * Prefer this over with('latestMessage') when you need the latest message for a given participant.
+     *
+     * @param  Builder<static>  $query
+     * @return Builder<static>
+     */
+    public function scopeWithLatestMessageFor(Builder $query, ChatParticipantInterface|ChatParticipant $participant): Builder
+    {
+        return $query
+            ->addSelect([
+                '_latest_message_id' => ChatMessage::query()
+                    ->select('id')
+                    ->whereColumn('chat_messages.chatroom_id', $query->qualifyColumn('id'))
+                    ->visibleTo($participant)
+                    ->orderByDesc('created_at')
+                    ->orderByDesc('id')
+                    ->limit(1),
+            ])
+            ->with(['_latestVisibleMessage' => fn ($q) => $q->with('sender')])->afterQuery(function ($rooms) {
+                $rooms->each(function (Chatroom $room) {
+                    $room->setRelation('latestMessage', $room->_latestVisibleMessage);
+                    $room->unsetRelation('_latestVisibleMessage');
+                });
+            });
     }
 }

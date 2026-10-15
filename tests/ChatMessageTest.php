@@ -11,6 +11,7 @@ use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\Events\MessageUpdated;
 use Mmedia\LeChat\Events\ParticipantCreated;
 use Mmedia\LeChat\Features;
+use Mmedia\LeChat\Http\Resources\MessageResource;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
@@ -27,6 +28,7 @@ class ChatMessageTestParticipant extends Model implements ChatParticipantInterfa
 }
 
 beforeEach(function () {
+    ChatMessage::flushMessageMode();
     Event::fake([MessageCreated::class, MessageUpdated::class, ParticipantCreated::class]);
     config(['chat.features' => []]);
     config(['app.key' => 'base64:'.base64_encode(str_repeat('k', 32))]);
@@ -191,9 +193,22 @@ it('throws on invalid ciphertext unless soft decryption is enabled', function ()
     expect(fn () => $message->message)->toThrow(DecryptException::class);
 
     config(['chat-options.encrypt-messages-at-rest.return_failed_decrypt' => true]);
+    ChatMessage::flushMessageMode();
     $message->refresh();
 
     expect($message->message)->toBe('invalid ciphertext');
+});
+
+it('omits metadata from messages selected without the metadata column', function () {
+    $room = Chatroom::create(['name' => 'Messages without metadata']);
+    $message = $room->sendMessage('Visible text', ['metadata' => ['payload' => 'large']]);
+
+    $selectedMessage = ChatMessage::query()->withoutMetadata()->findOrFail($message->getKey());
+    $payload = MessageResource::make($selectedMessage)->resolve();
+
+    expect($selectedMessage->message)->toBe('Visible text')
+        ->and($selectedMessage->getAttributes())->not->toHaveKey('metadata')
+        ->and($payload)->not->toHaveKey('metadata');
 });
 
 it('clears message content on delete and does not allow restore', function () {

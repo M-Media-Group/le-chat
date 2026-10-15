@@ -163,6 +163,22 @@ This is a regular model that references the [Message](/messages) model, so you c
 $messages = $chatroom->messages()->visibleTo($teacher)->get(); // Returns messages that can be read by the teacher
 ```
 
+## Getting the latest message in a Chatroom
+
+You can retrieve the latest message in a chatroom using the `latestMessage` relationship:
+```php
+$latestMessage = $chatroom->latestMessage;
+```
+
+This will return the latest message sent in the chatroom, regardless of which participant sent it and who can see it.
+
+If you need the latest message visible to a specific participant, you can use the `withLatestMessageFor` scope:
+```php
+$chatroom = \Mmedia\LeChat\Models\Chatroom::withLatestMessageFor($teacher)->find($chatroomId);
+
+$latestVisibleMessage = $chatroom->latestMessage; // now only the latest message visible to the participant
+```
+
 ## Marking chatrooms as read
 You can mark messages as read by calling the `markAsReadBy` method on the `Chatroom` model:
 

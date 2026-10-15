@@ -27,7 +27,8 @@ class MessageResource extends JsonResource
             'sender' => new ChatParticipantResource($this->whenLoaded('sender')),
             'replies' => MessageResource::collection($this->whenLoaded('replies')),
             'parent_message' => new MessageResource($this->whenLoaded('parentMessage')),
-            'metadata' => $this->metadata,
+
+            'metadata' => $this->whenHas('metadata'),
         ];
     }
 }

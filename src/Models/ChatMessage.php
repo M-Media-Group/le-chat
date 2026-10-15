@@ -121,6 +121,27 @@ final class ChatMessage extends Model
         return $participant->replyTo($this, $content, $messageConfiguration);
     }
 
+    private static ?array $messageMode = null;
+
+    public static function flushMessageMode(): void // for tests that toggle the flags
+    {
+        self::$messageMode = null;
+    }
+
+    private static function messageMode(): array
+    {
+        if (self::$messageMode === null) {
+            $encrypt = Features::enabled(Features::encryptMessagesAtRest());
+
+            self::$messageMode = [
+                'encrypt' => $encrypt,
+                'soft' => $encrypt && Features::optionEnabled(Features::encryptMessagesAtRest(), 'return_failed_decrypt'),
+            ];
+        }
+
+        return self::$messageMode;
+    }
+
     /**
      * Get the message attribute, decrypting it if encryption is enabled.
      *
@@ -131,27 +152,30 @@ final class ChatMessage extends Model
      */
     protected function message(): CastsAttribute
     {
-        $usesEncryption = Features::enabled(Features::encryptMessagesAtRest());
+        return CastsAttribute::make(
+            get: static function (?string $value): string {
+                if ($value === null) {
+                    return '';
+                }
 
-        /** Try to encrypt but catch DecryptException */
-        $decryptSoftly = function ($value) use ($usesEncryption) {
-            if ($usesEncryption) {
+                $mode = self::messageMode();
+
+                if (! $mode['encrypt']) {
+                    return $value;
+                }
+
+                // Soft mode: a value that isn't an encrypted payload would only throw and fall back, so skip the exception.
+                if ($mode['soft'] && ! str_starts_with($value, 'eyJ')) {
+                    return $value;
+                }
+
                 try {
                     return decrypt($value);
                 } catch (DecryptException $e) {
-                    $allowsSoftDecryption = Features::optionEnabled(Features::encryptMessagesAtRest(), 'return_failed_decrypt');
-
-                    // If decryption fails, return the original value
-                    return $allowsSoftDecryption ? $value : throw $e;
+                    return $mode['soft'] ? $value : throw $e;
                 }
-            }
-
-            return $value;
-        };
-
-        return CastsAttribute::make(
-            get: fn (?string $value): string => $value === null ? '' : ($usesEncryption ? $decryptSoftly($value) : $value),
-            set: fn (?string $value): ?string => $usesEncryption && $value !== null ? encrypt($value) : $value,
+            },
+            set: static fn (?string $value): ?string => self::messageMode()['encrypt'] && $value !== null ? encrypt($value) : $value,
         )->shouldCache();
     }
 
@@ -308,5 +332,28 @@ final class ChatMessage extends Model
                   AND participant_id = ?
                   AND participant_type = ?
             ) IS NULL', [$participant->getKey(), $participant->getMorphClass()]];
+    }
+
+    /** @var array<string, list<string>> Selectable columns without metadata, per connection and table. */
+    private static array $columnsWithoutMetadata = [];
+
+    /**
+     * Metadata can be huge. This scope leaves it out of the select to improve performance.
+     *
+     * NOTE: calling this scope after a select() will discard those previously selected columns
+     *
+     * @param  Builder<ChatMessage>  $query
+     * @return Builder<ChatMessage>
+     */
+    public function scopeWithoutMetadata(Builder $query): Builder
+    {
+        $key = $this->getConnection()->getName().'.'.$this->getTable();
+
+        $columns = self::$columnsWithoutMetadata[$key] ??= array_values(array_diff(
+            $this->getConnection()->getSchemaBuilder()->getColumnListing($this->getTable()),
+            ['metadata'],
+        ));
+
+        return $query->select(array_map($this->qualifyColumn(...), $columns));
     }
 }

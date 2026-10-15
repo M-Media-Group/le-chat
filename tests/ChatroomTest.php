@@ -106,6 +106,34 @@ it('sends participant and system messages and exposes the latest message', funct
         ->and($participantMessage->sender_id)->toBe($sender->getKey());
 });
 
+it('loads the latest message visible during the participant membership', function () {
+    $room = Chatroom::create(['name' => 'Visible latest message']);
+    $participant = ChatParticipant::create([
+        'chatroom_id' => $room->getKey(),
+        'reference_id' => 'agent:reader',
+    ]);
+    $joinedAt = now()->subMinutes(3);
+    $participant->forceFill(['created_at' => $joinedAt])->saveQuietly();
+
+    $beforeJoining = $room->sendMessageAs($participant, 'Before joining');
+    $beforeJoining->forceFill(['created_at' => $joinedAt->copy()->subMinute()])->saveQuietly();
+
+    $visible = $room->sendMessageAs($participant, 'Visible message', [
+        'metadata' => ['payload' => 'large'],
+    ]);
+    $visible->forceFill(['created_at' => $joinedAt->copy()->addMinute()])->saveQuietly();
+
+    $afterLeaving = $room->sendMessageAs($participant, 'After leaving');
+    $leftAt = $joinedAt->copy()->addMinutes(2);
+    $afterLeaving->forceFill(['created_at' => $joinedAt->copy()->addMinutes(3)])->saveQuietly();
+    $participant->forceFill(['deleted_at' => $leftAt])->saveQuietly();
+
+    $loadedRoom = Chatroom::withLatestMessageFor($participant)->findOrFail($room->getKey());
+
+    expect($loadedRoom->latestMessage->getKey())->toBe($visible->getKey())
+        ->and($loadedRoom->latestMessage->getAttributes())->toHaveKey('metadata');
+});
+
 it('adds, finds, marks read, and removes participants', function () {
     $room = Chatroom::create(['name' => 'Participant room']);
     $sourceRoom = Chatroom::create(['name' => 'Source room']);

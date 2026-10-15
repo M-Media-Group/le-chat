@@ -23,12 +23,8 @@ class ChatroomController extends Controller
         $user = $this->participantUser($request);
 
         $chatrooms = Chatroom::havingParticipants([$user], true)
-            ->with([
-                'participants',
-                'latestMessage' => function ($query) use ($user) {
-                    $query->visibleTo($user)->with('sender');
-                },
-            ])
+            ->with('participants')
+            ->withLatestMessageFor($user)
             ->withUnreadMessagesCountFor($user)
             ->get();
 
