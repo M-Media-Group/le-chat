@@ -129,6 +129,30 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
     }
 
     /**
+     * Broadcast that this participant is typing in the chatroom.
+     */
+    public function startTyping(): void
+    {
+        ParticipantTyping::dispatch($this, true);
+    }
+
+    /**
+     * Broadcast that this participant stopped typing in the chatroom.
+     */
+    public function stopTyping(): void
+    {
+        ParticipantTyping::dispatch($this, false);
+    }
+
+    /**
+     * Send a message as this participant in the chatroom.
+     */
+    public function sendMessage(string $message): ChatMessage
+    {
+        return $this->sendMessageTo($this->chatroom, $message);
+    }
+
+    /**
      * Note this function may return unexpected results if you pass an instance of ChatParticipantInterface, because it will filter to the participant_id and participant_type regardless of the chatroom_id, so you can get multiple results.
      *
      * @internal
@@ -175,22 +199,6 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
                 type: 'presence'
             )
         )->shouldCache();
-    }
-
-    /**
-     * Broadcast that this participant is typing in the chatroom.
-     */
-    public function startTyping(): void
-    {
-        ParticipantTyping::dispatch($this, true);
-    }
-
-    /**
-     * Broadcast that this participant stopped typing in the chatroom.
-     */
-    public function stopTyping(): void
-    {
-        ParticipantTyping::dispatch($this, false);
     }
 
     public function getDisplayName(): ?string

@@ -52,6 +52,10 @@ trait IsChatParticipant
      */
     public function asParticipantIn(Chatroom $chatRoom, bool $includeTrashed = false): ?ChatParticipant
     {
+        if ($this instanceof ChatParticipant) {
+            return $this;
+        }
+
         // Get the chat participant for this model in the given chat room.
         // This will return a single ChatParticipant model instance.
         return $this->chatParticipants()
@@ -331,9 +335,7 @@ trait IsChatParticipant
 
         // Create a new message in the chat room
         return $chatRoom->messages()->create([
-            'sender_id' => $this instanceof ChatParticipant
-                ? $this->getKey()
-                : $this->asParticipantIn($chatRoom, true)->getKey(),
+            'sender_id' => $this->asParticipantIn($chatRoom, true)->getKey(),
             'message' => $message,
         ])->fresh();
     }
@@ -344,9 +346,7 @@ trait IsChatParticipant
             throw new \Exception('Cannot send typing status to the chat room because the current model is not an active participant in the chat room. If the model is deleted, you need to create a new chatroom.');
         }
 
-        $chatParticipant = $this instanceof ChatParticipant
-            ? $this
-            : $this->asParticipantIn($chatRoom, true);
+        $chatParticipant = $this->asParticipantIn($chatRoom, true);
 
         if ($isTyping) {
             $chatParticipant->startTyping();
@@ -384,9 +384,7 @@ trait IsChatParticipant
 
         // Create a new reply message in the same chat room as the original message
         return $message->chatroom->messages()->create(array_merge($messageConfiguration, [
-            'sender_id' => $this instanceof ChatParticipant
-                ? $this->getKey()
-                : $this->asParticipantIn($message->chatroom, true)->getKey(),
+            'sender_id' => $this->asParticipantIn($message->chatroom, true)->getKey(),
             'message' => $replyMessage,
             'reply_to_id' => $message->getKey(),
         ]))->fresh();
@@ -496,10 +494,7 @@ trait IsChatParticipant
 
     public function markRead(Chatroom|ChatMessage $roomOrMessage): bool
     {
-        $chatParticipant = $this instanceof ChatParticipant
-            ? $this
-            :
-            $this->asChatParticipantFromMessageOrChatroom($roomOrMessage);
+        $chatParticipant = $this->asChatParticipantFromMessageOrChatroom($roomOrMessage);
 
         if (! $chatParticipant) {
             throw new \Exception('Cannot mark as read because the current model is not an active participant in the chat room. If the model is deleted, you need to create a new chatroom.');
@@ -517,10 +512,7 @@ trait IsChatParticipant
      */
     public function markReadUntil(Chatroom|ChatMessage $roomOrMessage, DateTime|Carbon|DateTimeInterface $readAt): bool
     {
-        $chatParticipant = $this instanceof ChatParticipant
-            ? $this
-            :
-            $this->asChatParticipantFromMessageOrChatroom($roomOrMessage);
+        $chatParticipant = $this->asChatParticipantFromMessageOrChatroom($roomOrMessage);
 
         if (! $chatParticipant) {
             throw new \Exception('Cannot mark as read because the current model is not an active participant in the chat room. If the model was deleted from the room, you need to create a new chatroom.');

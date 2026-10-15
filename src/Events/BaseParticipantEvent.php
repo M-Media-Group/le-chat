@@ -52,6 +52,8 @@ class BaseParticipantEvent implements ShouldBroadcastNow
      */
     public function broadcastOn(): array
     {
+        $this->participant->loadMissing('chatroom');
+
         return [
             new PresenceChannel($this->participant->chatroom->broadcastChannel()),
         ];
