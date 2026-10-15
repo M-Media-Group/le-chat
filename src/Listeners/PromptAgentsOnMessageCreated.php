@@ -6,6 +6,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Laravel\Ai\Approvals\PendingApproval;
 use Laravel\Ai\Contracts\ConversationStore;
+use Laravel\Ai\Contracts\RemembersConversations;
 use Mmedia\LeChat\Ai\ChatroomConversationStore;
 use Mmedia\LeChat\Ai\RequesterEnvelope;
 use Mmedia\LeChat\Contracts\RespondsToChatMessages;
@@ -13,7 +14,6 @@ use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
-use Mmedia\LeChat\Models\Chatroom;
 use Throwable;
 
 /**
@@ -100,10 +100,20 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
                 $showTyping && $participant->startTyping();
 
                 try {
-                    $response = $agent->continue($conversationId, as: $message->sender?->participatingModel)->prompt(
+                    $prompt = [
                         RequesterEnvelope::current($message->sender->display_name ?? '', $message->message),
-                        ...config('chat-options.'.Features::aiSdkIntegration().'.prompt_config', [])
-                    );
+                        ...config('chat-options.'.Features::aiSdkIntegration().'.prompt_config', []),
+                    ];
+
+                    if ($agent instanceof RemembersConversations) {
+                        $agent->continue($conversationId, as: $message->sender?->participatingModel);
+                    }
+
+                    $response = $agent->prompt(...$prompt);
+
+                    if (! $agent instanceof RemembersConversations) {
+                        $participant->sendMessage($response);
+                    }
                 } finally {
                     // Also runs when the model fails, so the indicator never sticks
                     $showTyping && $participant->stopTyping();

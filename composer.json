@@ -1,7 +1,7 @@
 {
     "name": "mmedia/le-chat",
     "type": "library",
-    "version": "0.4.7",
+    "version": "0.4.8",
     "description": "Add chat functionality to your Laravel application.",
     "keywords": [
         "Michal",
