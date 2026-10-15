@@ -229,7 +229,7 @@ trait IsChatParticipant
     /**
      * Get all messages sent by this model across all their chat participants.
      */
-    private function getMessagesSentToParticipant(ChatParticipantInterface|ChatParticipant $participant): Collection
+    private function getMessagesSentToParticipant(ChatParticipantInterface $participant): Collection
     {
         return $this->sentMessages()
             ->visibleTo($participant)
@@ -239,7 +239,7 @@ trait IsChatParticipant
     /**
      * Get the best channel for the given participants. Returns the latest used chatroom that contains all and only the given participants (plus this model).
      *
-     * @param  (ChatParticipantInterface|ChatParticipant)[]  $participants
+     * @param  (ChatParticipantInterface)[]  $participants
      */
     private function getBestChannelForParticipants(array $participants): ?Chatroom
     {
@@ -298,7 +298,7 @@ trait IsChatParticipant
      *
      * @return Collection<int, ChatMessage>
      */
-    public function getMessagesSentTo(Chatroom|ChatParticipantInterface|ChatParticipant $target): Collection
+    public function getMessagesSentTo(Chatroom|ChatParticipantInterface $target): Collection
     {
         if ($target instanceof Chatroom) {
             return $this->getMessagesSentToChatRoom($target);

@@ -101,7 +101,7 @@ final class Chatroom extends Model
     /**
      * Send a message to the chatroom as a participant.
      */
-    public function sendMessageAs(ChatParticipant|ChatParticipantInterface $participant, string $message, array $attributes = []): ChatMessage
+    public function sendMessageAs(ChatParticipantInterface $participant, string $message, array $attributes = []): ChatMessage
     {
         $senderId = $participant instanceof ChatParticipant
             ? $participant->getKey()
@@ -141,7 +141,7 @@ final class Chatroom extends Model
      *
      * @param  ChatMessage|\DateTime|Carbon|null  $message  If provided, mark as read at the time of the message, otherwise mark as read now.
      */
-    public function markAsReadBy(ChatParticipantInterface|ChatParticipant $participant, ChatMessage|\DateTime|DateTimeInterface|Carbon|null $message = null): bool
+    public function markAsReadBy(ChatParticipantInterface $participant, ChatMessage|\DateTime|DateTimeInterface|Carbon|null $message = null): bool
     {
         // Get the chat participant for this model in the given chat room
         $chatParticipant = $this->participant($participant, true);
@@ -195,7 +195,7 @@ final class Chatroom extends Model
     /**
      * Remove a participant from the chatroom.
      */
-    public function removeParticipant(ChatParticipantInterface|ChatParticipant $participant): bool
+    public function removeParticipant(ChatParticipantInterface $participant): bool
     {
         $chatParticipant = $this->participant($participant);
         if ($chatParticipant) {
@@ -282,7 +282,7 @@ final class Chatroom extends Model
     /**
      * Check if the chatroom has a participant.
      */
-    public function hasParticipant(ChatParticipantInterface|ChatParticipant $participant, bool $includeTrashed = false): bool
+    public function hasParticipant(ChatParticipantInterface $participant, bool $includeTrashed = false): bool
     {
         return $this->participants()->ofParticipant($participant)->when($includeTrashed, fn ($query) => $query->withTrashed())->exists();
     }
@@ -290,7 +290,7 @@ final class Chatroom extends Model
     /**
      * Check if the chatroom has a participant, including trashed participants.
      */
-    public function hasOrHadParticipant(ChatParticipantInterface|ChatParticipant $participant): bool
+    public function hasOrHadParticipant(ChatParticipantInterface $participant): bool
     {
         return $this->hasParticipant($participant, true);
     }
@@ -298,7 +298,7 @@ final class Chatroom extends Model
     /**
      * Returns the ChatParticipant instance for the given participant in this chatroom.
      */
-    public function participant(ChatParticipantInterface|ChatParticipant $participant, bool $includeTrashed = false): ?ChatParticipant
+    public function participant(ChatParticipantInterface $participant, bool $includeTrashed = false): ?ChatParticipant
     {
         return $this->participants()->ofParticipant($participant)->when($includeTrashed, fn ($query) => $query->withTrashed())->first();
     }
@@ -307,7 +307,7 @@ final class Chatroom extends Model
      * Get chatrooms that have at least the given participants.
      *
      * @param  Builder<static>  $query
-     * @param  array<ChatParticipantInterface|ChatParticipant>  $participants
+     * @param  array<ChatParticipantInterface>  $participants
      * @return Builder<static>
      */
     public function scopeHavingParticipants(
@@ -332,7 +332,7 @@ final class Chatroom extends Model
      * Get the chatrooms that have exactly the given participants.
      *
      * @param  Builder<static>  $query
-     * @param  array<ChatParticipantInterface|ChatParticipant>  $participants
+     * @param  array<ChatParticipantInterface>  $participants
      * @return Builder<static>
      */
     public function scopeHavingExactlyParticipants(
@@ -370,7 +370,7 @@ final class Chatroom extends Model
      * @param  Builder<Chatroom>  $query
      * @return Builder<Chatroom>
      */
-    public function scopeWithUnreadMessagesCountFor($query, ChatParticipantInterface|ChatParticipant $participant)
+    public function scopeWithUnreadMessagesCountFor($query, ChatParticipantInterface $participant)
     {
         return $query->withCount(['messages as unread_messages_count' => function ($query) use ($participant) {
             $query->visibleTo($participant)->unreadBy($participant)->withoutTrashed();
@@ -384,7 +384,7 @@ final class Chatroom extends Model
      * @param  Builder<static>  $query
      * @return Builder<static>
      */
-    public function scopeWithLatestMessageFor(Builder $query, ChatParticipantInterface|ChatParticipant $participant): Builder
+    public function scopeWithLatestMessageFor(Builder $query, ChatParticipantInterface $participant): Builder
     {
         return $query
             ->addSelect([

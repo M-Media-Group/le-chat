@@ -110,13 +110,13 @@ final class ChatMessage extends Model
     /**
      * Mark the message as read by a participant.
      */
-    public function markAsReadBy(ChatParticipantInterface|ChatParticipant $participant): bool
+    public function markAsReadBy(ChatParticipantInterface $participant): bool
     {
         // Mark the message as read by the participant
         return $participant->markRead($this);
     }
 
-    public function replyAs(ChatParticipantInterface|ChatParticipant $participant, string $content, array $messageConfiguration = []): ChatMessage
+    public function replyAs(ChatParticipantInterface $participant, string $content, array $messageConfiguration = []): ChatMessage
     {
         return $participant->replyTo($this, $content, $messageConfiguration);
     }
@@ -185,7 +185,7 @@ final class ChatMessage extends Model
      * @param  Builder<ChatMessage>  $query
      * @return Builder<ChatMessage>
      */
-    public function scopeSentBy(Builder $query, ChatParticipantInterface|ChatParticipant $participant): Builder
+    public function scopeSentBy(Builder $query, ChatParticipantInterface $participant): Builder
     {
         return $query->whereIn(
             $query->getModel()->qualifyColumn('sender_id'),
@@ -198,7 +198,7 @@ final class ChatMessage extends Model
      */
     public function scopeVisibleTo(
         $query,
-        ChatParticipantInterface|ChatParticipant $participant,
+        ChatParticipantInterface $participant,
         bool $includeLeftChatrooms = true,
         bool $includeBeforeJoined = false
     ) {
@@ -227,7 +227,7 @@ final class ChatMessage extends Model
      */
     public function scopeAfterParticipantJoined(
         Builder $query,
-        ChatParticipantInterface|ChatParticipant $participant
+        ChatParticipantInterface $participant
     ): Builder {
         $instance = new ChatParticipant;
         $selfInstance = new self;
@@ -253,7 +253,7 @@ final class ChatMessage extends Model
      */
     public function scopeBeforeParticipantDeleted(
         $query,
-        ChatParticipantInterface|ChatParticipant $participant
+        ChatParticipantInterface $participant
     ) {
         $instance = new ChatParticipant;
         $selfInstance = new self;
@@ -282,7 +282,7 @@ final class ChatMessage extends Model
      */
     public function scopeUnreadBy(
         Builder $query,
-        ChatParticipantInterface|ChatParticipant $participant
+        ChatParticipantInterface $participant
     ): Builder {
         $instance = new ChatParticipant;
         $selfInstance = new self;

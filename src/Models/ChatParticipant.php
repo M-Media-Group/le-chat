@@ -138,7 +138,7 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
      */
     public function scopeOfParticipant(
         Builder $query,
-        ChatParticipantInterface|ChatParticipant $participant
+        ChatParticipantInterface $participant
     ): Builder {
         $id = $participant->getKey();
 

@@ -64,7 +64,7 @@ class ChatroomChannelMessage implements Arrayable
         return $this;
     }
 
-    public function sender(ChatParticipant|ChatParticipantInterface $participant): self
+    public function sender(ChatParticipantInterface $participant): self
     {
         if ($participant instanceof ChatParticipant) {
             $this->sender = $participant;
