@@ -537,7 +537,7 @@ class ChatroomConversationStore extends DatabaseConversationStore
             ->where('chatroom_id', $room->getKey())
             ->whereNotNull('metadata->ai->agent')
             ->orderByDesc('id')
-            ->first()?->metadata['ai']['agent'] ?? null;
+            ->value('metadata->ai->agent');
 
         return $room->participants()
             ->where('reference_id', 'like', self::AGENT_REFERENCE_PREFIX.'%')
