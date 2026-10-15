@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Ai\Concerns\RemembersConversations;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\ConversationStore;
 use Laravel\Ai\Messages\UserMessage;
@@ -27,7 +28,7 @@ class AiStoreOwner extends Model
 
 class AiStoreAgent implements Agent
 {
-    use Promptable;
+    use Promptable, RemembersConversations;
 
     public function instructions(): string
     {
