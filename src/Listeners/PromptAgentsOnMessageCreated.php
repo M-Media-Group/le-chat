@@ -5,8 +5,8 @@ namespace Mmedia\LeChat\Listeners;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Laravel\Ai\Approvals\PendingApproval;
+use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Contracts\ConversationStore;
-use Laravel\Ai\Contracts\RemembersConversations;
 use Mmedia\LeChat\Ai\ChatroomConversationStore;
 use Mmedia\LeChat\Ai\RequesterEnvelope;
 use Mmedia\LeChat\Contracts\RespondsToChatMessages;
@@ -99,20 +99,33 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
 
                 $showTyping && $participant->startTyping();
 
+                $agentIsConversational = $agent instanceof Conversational;
+
                 try {
                     $prompt = [
                         RequesterEnvelope::current($message->sender->display_name ?? '', $message->message),
                         ...config('chat-options.'.Features::aiSdkIntegration().'.prompt_config', []),
                     ];
 
-                    if ($agent instanceof RemembersConversations) {
+                    if ($agentIsConversational) {
                         $agent->continue($conversationId, as: $message->sender?->participatingModel);
                     }
 
                     $response = $agent->prompt(...$prompt);
 
-                    if (! $agent instanceof RemembersConversations) {
-                        $participant->sendMessage($response);
+                    if (! $agentIsConversational) {
+                        $participant->sendMessage($response, ['metadata' => ['ai' => [
+                            'conversation_id' => $response->conversationId,
+                            'conversation_user' => $response->conversationUser,
+                            'user_message_id' => $response->userMessageId,
+                            'assistant_message_id' => $response->assistantMessageId,
+                            'messages' => $response->messages,
+                            'tool_calls' => $response->toolCalls ?? null,
+                            'tool_results' => $response->toolResults ?? null,
+                            'steps' => $response->steps ?? null,
+                            'pending_approvals' => $response->pendingApprovals ?? null,
+                            'reasoning' => $response->reasoning ?? null,
+                        ]]]);
                     }
                 } finally {
                     // Also runs when the model fails, so the indicator never sticks

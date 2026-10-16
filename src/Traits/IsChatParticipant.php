@@ -326,7 +326,7 @@ trait IsChatParticipant
      *
      * @throws \Exception if the current model is not an active participant in the chat room
      */
-    private function sendMessageToChatRoom(Chatroom $chatRoom, string $message): ChatMessage
+    private function sendMessageToChatRoom(Chatroom $chatRoom, string $message, array $messageConfiguration = []): ChatMessage
     {
         // Check if the current model can send a message to the chat room
         if (! $this->canSendMessageToChatRoom($chatRoom)) {
@@ -337,7 +337,7 @@ trait IsChatParticipant
         return $chatRoom->messages()->create([
             'sender_id' => $this->asParticipantIn($chatRoom, true)->getKey(),
             'message' => $message,
-        ])->fresh();
+        ] + $messageConfiguration)->fresh();
     }
 
     private function sendTypingStatusToChatRoom(Chatroom $chatRoom, bool $isTyping): void
@@ -393,14 +393,14 @@ trait IsChatParticipant
     /**
      * Sends a message to a participant, creating a new chat room if necessary.
      */
-    private function sendMessageToParticipant(ChatParticipantInterface $participant, string $message): ChatMessage
+    private function sendMessageToParticipant(ChatParticipantInterface $participant, string $message, array $messageConfiguration = []): ChatMessage
     {
         $bestChannel = $this->getBestChannelForParticipants([$participant]);
         if (! $bestChannel) {
             throw new \Exception('No chat room found for the given participants');
         }
 
-        return $this->sendMessageToChatRoom($bestChannel, $message);
+        return $this->sendMessageToChatRoom($bestChannel, $message, $messageConfiguration);
     }
 
     /**
@@ -421,7 +421,7 @@ trait IsChatParticipant
         }
 
         if ($recipient instanceof Chatroom) {
-            return $this->sendMessageToChatRoom($recipient, $message);
+            return $this->sendMessageToChatRoom($recipient, $message, $messageConfiguration);
         }
 
         // Normalize the recipient to an array of ChatParticipantInterface
@@ -456,7 +456,7 @@ trait IsChatParticipant
         }
 
         // Send the message to the best channel
-        return $this->sendMessageToChatRoom($bestChannel, $message);
+        return $this->sendMessageToChatRoom($bestChannel, $message, $messageConfiguration);
     }
 
     /**

@@ -147,9 +147,9 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
     /**
      * Send a message as this participant in the chatroom.
      */
-    public function sendMessage(string $message): ChatMessage
+    public function sendMessage(string $message, array $messageConfiguration = []): ChatMessage
     {
-        return $this->sendMessageTo($this->chatroom, $message);
+        return $this->sendMessageTo($this->chatroom, $message, messageConfiguration: $messageConfiguration);
     }
 
     /**
