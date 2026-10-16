@@ -28,7 +28,7 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
     public function middleware(MessageCreated $event): array
     {
         return [
-            (new WithoutOverlapping('le-chat-ai:' . $event->message->chatroom_id))
+            (new WithoutOverlapping('le-chat-ai:'.$event->message->chatroom_id))
                 ->releaseAfter(30)
                 ->expireAfter(600),
         ];
@@ -68,7 +68,7 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
                     'type' => 'approval_required',
                     'ai' => $pausedMessage?->metadata['ai'] ?? [],
                     'approvals' => array_map(
-                        fn(PendingApproval $approval): array => $approval->toArray(),
+                        fn (PendingApproval $approval): array => $approval->toArray(),
                         $pendingApprovals,
                     ),
                 ]],
@@ -78,9 +78,9 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
         }
 
         $agents = $room->participants()
-            ->where('reference_id', 'like', ChatroomConversationStore::AGENT_REFERENCE_PREFIX . '%')
+            ->where('reference_id', 'like', ChatroomConversationStore::AGENT_REFERENCE_PREFIX.'%')
             ->get()
-            ->filter(fn(ChatParticipant $agent) => $this->shouldRespond($agent, $message));
+            ->filter(fn (ChatParticipant $agent) => $this->shouldRespond($agent, $message));
 
         foreach ($agents as $participant) {
             $agentClass = substr($participant->reference_id, strlen(ChatroomConversationStore::AGENT_REFERENCE_PREFIX));
@@ -103,7 +103,7 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
                 try {
                     $prompt = [
                         RequesterEnvelope::current($message->sender->display_name ?? '', $message->message),
-                        ...config('chat-options.' . Features::aiSdkIntegration() . '.prompt_config', []),
+                        ...config('chat-options.'.Features::aiSdkIntegration().'.prompt_config', []),
                     ];
 
                     if ($agentIsConversational) {
