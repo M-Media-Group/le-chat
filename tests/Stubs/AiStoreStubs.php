@@ -4,6 +4,7 @@ use Illuminate\Database\Eloquent\Model;
 use Laravel\Ai\Concerns\RemembersConversations;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\ConversationStore;
+use Laravel\Ai\Contracts\RemembersConversations as RemembersConversationsContract;
 use Laravel\Ai\Messages\UserMessage;
 use Laravel\Ai\Promptable;
 use Mmedia\LeChat\Contracts\RespondsToChatMessages;
@@ -36,25 +37,18 @@ class AiStoreAgent implements Agent
     }
 }
 
-class AiStoreEchoAgent implements RespondsToChatMessages
+class AiStoreEchoAgent implements RemembersConversationsContract, RespondsToChatMessages
 {
+    use Promptable, RemembersConversations;
+
     /** @var list<array{text: string, history: list<string>}> */
     public static array $log = [];
 
     public static ?Throwable $failure = null;
 
-    public ?string $conversationId = null;
-
     public static function forChatMessage(ChatMessage $message): static
     {
         return new static;
-    }
-
-    public function continue(string $conversationId, ?object $as = null): static
-    {
-        $this->conversationId = $conversationId;
-
-        return $this;
     }
 
     public function prompt(string $text): void
