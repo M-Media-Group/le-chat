@@ -141,7 +141,11 @@ $bot->sendMessageTo($student, $message); // will send the message to the student
 
 #### Send a message to a chatroom
 ```php
-$messageId = $teacher->sendMessageTo($chatroom, $message);
+$messageId = $teacher->sendMessageTo($chatroom, $message, messageConfiguration: [
+    'metadata' => [
+        'language' => 'English',
+    ],
+]);
 
 // Alternative syntax
 $messageId = $chatroom->sendMessageAs($teacher, $message); // will send the message as the teacher
