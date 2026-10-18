@@ -45,6 +45,8 @@ The `NewMessage` notification is sent to the personal channel of each participan
 
 This is useful to send notifications to participants who are currently online, but not connected to any chatroom via sockets, or to send notifications to participants who are not currently online at all via web-push, for example.
 
+Note that the NewMessage notification ID will be that of the new message; the ID of the notification itself is available under `notification_id`, and `type` is preserved to the notification type.
+
 ## Using Chatrooms as notification channels
 It can be helpful to use chatroom messages as a notification channel. Internally, LeChat does this when new participants are added or removed from a chatroom to create system-messages about these events.
 
