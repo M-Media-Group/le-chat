@@ -265,12 +265,10 @@ final class Chatroom extends Model
             $results['added'][] = $newRecord->getKey();
         }
 
-        // 6. Perform the removals.
-        //    We can use a more efficient single `whereIn` delete query.
-        if ($participantsToRemove->isNotEmpty()) {
-            $idsToRemove = $participantsToRemove->pluck('id')->all();
-            $this->participants()->whereIn('id', $idsToRemove)->delete();
-            $results['removed'] = $idsToRemove;
+        // 6. Perform the removals using removeParticipant
+        foreach ($participantsToRemove as $participant) {
+            $this->removeParticipant($participant);
+            $results['removed'][] = $participant->getKey();
         }
 
         // Refresh the relation in case it's used again in the same request.

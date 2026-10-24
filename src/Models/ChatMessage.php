@@ -5,6 +5,7 @@ namespace Mmedia\LeChat\Models;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Contracts\Encryption\EncryptException;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -24,7 +25,7 @@ use Mmedia\LeChat\Traits\OverwriteDeletes;
  * @property int|null $sender_id
  * @property int $chatroom_id
  * @property int|null $reply_to_id
- * @property array<string, mixed>|null $metadata
+ * @property AsArrayObject|null $metadata
  * @property Carbon|null $deleted_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -51,7 +52,7 @@ final class ChatMessage extends Model
 
     /** @var array<string, string> */
     protected $casts = [
-        'metadata' => 'array',
+        'metadata' => AsArrayObject::class,
     ];
 
     /**
