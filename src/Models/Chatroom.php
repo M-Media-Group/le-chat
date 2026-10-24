@@ -240,7 +240,7 @@ final class Chatroom extends Model
         // 2. Create a map of the CURRENT participants in the database, also keyed by their unique identifier.
         //    We use participant_type and participant_id to build the same key format.
         //    Example: ['App\Models\User:1' => $chatParticipant1, 'App\Models\User:2' => $chatParticipant2]
-        $currentParticipantMap = $this->participants()->get()->keyBy(
+        $currentParticipantMap = $this->participants()->get()->toBase()->keyBy(
             fn (ChatParticipant $p) => $p->participant_type.':'.$p->participant_id
         );
 
