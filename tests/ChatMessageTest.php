@@ -211,6 +211,16 @@ it('omits metadata from messages selected without the metadata column', function
         ->and($payload)->not->toHaveKey('metadata');
 });
 
+it('serializes message metadata as a JSON object', function () {
+    $room = Chatroom::create(['name' => 'Messages with metadata']);
+    $message = $room->sendMessage('Visible text', ['metadata' => ['payload' => 'large']]);
+
+    $payload = MessageResource::make($message)->resolve();
+
+    expect($payload['metadata'])->toBeObject()
+        ->and((array) $payload['metadata'])->toBe(['payload' => 'large']);
+});
+
 it('clears message content on delete and does not allow restore', function () {
     $room = Chatroom::create(['name' => 'Deleted messages']);
     $message = $room->sendMessage('Remove this text');

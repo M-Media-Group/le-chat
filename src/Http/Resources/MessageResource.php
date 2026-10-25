@@ -2,6 +2,7 @@
 
 namespace Mmedia\LeChat\Http\Resources;
 
+use Illuminate\Database\Eloquent\Casts\ArrayObject;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Mmedia\LeChat\Models\ChatMessage;
@@ -28,7 +29,10 @@ class MessageResource extends JsonResource
             'replies' => MessageResource::collection($this->whenLoaded('replies')),
             'parent_message' => new MessageResource($this->whenLoaded('parentMessage')),
 
-            'metadata' => $this->whenHas('metadata'),
+            'metadata' => $this->whenHas(
+                'metadata',
+                fn (?ArrayObject $metadata): ?object => $metadata === null ? null : (object) $metadata->getArrayCopy(),
+            ),
         ];
     }
 }

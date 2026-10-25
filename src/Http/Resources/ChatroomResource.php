@@ -4,6 +4,7 @@ namespace Mmedia\LeChat\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\Chatroom;
 
 /** @mixin Chatroom */
@@ -20,7 +21,10 @@ class ChatroomResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'messages' => MessageResource::collection($this->whenLoaded('messages')),
-            'latest_message' => new MessageResource($this->whenLoaded('latestMessage')),
+            'latest_message' => $this->whenLoaded(
+                'latestMessage',
+                fn (?ChatMessage $message): ?MessageResource => $message === null ? null : new MessageResource($message),
+            ),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'description' => $this->description,

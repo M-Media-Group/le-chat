@@ -1,5 +1,6 @@
 <?php
 
+use Mmedia\LeChat\Http\Resources\ChatroomResource;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
@@ -132,6 +133,14 @@ it('loads the latest message visible during the participant membership', functio
 
     expect($loadedRoom->latestMessage->getKey())->toBe($visible->getKey())
         ->and($loadedRoom->latestMessage->getAttributes())->toHaveKey('metadata');
+});
+
+it('serializes a loaded missing latest message as null', function () {
+    $room = Chatroom::create(['name' => 'No messages yet']);
+
+    $payload = ChatroomResource::make($room->load('latestMessage'))->resolve();
+
+    expect($payload['latest_message'])->toBeNull();
 });
 
 it('adds, finds, marks read, and removes participants', function () {
