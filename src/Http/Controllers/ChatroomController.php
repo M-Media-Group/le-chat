@@ -124,7 +124,7 @@ class ChatroomController extends Controller
     /**
      * Show a single message
      */
-    public function showMessage(Request $request, Chatroom $chatroom, int $message): MessageResource|JsonResponse
+    public function showMessage(Request $request, Chatroom $chatroom, int $message): MessageResource
     {
         $user = $this->participantUser($request);
 
