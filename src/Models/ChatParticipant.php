@@ -70,6 +70,7 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
     /** @var array<string, class-string> */
     protected $dispatchesEvents = [
         'created' => ParticipantCreated::class,
+        'restored' => ParticipantCreated::class,
         'deleted' => ParticipantDeleted::class,
     ];
 

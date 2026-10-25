@@ -164,16 +164,14 @@ final class Chatroom extends Model
      */
     public function addParticipant(ChatParticipantInterface $participant, string $role = 'member'): ChatParticipant
     {
-        $chatParticipant = new ChatParticipant([
-            'chatroom_id' => $this->getKey(),
-            'participant_id' => $participant->getKey(),
-            'participant_type' => $participant->getMorphClass(),
-            'role' => $role,
-        ]);
-
-        $chatParticipant->save();
-
-        return $chatParticipant;
+        return ChatParticipant::createOrRestore(
+            [
+                'chatroom_id' => $this->getKey(),
+                'participant_id' => $participant->getKey(),
+                'participant_type' => $participant->getMorphClass(),
+            ],
+            ['role' => $role],
+        );
     }
 
     /**

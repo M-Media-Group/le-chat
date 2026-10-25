@@ -32,6 +32,10 @@ You can add any model that is a [participant](/configuring-models) to a chatroom
 $chatroom->addParticipant($student);
 ```
 
+Note: adding a participant that has previously been added and then removed will restore them instead, while still emitting the ParticipantCreated event.
+
+Because of how the restoration works, it will cause the participant to see all the messages from the time they first joined to now, including those sent while they were removed.
+
 ### Adding Multiple Participants
 You can also add multiple participants at once by passing an array of models:
 ```php
