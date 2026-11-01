@@ -164,7 +164,7 @@ final class Chatroom extends Model
      */
     public function addParticipant(ChatParticipantInterface $participant, string $role = 'member'): ChatParticipant
     {
-        return ChatParticipant::createOrRestore(
+        $chatParticipant = ChatParticipant::withTrashed()->firstOrCreate(
             [
                 'chatroom_id' => $this->getKey(),
                 'participant_id' => $participant->getKey(),
@@ -172,6 +172,12 @@ final class Chatroom extends Model
             ],
             ['role' => $role],
         );
+
+        if ($chatParticipant->trashed()) {
+            $chatParticipant->restore();
+        }
+
+        return $chatParticipant;
     }
 
     /**

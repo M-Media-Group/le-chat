@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Support\Facades\Event;
+use Mmedia\LeChat\Events\ParticipantCreated;
 use Mmedia\LeChat\Http\Resources\ChatroomResource;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
@@ -216,4 +218,32 @@ it('syncs participants while retaining existing participants', function () {
     expect($chatroom->participants()->count())->toBe(2)
         ->and($result['added'])->toHaveCount(1)
         ->and($result['removed'])->toBe([]);
+});
+
+it('announces each participant join once without announcing unchanged membership', function () {
+    $room = Chatroom::create(['name' => 'Join announcements']);
+    $sourceRoom = Chatroom::create(['name' => 'Source room']);
+    $source = ChatParticipant::create([
+        'chatroom_id' => $sourceRoom->getKey(),
+        'reference_id' => 'member:joining',
+        'display_name' => 'Joining member',
+    ]);
+    Event::fake([ParticipantCreated::class]);
+
+    $room->syncParticipants([$source]);
+
+    Event::assertDispatchedTimes(ParticipantCreated::class, 1);
+
+    $room->syncParticipants([$source]);
+    $room->addParticipant($source);
+
+    Event::assertDispatchedTimes(ParticipantCreated::class, 1);
+    expect($room->participantsWithTrashed()->count())->toBe(1);
+
+    $room->syncParticipants([]);
+    $room->syncParticipants([$source]);
+
+    Event::assertDispatchedTimes(ParticipantCreated::class, 2);
+    expect($room->participants()->count())->toBe(1)
+        ->and($room->participantsWithTrashed()->count())->toBe(1);
 });
