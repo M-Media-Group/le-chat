@@ -250,7 +250,7 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
     protected function displayName(): CastsAttribute
     {
         return CastsAttribute::make(
-            get: fn () => $this->getRawOriginal('display_name') ?? $this->getDisplayName()
+            get: fn (?string $value): ?string => $value ?? $this->getDisplayName()
         );
     }
 

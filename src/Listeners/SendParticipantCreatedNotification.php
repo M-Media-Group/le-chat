@@ -2,10 +2,9 @@
 
 namespace Mmedia\LeChat\Listeners;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Mmedia\LeChat\Events\ParticipantCreated;
 
-class SendParticipantCreatedNotification implements ShouldQueue
+class SendParticipantCreatedNotification
 {
     /**
      * Create the event listener.

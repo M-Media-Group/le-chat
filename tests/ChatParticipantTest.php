@@ -2,10 +2,13 @@
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Events\CallQueuedListener;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Events\ParticipantCreated;
+use Mmedia\LeChat\Listeners\SendParticipantCreatedNotification;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
@@ -86,6 +89,27 @@ it('reuses a direct chatroom and creates a separate room when forced', function 
         ->and($sender->sentMessages()->pluck('chat_messages.id')->all())->toBe([
             $first->getKey(), $second->getKey(), $separate->getKey(),
         ]);
+});
+
+it('creates join messages before the first message without waiting for queued listeners', function () {
+    $this->freezeTime();
+    Queue::fake([CallQueuedListener::class]);
+    $sender = ChatParticipantTestOwner::create(['name' => 'Sender']);
+    $recipient = ChatParticipantTestOwner::create(['name' => 'Recipient']);
+
+    $message = $sender->sendMessageTo($recipient, 'First message');
+
+    expect($recipient->getMessages()->pluck('message')->all())->toBe([
+        'First message',
+        'Recipient has joined the chat.',
+        'Sender has joined the chat.',
+    ]);
+    expect($message->chatroom->messages()->orderBy('id')->pluck('message')->all())->toBe([
+        'Sender has joined the chat.',
+        'Recipient has joined the chat.',
+        'First message',
+    ]);
+    Queue::assertNotPushed(CallQueuedListener::class, fn (CallQueuedListener $listener): bool => $listener->class === SendParticipantCreatedNotification::class);
 });
 
 it('uses the fifth positional argument for sender participant configuration', function () {
