@@ -410,6 +410,7 @@ trait IsChatParticipant
      * Sends a message to a chat or a participant
      *
      * @param  ChatMessage|Chatroom|ChatParticipantInterface|array<ChatParticipantInterface>  $recipient
+     * @param  array  $asParticipantConfiguration  configuration for this participant if a new channel is created
      */
     public function sendMessageTo(
         ChatMessage|Chatroom|ChatParticipantInterface|array $recipient,

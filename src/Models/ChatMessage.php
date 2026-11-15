@@ -91,7 +91,7 @@ final class ChatMessage extends Model
         $this->createdEventDeferred = true;
     }
 
-    protected function fireCustomModelEvent($event, $method): mixed
+    protected function fireCustomModelEvent($event, $method): ?array
     {
         if ($event === 'created' && $this->createdEventDeferred) {
             return null;

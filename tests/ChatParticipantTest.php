@@ -88,6 +88,22 @@ it('reuses a direct chatroom and creates a separate room when forced', function 
         ]);
 });
 
+it('uses the fifth positional argument for sender participant configuration', function () {
+    $sender = ChatParticipantTestOwner::create(['name' => 'Support']);
+    $recipient = ChatParticipantTestOwner::create(['name' => 'Recipient']);
+
+    $message = $sender->sendMessageTo(
+        $recipient,
+        'Welcome',
+        true,
+        ['name' => 'Support room'],
+        ['display_name' => 'Support Team'],
+    );
+
+    expect($message->chatroom->name)->toBe('Support room')
+        ->and($sender->asParticipantIn($message->chatroom)?->display_name)->toBe('Support Team');
+});
+
 it('paginates visible messages and loads replies for model participants', function () {
     $this->freezeTime();
     config(['chat.create_system_messages' => false]);

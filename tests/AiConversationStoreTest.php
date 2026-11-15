@@ -164,6 +164,7 @@ it('stores user and assistant turns as chat messages with the extra fields in me
 });
 
 it('replays stored messages to the model in order', function () {
+    config(['chat.can_see_messages_before_joined' => true]);
     $type = aiStoreTestOwner()->getMorphClass();
     $id = aiStoreTestStore()->storeConversation($type, aiStoreTestOwner()->getKey(), 'Greeting');
 

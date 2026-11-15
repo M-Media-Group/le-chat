@@ -103,9 +103,24 @@ jobs:
 
   s3-integration:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: minio/minio
+          ref: 7ced9663e6a791fef9dc6be798ff24cda9c730ac
+          path: .minio-src
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.4'
+          cache-dependency-path: .minio-src/go.sum
+      - name: Build MinIO
+        working-directory: .minio-src
+        run: CGO_ENABLED=0 go build -tags kqueue -trimpath -o "$GITHUB_WORKSPACE/minio" .
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
@@ -116,7 +131,8 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress
       - name: Start MinIO
         run: |
-          docker run -d --name le-chat-minio -p 9000:9000 -e MINIO_ROOT_USER=chat-test -e MINIO_ROOT_PASSWORD=chat-test-password minio/minio:RELEASE.2025-07-23T15-54-02Z server /data
+          mkdir -p "$RUNNER_TEMP/minio-data"
+          MINIO_ROOT_USER=chat-test MINIO_ROOT_PASSWORD=chat-test-password "$GITHUB_WORKSPACE/minio" server "$RUNNER_TEMP/minio-data" > "$RUNNER_TEMP/minio.log" 2>&1 &
           curl --fail --retry 20 --retry-delay 1 --retry-connrefused http://127.0.0.1:9000/minio/health/live
       - name: Test S3 uploads
         env:

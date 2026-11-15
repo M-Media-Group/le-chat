@@ -6,7 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
-/**
+/** @internal Persistent state for the AI SDK approval workflow.
+ *
  * @property int $id
  * @property int $requester_message_id
  * @property int $assistant_message_id
@@ -22,7 +23,6 @@ use Illuminate\Support\Carbon;
  * @property-read ChatMessage $requesterMessage
  * @property-read ChatMessage $assistantMessage
  */
-/** @internal Persistent state for the AI SDK approval workflow. */
 final class ChatApprovalBatch extends Model
 {
     protected $fillable = ['requester_message_id', 'assistant_message_id', 'generation', 'fingerprints', 'status', 'expires_at', 'approver_type', 'approver_id', 'idempotency_key', 'decision_hash', 'failure_reason'];
