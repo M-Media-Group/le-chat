@@ -42,3 +42,15 @@ it('tolerates payloads without metadata or message keys', function () {
 
     expect(BroadcastPayload::fit($payload))->toBe($payload);
 });
+
+it('drops oversized file details from a broadcast', function () {
+    $payload = ['id' => 1, 'message' => 'File', 'files' => [str_repeat('x', BroadcastPayload::MAX_BYTES)]];
+
+    expect(BroadcastPayload::fit($payload))->toBe(['id' => 1, 'message' => 'File']);
+});
+
+it('drops oversized blocks while retaining the fallback message', function () {
+    $payload = ['id' => 1, 'message' => 'Review', 'blocks' => [str_repeat('x', BroadcastPayload::MAX_BYTES)]];
+
+    expect(BroadcastPayload::fit($payload))->toBe(['id' => 1, 'message' => 'Review']);
+});

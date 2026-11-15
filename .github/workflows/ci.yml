@@ -101,8 +101,30 @@ jobs:
       - name: Tests
         run: vendor/bin/pest --ci
 
+  s3-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+          extensions: mbstring, intl, pdo_sqlite, sqlite3, bcmath, gd, fileinfo
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Start MinIO
+        run: |
+          docker run -d --name le-chat-minio -p 9000:9000 -e MINIO_ROOT_USER=chat-test -e MINIO_ROOT_PASSWORD=chat-test-password minio/minio:RELEASE.2025-07-23T15-54-02Z server /data
+          curl --fail --retry 20 --retry-delay 1 --retry-connrefused http://127.0.0.1:9000/minio/health/live
+      - name: Test S3 uploads
+        env:
+          LE_CHAT_S3_ENDPOINT: http://127.0.0.1:9000
+        run: vendor/bin/pest tests/AttachmentHttpTest.php --filter='S3 compatible store'
+
   release:
-    needs: [ci, compatibility]
+    needs: [ci, compatibility, s3-integration]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5

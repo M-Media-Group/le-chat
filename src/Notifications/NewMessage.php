@@ -6,6 +6,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Support\BroadcastPayload;
@@ -88,7 +89,7 @@ class NewMessage extends Notification implements ShouldQueue
             // The icon can be a URL to an image or a path to an asset
             ->icon($this->message->sender->avatar_url ?? (config('app.url').'/icon.png'))
             // The body is the message content
-            ->body($this->message->message)
+            ->body($this->preview())
             // The action is a button that the user can click
             ->action('Open Chat', 'view_chat')
             ->lang('en');
@@ -104,7 +105,7 @@ class NewMessage extends Notification implements ShouldQueue
         return (new MailMessage)
             ->subject($senderName.' Sent You a New Message')
             ->greeting($this->participant->display_name.', you got a new message!')
-            ->line($senderName.': '.$this->message->message)
+            ->line($senderName.': '.$this->preview())
             ->action('Open Chat', url('/chatrooms/'.$this->message->chatroom_id))
             ->line('Thank you for using our application!');
     }
@@ -115,7 +116,7 @@ class NewMessage extends Notification implements ShouldQueue
     public function toArray(object $notifiable): array
     {
         return [
-            'message' => $this->message->message,
+            'message' => $this->preview(),
             'chatroom_id' => $this->message->chatroom_id,
             'sender_id' => $this->message->sender_id,
             'created_at' => $this->message->created_at,
@@ -143,5 +144,20 @@ class NewMessage extends Notification implements ShouldQueue
             'notification_id' => $this->id,
             'type' => $this->broadcastType(),
         ];
+    }
+
+    private function preview(): string
+    {
+        if (blank($this->message->message) && $this->message->blocks === null && Features::enabled(Features::files())) {
+            $hasFiles = $this->message->relationLoaded('files')
+                ? $this->message->files->isNotEmpty()
+                : $this->message->files()->exists();
+
+            if ($hasFiles) {
+                return 'Attachment';
+            }
+        }
+
+        return $this->message->message ?? '';
     }
 }

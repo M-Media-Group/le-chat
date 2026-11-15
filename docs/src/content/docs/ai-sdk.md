@@ -4,6 +4,8 @@ description: Store Laravel AI SDK conversations in Le Chat chatrooms, with the a
 ---
 
 ## Introduction
+Le Chat can store Laravel AI SDK conversations in chatrooms. This lets your agents use the SDK's conversation APIs while their messages appear in Le Chat like messages from other participants.
+
 By default, the [Laravel AI SDK](https://laravel.com/docs/ai-sdk) remembers agent conversations in its own `agent_conversations` and `agent_conversation_messages` tables. Le Chat can replace that storage so an AI conversation is just another chatroom:
 
 | AI SDK                               | Le Chat                                                              |
@@ -14,9 +16,7 @@ By default, the [Laravel AI SDK](https://laravel.com/docs/ai-sdk) remembers agen
 | User message                         | `ChatMessage` sent by the owner                                      |
 | Assistant message                    | `ChatMessage` sent by the agent                                      |
 
-Only the storage driver is swapped. Agents, prompting, streaming, tools and tool approvals work exactly as before, and everything Le Chat offers (REST API, broadcasting, unread counts, events) works on AI chatrooms too. You can add other people to the same chatroom.
-
-The feature is opt-in. When it is off, the AI SDK uses its own tables.
+Only conversation storage changes. The Laravel AI SDK's agent, prompt, streaming, and tool APIs stay the same. AI chatrooms also work with Le Chat's REST API, broadcasting, unread counts, and events. You can add other people to an AI chatroom.
 
 ## Installation
 Install the AI SDK, then publish and run the Le Chat migrations. They add a `metadata` column to `chat_messages` and make a participant's model optional.
@@ -30,8 +30,12 @@ php artisan migrate
 You do not need the AI SDK's own conversation migration when this feature is enabled.
 
 ## Enabling
+The package config enables this integration by default when `laravel/ai` is installed. Remove the feature entry to disable it.
+
 ```php
 // config/chat.php
+use Mmedia\LeChat\Features;
+
 'features' => [
     Features::aiSdkIntegration([
         'auto_respond' => true,
@@ -40,6 +44,7 @@ You do not need the AI SDK's own conversation migration when this feature is ena
     ]),
 ],
 ```
+
 
 When enabled, Le Chat rebinds `Laravel\Ai\Contracts\ConversationStore`. Nothing changes in your agents:
 
@@ -51,42 +56,33 @@ $response->conversationId; // pass this to continue() later
 
 The owner you pass to `forUser()` / `forParticipant()` must be a model that uses the `IsChatParticipant` trait (see [Configuring Models](/configuring-models)).
 
-## How data is mapped
+## Tool approvals
 
-### Conversations become chatrooms
-| `agent_conversations` | Chatroom                                |
-| --------------------- | --------------------------------------- |
-| `id`                  | `metadata.ai.conversation_id`           |
-| `title`               | `name`                                  |
-| `participant_type/id` | A `ChatParticipant` with role `admin`   |
-| `created_at`          | `created_at`                            |
-| `updated_at`          | `updated_at` (touched on every message) |
+When a tool requires approval, the AI SDK pauses before running it. An approver can review the pending tool details, then approve or reject every pending call in the batch. Approval is not a permission grant: after approval, the tool runs as the original requester and must still authorize that person to perform the action.
 
-### Messages become chat messages
-| `agent_conversation_messages` | ChatMessage                                                                       |
-| ----------------------------- | --------------------------------------------------------------------------------- |
-| `conversation_id`             | `chatroom_id`                                                                     |
-| `participant_type/id`         | `sender_id` for user turns                                                        |
-| `agent`                       | `sender_id` (the agent participant) for assistant turns, and `metadata.ai.agent`  |
-| `role`                        | `metadata.ai.role`                                                                |
-| `content`                     | `message`                                                                         |
-| `attachments`                 | `metadata.ai.attachments`                                                         |
-| `steps`                       | `metadata.ai.steps`                                                               |
-| `usage`                       | `metadata.ai.usage`                                                               |
-| `meta`                        | `metadata.ai.meta`                                                                |
-| `status`                      | `metadata.ai.status`                                                              |
+By default, only the original requester can view and decide an approval. Le Chat also checks that the message is visible, the requester is still available, the request has not expired, and the pending tool calls have not changed.
 
-Anything the AI SDK stores that Le Chat has no column for lives in the `metadata` JSON under the `ai` key, so it does not collide with your own metadata.
+The default policy cannot check application-specific rules such as account activation, tenant membership, or session revocation. Each tool must authorize its requester against the target resource when it runs. If your application needs additional checks or wants a different approver, implement `Mmedia\LeChat\Contracts\ApprovalPolicy` and bind it in a service provider:
 
 ```php
-$message->metadata['ai']['usage'];
-$message->metadata['ai']['status']; // completed, paused, failed
+use App\Ai\ChatApprovalPolicy;
+use Mmedia\LeChat\Contracts\ApprovalPolicy;
+
+$this->app->bind(ApprovalPolicy::class, ChatApprovalPolicy::class);
 ```
 
-The `message` column follows [encryption at rest](/package-configuration#encryption-of-messages-at-rest) like any other message. The `metadata` column is not encrypted.
+`mayApprove` decides who may review an approval. `mayResume` can enforce additional rules before the original requester is allowed to continue. It may return `true`, `false`, or a denial reason. Do not store session tokens in the approval record; retain only non-secret information needed to check whether a session is still valid.
+
+Approval batches expire after 15 minutes by default. Change `chat.approvals.ttl_minutes` to adjust this. Retrying the same decision with the same idempotency key is safe; a conflicting decision is rejected. If a tool may have changed data before an error occurred, check the result before trying the action again. All application workers must use a shared cache store so simultaneous prompts and approval decisions for one chatroom do not overlap.
+
+## Internal storage
+
+Le Chat stores AI SDK conversation state in the chatroom and message tables. SDK-specific details are kept in the `metadata.ai` JSON value. This is an internal storage format, not a stable application API; do not build clients against it or expose it in message responses. It may contain tool arguments, results, and provider state. The `metadata` column is not encrypted by the message-encryption feature, so treat its contents accordingly.
+
+Use the AI SDK's conversation methods to continue a conversation. Use the approval routes to retrieve pending tool details; raw provider replay data is not part of the message resource.
 
 ## Conversation IDs
-The AI SDK uses string IDs (UUIDs) and may generate one before anything is stored, so the SDK's ID is kept in `metadata.ai.conversation_id` and used to find the chatroom.
+Pass the conversation ID returned by the AI SDK to continue that conversation. Le Chat maps it to the chatroom internally; application code does not need to read message metadata.
 
 You can also pass a plain chatroom ID to continue a chatroom that was **not** created by the AI SDK. The agent joins as a participant and replies in it:
 
@@ -99,19 +95,21 @@ The model receives the history visible to that agent participant: messages creat
 ## Agents answer chatroom messages
 Once an agent is a participant in a chatroom, it answers whenever a person posts there, not only when your code prompts it. A queued listener (`PromptAgentsOnMessageCreated`) runs on `MessageCreated`, continues the chatroom's conversation with each agent, and prompts it with the message. The reply is posted as the agent.
 
+- Shared chat files are sent as AI SDK attachments, including on file-only messages and in conversation history visible to both the agent and the requester. The provider receives their contents; supported formats and size limits depend on the provider and model. A failed request produces a generic message without exposing provider details.
 - The message that triggered the run is reused as the turn's user message, so it is not stored or shown to the model twice.
 - Agent replies, messages the AI SDK wrote and system notices never trigger an agent, so agents cannot loop.
-- When a tool is paused for approval, additional chat messages do not prompt the agent until the pending decision is resolved. The approval notice exposes the original paused AI metadata as `meta.approval_required.ai` and the normalized actions as `meta.approval_required.approvals`; consumers should submit decisions through the AI SDK's `Decisions` API.
+- When a tool is paused for approval, additional chat messages do not prompt the agent until the pending decision is resolved. The assistant message contains approval blocks and the batch status; authorized approvers can load the exact tool details and submit a complete decision batch through the [approval routes](/routing#approval-decisions). Raw provider replay data is not exposed in message resources.
 - If all queue attempts fail, Le Chat posts a generic system message asking the user to try again. Provider error details stay in the server logs.
 - Every agent in the chatroom currently answers every message. A per-participant option, such as only answering when tagged, is planned.
 
-To turn this off and only prompt agents from your own code:
+To keep the AI SDK integration but prompt agents only from your own code, disable automatic responses:
 
 ```php
 // config/chat.php
-'ai' => [
-    'enabled' => env('CHAT_AI_ENABLED', false),
-    'auto_respond' => false,
+'features' => [
+    Features::aiSdkIntegration([
+        'auto_respond' => false,
+    ]),
 ],
 ```
 
@@ -125,8 +123,6 @@ use Mmedia\LeChat\Models\ChatMessage;
 class SupportAgent implements Agent, Conversational, RespondsToChatMessages
 {
     use Promptable, RemembersConversations;
-
-    public function __construct(public User $actor) {}
 
     public static function forChatMessage(ChatMessage $message): static
     {
@@ -150,9 +146,9 @@ It is added the first time the agent is used in a chatroom. Change `display_name
 
 ## What your application must do
 - Install `laravel/ai` and run the Le Chat migrations (see [Installation](#installation)). If you published the Le Chat migrations earlier, publish again and add only the new ones.
-- Set `chat.ai.enabled` to `true`.
+- Enable the `Features::aiSdkIntegration()` feature in `config/chat.php` if it is not already enabled.
 - Use the `IsChatParticipant` trait on every model you pass to `forUser()`, `forParticipant()` or `continue(..., as:)`.
-- Run a queue worker. Auto-responses run in a queued listener, so with a sync queue the person's request waits for the model.
+- If `auto_respond` is enabled, run a queue worker. Auto-responses run in a queued listener, so with a sync queue the person's request waits for the model.
 - Implement `RespondsToChatMessages` on agents the container cannot construct on its own.
 - Don't call the AI SDK's `HasConversations` relation or `Laravel\Ai\Models\Conversation` for these conversations: they read the SDK's own tables. Query `Chatroom` instead.
 - Agents are shown in the chat like any participant. Give them a nicer `display_name` and `avatar_url` if your UI shows them.

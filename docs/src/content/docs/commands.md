@@ -21,20 +21,28 @@ The required arguments are positional:
 ## `le-chat:notify-users-of-recent-unread-messages`
 This command is used to notify users of recent unread messages in their chatrooms. It will send notifications to all participants in the chatrooms where they have unread messages.
 
-This is a useful command to run periodically, for example, via a cron job, to ensure that users are notified of any unread messages they may have missed.
+To send these notifications automatically, enable the optional daily notification feature. It is disabled by default, so installing the package does not start sending notifications.
 
 Optional arguments:
-- `--days`: The number of days to look back for unread messages. Default is today (0 days).
+- `--days`: The number of days to include in the look-back window. The default is `0`, which checks today.
 
-### Example usage in `routes/console.php`
-You can schedule this command to run periodically in your `routes/console.php` file:
+### Automatic notifications
+Add this feature to the existing `features` array in `config/chat.php`:
+
 ```php
-use Mmedia\LeChat\Commands\NotifyUsersOfRecentUnreadMessages;
+use Mmedia\LeChat\Features;
 
-Schedule::command(NotifyUsersOfRecentUnreadMessages::class, ['--days' => 1])
-    ->dailyAt('09:00')
-    ->description('Notify users of recent unread messages from the last day');
+return [
+    'features' => [
+        Features::dailyUnreadNotifications([
+            'at' => '09:00',
+            'days' => 1,
+        ]),
+    ],
+];
 ```
+
+The options default to `09:00` and one day. The command still requires `App\Models\User` to implement `ChatParticipantInterface`. Your application must run Laravel's scheduler; see [Configuration](/package-configuration).
 
 ## `le-chat:encrypt-messages`
 This command is used to encrypt all chat messages in the database. It will attempt to encrypt each message, and if the message is already encrypted, it will skip it.

@@ -5,6 +5,7 @@ namespace Mmedia\LeChat\Support;
 use Mmedia\LeChat\Http\Resources\MessageResource;
 use Mmedia\LeChat\Models\ChatMessage;
 
+/** @internal Keeps chat broadcasts within provider payload limits. */
 class BroadcastPayload
 {
     /** 10KB broadcaster limit minus headroom for the event envelope and JSON re-escaping. */
@@ -29,7 +30,7 @@ class BroadcastPayload
      */
     public static function fit(array $payload): array
     {
-        foreach (['metadata', 'message'] as $key) {
+        foreach (['metadata', 'files', 'blocks', 'message'] as $key) {
             if (self::size($payload) <= self::MAX_BYTES) {
                 break;
             }

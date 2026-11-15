@@ -2,44 +2,22 @@
 
 namespace Mmedia\LeChat;
 
-/**
- * Taken shamelessly from Laravel Fortify's Features class.
- *
- * This class is used to determine if certain features of the chat application are enabled.
- *
- * Usage:
- * - Check if a feature is enabled: Features::enabled(Features::routes());
- * - Check if a feature is enabled with a specific option: Features::optionEnabled(Features::routes(), 'some_option');
- */
+/** Configure and inspect Le Chat package features. */
 class Features
 {
-    /**
-     * Determine if the given feature is enabled.
-     *
-     * @return bool
-     */
-    public static function enabled(string $feature)
+    public static function enabled(string $feature): bool
     {
         return in_array($feature, config('chat.features', []), true);
     }
 
-    /**
-     * Determine if the feature is enabled and has a given option enabled.
-     *
-     * @return bool
-     */
-    public static function optionEnabled(string $feature, string $option)
+    public static function optionEnabled(string $feature, string $option): bool
     {
         return static::enabled($feature) &&
             config("chat-options.{$feature}.{$option}") === true;
     }
 
-    /**
-     * Enable the registration feature.
-     *
-     * @return string
-     */
-    public static function routes(array $options = [])
+    /** Enable Le Chat API routes and optionally configure their middleware, prefix, and controllers. */
+    public static function routes(array $options = []): string
     {
         if (! empty($options)) {
             config(['chat-options.routes' => $options]);
@@ -48,12 +26,28 @@ class Features
         return 'routes';
     }
 
-    /**
-     * Enable the encryption of messages at rest.
-     *
-     * @return string
-     */
-    public static function encryptMessagesAtRest(array $options = [])
+    /** Enable shared file uploads and downloads. */
+    public static function files(array $options = []): string
+    {
+        if (! empty($options)) {
+            config(['chat-options.files' => $options]);
+        }
+
+        return 'files';
+    }
+
+    /** Schedule daily notifications for recent unread messages. */
+    public static function dailyUnreadNotifications(array $options = []): string
+    {
+        if (! empty($options)) {
+            config(['chat-options.daily-unread-notifications' => $options]);
+        }
+
+        return 'daily-unread-notifications';
+    }
+
+    /** Enable encryption of message text and blocks at rest. */
+    public static function encryptMessagesAtRest(array $options = []): string
     {
         if (! empty($options)) {
             config(['chat-options.encrypt-messages-at-rest' => $options]);
@@ -63,12 +57,8 @@ class Features
         return 'encrypt-messages-at-rest';
     }
 
-    /**
-     * Enable Larevel AI SDK integration
-     *
-     * @return string
-     */
-    public static function aiSdkIntegration(array $options = [])
+    /** Enable integration with the Laravel AI SDK. */
+    public static function aiSdkIntegration(array $options = []): string
     {
         if (! empty($options)) {
             config(['chat-options.ai-sdk-integration' => $options]);

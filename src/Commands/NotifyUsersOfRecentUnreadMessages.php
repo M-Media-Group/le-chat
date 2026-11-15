@@ -11,7 +11,7 @@ class NotifyUsersOfRecentUnreadMessages extends Command
 {
     public $signature = 'le-chat:notify-users-of-recent-unread-messages {--days=0 : The number of days to check for unread messages, defaults to 0 for today}';
 
-    public $description = 'Send a message to a chatroom';
+    public $description = 'Send notifications for recent unread chat messages';
 
     public function handle(): int
     {
@@ -35,7 +35,7 @@ class NotifyUsersOfRecentUnreadMessages extends Command
         // Notify each user
         foreach ($users as $user) {
             $this->info("Notifying user ID: {$user->id}");
-            $user->notify(new DailyUnreadMessagesNotification);
+            $user->notify(new DailyUnreadMessagesNotification($days));
         }
 
         return self::SUCCESS;

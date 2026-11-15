@@ -45,9 +45,9 @@ All broadcasted events include a standardized data structure based on [Resources
 Pusher and Reverb reject payloads over roughly 10KB. To avoid a `Payload too large` error, Le Chat trims message payloads (both the message events and the `NewMessage` notification broadcast) that exceed 9000 bytes once JSON encoded:
 
 1. The `metadata` field is removed first.
-2. If the payload is still too large, the `message` field is removed as well.
+2. If necessary, `files`, `blocks`, and then `message` are removed in that order.
 
-All other fields (such as `id` and `chatroom_id`) are always kept, so clients can detect a trimmed payload by the missing key and fetch the full message with `GET /api/chatrooms/{chatroom}/messages/{message}` (see [Routing](/routing)). The limit and trimming are handled by `Mmedia\LeChat\Support\BroadcastPayload`.
+All other fields (such as `id` and `chatroom_id`) are always kept, so clients can detect a trimmed payload by the missing key and fetch the full message with `GET /api/messages/{message}` (see [Routing](/routing)). The route uses the prefix configured for Le Chat; `/api` is the default.
 
 ## Client side
 To listen to the broadcasted events, you can use Laravel Echo or any other WebSocket client that supports presence channels. Here is an example using Laravel Echo:

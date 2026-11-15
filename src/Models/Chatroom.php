@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Features;
+use Mmedia\LeChat\Support\MessageFiles;
 
 /**
  * @property int $id
@@ -42,6 +44,19 @@ final class Chatroom extends Model
     protected $casts = [
         'metadata' => 'array',
     ];
+
+    protected static function booted(): void
+    {
+        self::deleting(function (Chatroom $chatroom): void {
+            if ($chatroom->isForceDeleting() && Features::enabled(Features::files())) {
+                $chatroom->messages()->whereHas('files')->chunkById(100, function ($messages): void {
+                    foreach ($messages as $message) {
+                        $message->forceDelete();
+                    }
+                });
+            }
+        });
+    }
 
     /**
      * The messages exchanged in this chatroom
@@ -103,6 +118,8 @@ final class Chatroom extends Model
      */
     public function sendMessageAs(ChatParticipantInterface $participant, string $message, array $attributes = []): ChatMessage
     {
+        $files = $attributes['files'] ?? [];
+        unset($attributes['files']);
         $senderId = $participant instanceof ChatParticipant
             ? $participant->getKey()
             : $participant->asParticipantIn($this)->getKey();
@@ -114,6 +131,10 @@ final class Chatroom extends Model
             ->forceFill($attributes)
             ->setAttribute('message', $message);
 
+        if ($files !== []) {
+            return MessageFiles::send($chatMessage, $files);
+        }
+
         $chatMessage->save();
 
         return $chatMessage;
@@ -124,12 +145,18 @@ final class Chatroom extends Model
      */
     public function sendMessage(string $message, array $options = []): ChatMessage
     {
+        $files = $options['files'] ?? [];
+        unset($options['files']);
         $chatMessage = new ChatMessage([
             'sender_id' => null, // No sender, system message
             'chatroom_id' => $this->getKey(),
         ]);
         $chatMessage->setAttribute('message', $message);
         $chatMessage = $chatMessage->forceFill($options);
+
+        if ($files !== []) {
+            return MessageFiles::send($chatMessage, $files);
+        }
 
         $chatMessage->save();
 
@@ -398,7 +425,9 @@ final class Chatroom extends Model
                     ->orderByDesc('id')
                     ->limit(1),
             ])
-            ->with(['_latestVisibleMessage' => fn ($q) => $q->with('sender')])->afterQuery(function ($rooms) {
+            ->with(['_latestVisibleMessage' => fn ($q) => $q->with([
+                'sender', 'approvalBatch', ...(Features::enabled(Features::files()) ? ['files'] : []),
+            ])])->afterQuery(function ($rooms) {
                 $rooms->each(function (Chatroom $room) {
                     $room->setRelation('latestMessage', $room->_latestVisibleMessage);
                     $room->unsetRelation('_latestVisibleMessage');

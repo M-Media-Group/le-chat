@@ -15,6 +15,7 @@ use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Events\ParticipantCreated;
 use Mmedia\LeChat\Events\ParticipantDeleted;
 use Mmedia\LeChat\Events\ParticipantTyping;
+use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Traits\BelongsToChatroom;
 use Mmedia\LeChat\Traits\ConnectsToBroadcast;
 use Mmedia\LeChat\Traits\IsChatParticipant;
@@ -77,6 +78,19 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
     // Always load the participating model
     /** @var list<string> */
     protected $with = ['participatingModel'];
+
+    protected static function booted(): void
+    {
+        self::deleting(function (ChatParticipant $participant): void {
+            if ($participant->isForceDeleting() && Features::enabled(Features::files())) {
+                $participant->sentMessages()->whereHas('files')->chunkById(100, function ($messages): void {
+                    foreach ($messages as $message) {
+                        $message->forceDelete();
+                    }
+                });
+            }
+        });
+    }
 
     /**
      * The messages sent by this participant
@@ -237,7 +251,7 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
     {
         return CastsAttribute::make(
             get: fn () => $this->getRawOriginal('display_name') ?? $this->getDisplayName()
-        )->shouldCache();
+        );
     }
 
     /**
@@ -249,7 +263,7 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
     {
         return CastsAttribute::make(
             get: fn () => $this->getRawOriginal('avatar_url') ?? $this->getAvatarUrl()
-        )->shouldCache();
+        );
     }
 
     /**

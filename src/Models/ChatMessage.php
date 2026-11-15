@@ -5,18 +5,22 @@ namespace Mmedia\LeChat\Models;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Contracts\Encryption\EncryptException;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\ArrayObject as EloquentArrayObject;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\Events\MessageUpdated;
 use Mmedia\LeChat\Features;
+use Mmedia\LeChat\Support\MessageBlocks;
 use Mmedia\LeChat\Traits\BelongsToChatroom;
 use Mmedia\LeChat\Traits\OverwriteDeletes;
 
@@ -25,12 +29,17 @@ use Mmedia\LeChat\Traits\OverwriteDeletes;
  * @property int|null $sender_id
  * @property int $chatroom_id
  * @property int|null $reply_to_id
- * @property AsArrayObject|null $metadata
+ * @property EloquentArrayObject|null $metadata
+ * @property list<array{schema_version: 1, type: 'section', block_id: string, text: string}|array{schema_version: 1, type: 'actions', block_id: string, elements: list<array{type: 'button', action_id: string, text: string}>}>|null $blocks
+ * @property int $version
+ * @property Carbon|null $edited_at
  * @property Carbon|null $deleted_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read ChatParticipant|null $sender
  * @property-read Collection<int, ChatMessage> $replies
+ * @property-read Collection<int, ChatFile> $files
+ * @property-read ChatApprovalBatch|null $approvalBatch
  * @property-read ChatMessage|null $parentMessage
  * @property-read Chatroom|null $chatroom
  */
@@ -48,11 +57,14 @@ final class ChatMessage extends Model
         'message',
         'reply_to_id',
         'metadata',
+        'blocks',
     ];
 
     /** @var array<string, string> */
     protected $casts = [
         'metadata' => AsArrayObject::class,
+        'version' => 'integer',
+        'edited_at' => 'datetime',
     ];
 
     /**
@@ -62,6 +74,7 @@ final class ChatMessage extends Model
      */
     protected $deletable = [
         'message' => null,
+        'blocks' => null,
     ];
 
     // Events
@@ -70,6 +83,73 @@ final class ChatMessage extends Model
         'created' => MessageCreated::class,
         'updated' => MessageUpdated::class,
     ];
+
+    private bool $createdEventDeferred = false;
+
+    public function deferCreatedEvent(): void
+    {
+        $this->createdEventDeferred = true;
+    }
+
+    protected function fireCustomModelEvent($event, $method): mixed
+    {
+        if ($event === 'created' && $this->createdEventDeferred) {
+            return null;
+        }
+
+        return parent::fireCustomModelEvent($event, $method);
+    }
+
+    protected static function booted(): void
+    {
+        self::saving(function (ChatMessage $message): void {
+            if ($message->isDirty('blocks') && blank($message->message) && $message->blocks !== null) {
+                $message->message = MessageBlocks::fallback($message->blocks);
+            }
+        });
+
+        self::deleting(function (ChatMessage $message): void {
+            if (Features::enabled(Features::files())) {
+                $files = $message->files()->orderBy('chat_files.id')->lockForUpdate()->get();
+                $message->files()->detach();
+                foreach ($files as $file) {
+                    if (! $file->messages()->exists()) {
+                        $file->update(['expires_at' => now()->addHours(config('chat-options.files.unshared_ttl_hours', 24))]);
+                    }
+                }
+            }
+            $batches = ChatApprovalBatch::query()->where('status', 'pending')
+                ->where(fn ($query) => $query->where('requester_message_id', $message->getKey())->orWhere('assistant_message_id', $message->getKey()))
+                ->get();
+            foreach ($batches as $batch) {
+                $updated = ChatApprovalBatch::query()->whereKey($batch->id)->where('status', 'pending')
+                    ->update(['status' => 'cancelled', 'failure_reason' => 'The requester or assistant message was deleted.']);
+                if ($updated !== 0 && $batch->assistant_message_id !== $message->getKey() && ($assistant = ChatMessage::find($batch->assistant_message_id)) !== null) {
+                    $assistant->load('approvalBatch');
+                    $assistant->getConnection()->afterCommit(fn () => MessageUpdated::dispatch($assistant));
+                }
+            }
+            $message->unsetRelation('files');
+            $message->setAttribute('blocks', null);
+        });
+    }
+
+    /** @return BelongsToMany<ChatFile, $this> */
+    public function files(): BelongsToMany
+    {
+        return $this->belongsToMany(ChatFile::class, 'chat_message_files')->withPivot('position')->orderByPivot('position');
+    }
+
+    /** @return HasOne<ChatApprovalBatch, $this> */
+    public function approvalBatch(): HasOne
+    {
+        return $this->hasOne(ChatApprovalBatch::class, 'assistant_message_id')->latestOfMany('generation');
+    }
+
+    public function delete(): ?bool
+    {
+        return $this->getConnection()->transaction(fn () => parent::delete());
+    }
 
     /**
      * Removes the global scope for soft deletes.
@@ -122,6 +202,44 @@ final class ChatMessage extends Model
         return $participant->replyTo($this, $content, $messageConfiguration);
     }
 
+    public function updateContent(int $expectedVersion, array $attributes): bool
+    {
+        $attributes = array_intersect_key($attributes, array_flip(['message', 'blocks']));
+        if ($attributes === []) {
+            throw new \InvalidArgumentException('Message content is required.');
+        }
+
+        $this->forceFill($attributes);
+        if (array_key_exists('blocks', $attributes) && $attributes['blocks'] !== null && blank($attributes['message'] ?? null)) {
+            $this->message = MessageBlocks::fallback($this->blocks);
+        }
+
+        $now = $this->freshTimestamp();
+        $stored = $this->getAttributes();
+        $updates = array_intersect_key($stored, $attributes);
+        if (array_key_exists('blocks', $attributes) && ! array_key_exists('message', $attributes)) {
+            $updates['message'] = $stored['message'];
+        }
+        $updates['version'] = $expectedVersion + 1;
+        $updates['edited_at'] = $this->fromDateTime($now);
+        $updates['updated_at'] = $this->fromDateTime($now);
+
+        $updated = $this->getConnection()->table($this->getTable())
+            ->where('id', $this->getKey())
+            ->where('version', $expectedVersion)
+            ->whereNull('deleted_at')
+            ->update($updates);
+
+        if ($updated === 0) {
+            return false;
+        }
+
+        $this->refresh();
+        $this->getConnection()->afterCommit(fn () => MessageUpdated::dispatch($this));
+
+        return true;
+    }
+
     private static ?array $messageMode = null;
 
     public static function flushMessageMode(): void // for tests that toggle the flags
@@ -141,6 +259,37 @@ final class ChatMessage extends Model
         }
 
         return self::$messageMode;
+    }
+
+    protected function blocks(): CastsAttribute
+    {
+        return CastsAttribute::make(
+            get: static function (?string $value): ?array {
+                if ($value === null) {
+                    return null;
+                }
+
+                $decoded = json_decode($value, true, flags: JSON_THROW_ON_ERROR);
+                if (is_string($decoded)) {
+                    return decrypt($decoded);
+                }
+
+                if (self::messageMode()['encrypt'] && ! self::messageMode()['soft']) {
+                    throw new DecryptException('Message blocks are not encrypted.');
+                }
+
+                return $decoded;
+            },
+            set: static function (?array $blocks): ?string {
+                if ($blocks === null) {
+                    return null;
+                }
+
+                $blocks = MessageBlocks::validate($blocks);
+
+                return json_encode(self::messageMode()['encrypt'] ? encrypt($blocks) : $blocks, JSON_THROW_ON_ERROR);
+            },
+        );
     }
 
     /**
@@ -196,13 +345,18 @@ final class ChatMessage extends Model
 
     /**
      * Scope where can be read by a given participant - e.g. the message was posted after the participant joined the chatroom.
+     *
+     * @param  Builder<ChatMessage>  $query
+     * @return Builder<ChatMessage>
      */
     public function scopeVisibleTo(
-        $query,
+        Builder $query,
         ChatParticipantInterface $participant,
         bool $includeLeftChatrooms = true,
-        bool $includeBeforeJoined = false
-    ) {
+        ?bool $includeBeforeJoined = null
+    ): Builder {
+        $includeBeforeJoined ??= config('chat.can_see_messages_before_joined', false);
+
         return $query->whereHas(
             'chatroom',
             function ($query) use ($participant, $includeLeftChatrooms) {

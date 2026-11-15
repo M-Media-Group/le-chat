@@ -7,9 +7,11 @@ description: Documentation for Le Chat routing.
 Le Chat provides a powerful set of API routes for managing chatrooms and sending messages. These routes are automatically registered by the package.
 
 ## Configuration
-Routes are enabled by default. You can customize the middleware and prefix used for the API routes in `config/chat.php`:
+Routes are enabled by default. You can customize the middleware, URL prefix, and controllers used for the API routes in `config/chat.php`. All route examples below use the default `api` prefix; replace it with your configured prefix (for example, `api/chat`).
 
 ```php
+use Mmedia\LeChat\Features;
+
 'features' => [
     Features::routes([
         'middleware' =>  ['api', 'auth:sanctum'],
@@ -18,8 +20,17 @@ Routes are enabled by default. You can customize the middleware and prefix used 
 ],
 ```
 
+To customize route behavior, set `controller` or `file_controller` to your own controller class and extend the corresponding package controller. The package controllers are used by default.
+
 ## Available Routes
 Le Chat provides a set of API routes that you can use to interact with the chat system.
+
+### Staged file uploads
+These routes are available only when `Features::files()` is enabled.
+
+`POST /api/files` creates a pending upload using `name`, `mime_type`, byte `size`, and a lowercase SHA-256 checksum in `sha256`. Send the bytes to the returned `upload_url` using `upload_method`. For a private S3 disk, submit `upload_fields` and the file as multipart form data; configure your bucket CORS policy for the browser origin. For the server fallback, send the file as `file` to `POST /api/files/{file}/content`. Then call `PATCH /api/files/{file}` to finalize it.
+
+The staged upload flow verifies the stored bytes against the declared size, checksum, and MIME type before marking a file ready. Ready means verified, not malware-scanned. Only its uploader can complete or share it.
 
 ### GET /api/chatrooms
 Retrieves a list of all chatrooms that the authenticated user is a participant in or was a participant in previously. This route is useful for displaying a list of chatrooms in your application. It includes the latest_message visible to the user, the participants, and the unread messages count.
@@ -83,7 +94,7 @@ Creates a new chatroom with the authenticated user as a participant.
 ```json
 {
     "name": "New Chatroom",
-    "description": "This is a new chatroom for discussion.",
+    "description": "This is a new chatroom for discussion."
 }
 ```
 
@@ -108,7 +119,7 @@ Retrieves a specific chatroom by its ID. This route is useful for displaying the
 ```
 
 ### PUT|PATCH /api/chatrooms/{chatroom}
-Updates the specified chatroom in storage. Only participants that are an 'admin' of the chatroom can update it. The request body should contain the fields you want to update, such as `name` or `description`.
+Updates the specified chatroom. Only an admin participant can update it. The request must include `name`; `description` is optional.
 
 ```json
 {
@@ -120,18 +131,57 @@ Updates the specified chatroom in storage. Only participants that are an 'admin'
 ### POST /api/chatrooms/{chatroom}/mark-as-read
 Marks a chatroom as read for the authenticated user.
 
-### GET /api/chatrooms/{chatroom}/messages/{message}
-Retrieves a single message of a chatroom, formatted with the `MessageResource`. The authenticated user must be or have been a participant of the chatroom, and the message must be visible to them. Use this to load the full message when a [broadcasted payload was trimmed](/broadcasting#broadcasted-data).
+### GET /api/messages/{message}
+Retrieves a single message, formatted with the `MessageResource`. The message must be visible to the authenticated user. Use this to load the full message when a [broadcasted payload was trimmed](/broadcasting#broadcasted-data).
 
 ### POST /api/messages
 Sends a new message in a chatroom or to a chat participant. The Chatroom or ChatParticipant must exist, and the authenticated user must be a participant in the chatroom or chat with the participant.
 
 The required parameters are:
-- `to_entity_type`: either `chatroom` or `chat_participant`, depending on whether you want to send a message to a chatroom or a specific participant.
-- `to_entity_id`: The ID of the chatroom or chat participant to send the message to.
-- `message`: The content of the message to be sent.
+- `to_entity_type`: `chatroom` or `chat_participant`.
+- `to_entity_id`: The ID of the target chatroom or participant.
+- `message`: Text to send. It may be empty or omitted when you send `blocks`, or when files are enabled and you send `files`.
 
-Returns the created message with a `201` status code and the message data formatted using the `MessageResource`.
+Optional parameters:
+- `blocks`: A list of message blocks. See [Message blocks](/messages#message-blocks) for the supported format.
+- `files`: A list of ready file IDs owned by the sender. Available only when `Features::files()` is enabled; upload files first as described below.
+
+Example request:
+
+```json
+{
+    "to_entity_type": "chatroom",
+    "to_entity_id": 11,
+    "message": "Hello",
+    "files": [42]
+}
+```
+
+The route returns the created message with a `201` status code. File entries contain `id`, `name`, `mime_type`, `size`, and an authenticated download `url`; storage paths are not returned.
+
+### PATCH /api/messages/{message}
+Edits a message with its current `version` and a `message` or `blocks`. The authenticated user must be an active participant in the message's chatroom, and the `le-chat.update-message` gate must authorize the edit. A stale version returns 409.
+
+### GET /api/files/{file}
+Downloads a ready file only when the authenticated participant can see one of its non-deleted message shares. Files are streamed as downloads, not inline content.
+
+### Approval decisions
+`GET /api/approvals/{batch}` returns pending tool details only to an authorized approver. POST to the same URL with an `idempotency_key` and a `decisions` object keyed by every pending tool call ID. Each decision has an `action` of `approve` or `reject`; a rejection can include a `result` for the AI agent. Every pending call needs a decision.
+
+```json
+{
+    "idempotency_key": "decision-attempt-1",
+    "decisions": {
+        "call_abc": { "action": "approve" },
+        "call_def": { "action": "reject", "result": "The user declined this change." }
+    }
+}
+```
+
+Repeating the same request returns the recorded status; a conflicting decision returns 409. If the conversation is busy, the response remains `pending`; retry with the same idempotency key.
+
+### Block interactions
+`POST /api/interactions` accepts `message_id`, `block_id`, `action_id`, and optional JSON `value`. The active participant must be authorized by the application-defined `le-chat.interact-with-message` gate. The endpoint dispatches `BlockInteracted` after the request transaction commits; the application handles the action. Approval buttons use the approval decision route instead. A successful interaction returns `204 No Content`.
 
 ## Missing routes
 Le Chat does not implement routes for adding or removing participants from chatrooms on purpose, as this will highly depend on your application logic and requirements. You can implement these routes in your application as needed.

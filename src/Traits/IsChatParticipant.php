@@ -177,11 +177,12 @@ trait IsChatParticipant
     }
 
     /**
-     * Loads all messages for the given model via the participant relationship. Filtered to only messages created after column created_at in the pivot table.
+     * Query messages visible to this participant, ordered newest first.
      *
+     * @param  bool|null  $includeBeforeJoined  Null uses `chat.can_see_messages_before_joined`; true includes pre-join messages, false excludes them.
      * @return Builder|EloquentBuilder<ChatMessage>
      */
-    private function getMessagesQuery(bool $includeBeforeJoined = false): Builder|EloquentBuilder
+    private function getMessagesQuery(?bool $includeBeforeJoined = null): Builder|EloquentBuilder
     {
 
         // Start building a query on the ChatMessage model
@@ -195,9 +196,10 @@ trait IsChatParticipant
     /**
      * Get the messages that are visible to this participant.
      *
+     * @param  bool|null  $includeBeforeJoined  Null uses `chat.can_see_messages_before_joined`; true includes pre-join messages, false excludes them.
      * @return Builder|EloquentBuilder<ChatMessage>
      */
-    public function visibleMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false): Builder|EloquentBuilder
+    public function visibleMessages(?int $limit = null, ?int $offset = null, ?bool $includeBeforeJoined = null): Builder|EloquentBuilder
     {
         // Start building a query on the ChatMessage model
         $query = $this->getMessagesQuery($includeBeforeJoined);
@@ -217,11 +219,12 @@ trait IsChatParticipant
     }
 
     /**
-     * Loads all messages for the given model via the participant relationship. Filtered to only messages created after column created_at in the pivot table.
+     * Load messages visible to this participant, optionally with their replies or parent messages.
      *
+     * @param  bool|null  $includeBeforeJoined  Null uses `chat.can_see_messages_before_joined`; true includes pre-join messages, false excludes them.
      * @return Collection<int, ChatMessage>
      */
-    public function getMessages(?int $limit = null, ?int $offset = null, bool $includeBeforeJoined = false, bool $withReplies = false, bool $withParentMessage = false): Collection
+    public function getMessages(?int $limit = null, ?int $offset = null, ?bool $includeBeforeJoined = null, bool $withReplies = false, bool $withParentMessage = false): Collection
     {
         // Get the messages using the visibleMessages method
         return $this->visibleMessages($limit, $offset, $includeBeforeJoined)
@@ -316,8 +319,7 @@ trait IsChatParticipant
      */
     private function canSendMessageToChatRoom(Chatroom $chatRoom): bool
     {
-        // Check if the current model is a participant in the chat room
-        return $this->isParticipantIn($chatRoom);
+        return $chatRoom->hasParticipant($this);
     }
 
     /**
@@ -333,11 +335,11 @@ trait IsChatParticipant
             throw new \Exception('Cannot send a message to the chat room because the current model is not an active participant in the chat room. If the model is deleted, you need to create a new chatroom.');
         }
 
-        // Create a new message in the chat room
-        return $chatRoom->messages()->create([
-            'sender_id' => $this->asParticipantIn($chatRoom, true)->getKey(),
-            'message' => $message,
-        ] + $messageConfiguration)->fresh();
+        $allowed = array_flip((new ChatMessage)->getFillable());
+        unset($allowed['sender_id'], $allowed['chatroom_id'], $allowed['message']);
+        $configuration = array_intersect_key($messageConfiguration, $allowed + ['files' => true]);
+
+        return $chatRoom->sendMessageAs($this->asParticipantIn($chatRoom, true), $message, $configuration)->fresh();
     }
 
     private function sendTypingStatusToChatRoom(Chatroom $chatRoom, bool $isTyping): void
@@ -382,10 +384,11 @@ trait IsChatParticipant
             throw new \Exception('Cannot send a message to the chat room because the current model is not an active participant in the chat room. If the model is deleted, you need to create a new chatroom.');
         }
 
-        // Create a new reply message in the same chat room as the original message
-        return $message->chatroom->messages()->create(array_merge($messageConfiguration, [
-            'sender_id' => $this->asParticipantIn($message->chatroom, true)->getKey(),
-            'message' => $replyMessage,
+        $allowed = array_flip((new ChatMessage)->getFillable());
+        unset($allowed['sender_id'], $allowed['chatroom_id'], $allowed['message']);
+        $configuration = array_intersect_key($messageConfiguration, $allowed + ['files' => true]);
+
+        return $message->chatroom->sendMessageAs($this->asParticipantIn($message->chatroom, true), $replyMessage, array_merge($configuration, [
             'reply_to_id' => $message->getKey(),
         ]))->fresh();
     }
@@ -570,18 +573,16 @@ trait IsChatParticipant
             $messagesQuery->whereDate("{$messagesTable}.created_at", '>=', now()->subDays($daysAgo));
         }
 
-        $messagesQuery->when(! $includeSystemMessages, function ($q) use ($messagesTable) {
-            // Exclude system messages
-            $q->whereNotNull("{$messagesTable}.sender_id");
-        });
-
-        // 1. Participant must not be the sender of the message.
-        // The sender_id on a chat_message links to a chat_participants.id.
-        $messagesQuery->whereColumn(
-            "{$messagesTable}.sender_id",
-            '!=',
-            "{$participantsTable}.id"
-        );
+        // A NULL sender identifies a system message and must be allowed explicitly because SQL comparisons with NULL do not match.
+        if ($includeSystemMessages) {
+            $messagesQuery->where(function ($query) use ($messagesTable, $participantsTable) {
+                $query->whereNull("{$messagesTable}.sender_id")
+                    ->orWhereColumn("{$messagesTable}.sender_id", '!=', "{$participantsTable}.id");
+            });
+        } else {
+            $messagesQuery->whereNotNull("{$messagesTable}.sender_id")
+                ->whereColumn("{$messagesTable}.sender_id", '!=', "{$participantsTable}.id");
+        }
 
         // 2. Message must have been created after the participant joined the room.
         // This ensures the participant could have seen the message.

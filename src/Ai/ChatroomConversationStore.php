@@ -34,6 +34,8 @@ use Throwable;
  *
  * Lookups (room, agent sender ids, history participant) are memoised on the instance. Bind the store
  * with `scoped()` so long-lived workers (Octane, queues) start every request or job with empty caches.
+ *
+ * @internal Persistence adapter registered by the AI SDK integration feature.
  */
 class ChatroomConversationStore extends DatabaseConversationStore
 {
@@ -206,13 +208,29 @@ class ChatroomConversationStore extends DatabaseConversationStore
         }
 
         $agentIds = $this->agentSenderIds($room);
+        $loadFiles = Features::enabled(Features::files()) && $this->historyParticipant($room) !== null;
 
-        $records = $this->messageQuery($room)
+        $history = $this->messageQuery($room)
             ->when($this->isAnswering($room), fn ($query) => $query->whereKeyNot($this->pendingMessage->getKey()))
-            ->with('sender')
+            ->with(['sender', ...($loadFiles ? ['files'] : [])])
             ->orderByDesc('id')
             ->limit($limit)
-            ->get()
+            ->get();
+
+        if ($loadFiles && $this->isAnswering($room)) {
+            $requester = $this->pendingMessage->sender;
+            $visibleIds = $requester === null ? [] : ChatMessage::query()
+                ->visibleTo($requester)->withoutTrashed()->whereKey($history->modelKeys())->pluck('id')->all();
+            $visibleIds = array_fill_keys($visibleIds, true);
+
+            foreach ($history as $message) {
+                if (! isset($visibleIds[$message->getKey()])) {
+                    $message->setRelation('files', $message->files->take(0));
+                }
+            }
+        }
+
+        $records = $history
             ->reverse()
             ->values()
             ->map(fn (ChatMessage $message) => $this->recordFrom($message, $agentIds));
@@ -306,10 +324,18 @@ class ChatroomConversationStore extends DatabaseConversationStore
     {
         $message = parent::userMessageFrom($record);
 
+        if ($record->model->deleted_at === null && $record->model->relationLoaded('files') && $record->model->files->isNotEmpty()) {
+            $attachments = $message instanceof UserMessage ? $message->attachments->all() : [];
+            $message = new UserMessage($message->content ?? '', [
+                ...$attachments,
+                ...ChatAttachments::fromFiles($record->model->files),
+            ]);
+        }
+
         if ($record->model->sender_id) {
             $message->content = RequesterEnvelope::earlier(
                 $record->model->sender->display_name ?? '',
-                $message->content,
+                $message->content ?? '',
             );
         }
 
@@ -566,7 +592,7 @@ class ChatroomConversationStore extends DatabaseConversationStore
         return $record->id !== $newestAssistantId
             && $record->status === MessageStatus::Completed->value
             && in_array($this->activeAgentClass, config(
-                'chat-options'.Features::aiSdkIntegration().'.collapse_tool_history',
+                'chat-options.'.Features::aiSdkIntegration().'.collapse_tool_history',
                 []
             ), true);
     }

@@ -16,7 +16,7 @@ ChatMessage::get();
 ### Message visibility
 Not all messages should be visible to all participants. Le Chat automatically handles message visibility based on the participants in a chatroom.
 
-Messages are visible to participants who are part of the chatroom. Only messages from between the time a participant joins the chatroom and potentially leaves it are visible to them. This means that if a participant joins a chatroom after messages have been sent, they will not see those previous messages.
+By default, participants can see messages sent at or after joining a chatroom and at or before leaving it. Former participants retain access to that history. Set `chat.can_see_messages_before_joined` to `true` to also allow earlier messages and their files; messages sent after leaving remain hidden. This setting applies to the message APIs and the participant trait's `visibleMessages()` and `getMessages()` methods.
 
 ### Getting messages for a participant
 This will return all messages in the chat application. Of course, you most often need to get messages for a specific participant, which you can do by using the `getMessages` method on the participant model.
@@ -30,6 +30,7 @@ This will return all messages that are visible to the specified participant, e.g
 ```php
 $messages = ChatMessage::visibleTo($participant, includeBeforeJoined: true)->get();
 ```
+Passing `includeBeforeJoined: false` explicitly excludes earlier history even when the application setting is enabled. Omitting the argument, or passing `null`, inherits the application setting.
 Sometimes, you may want to NOT get messages that are in chatrooms that the participant has left. You can do this by passing `false` as the second parameter:
 
 ```php
@@ -70,6 +71,63 @@ To reply to a message, you can use the `replyAs` method on the `ChatMessage` mod
 ```php
 $message->replyAs($participant, $replyContent);
 ```
+
+## Message blocks
+Messages may contain a versioned list of section and action blocks:
+
+```php
+$message = $sender->sendMessageTo($chatroom, '', messageConfiguration: [
+    'blocks' => [
+        ['schema_version' => 1, 'type' => 'section', 'block_id' => 'review', 'text' => 'Review this request'],
+        ['schema_version' => 1, 'type' => 'actions', 'block_id' => 'actions', 'elements' => [
+            ['type' => 'button', 'action_id' => 'approve', 'text' => 'Approve'],
+        ]],
+    ],
+]);
+```
+
+Block IDs must be unique within a message and action IDs within a block. Unsupported types and schema versions are rejected. A message may contain at most 50 blocks, each text field may contain at most 3,000 characters, and the encoded block payload may not exceed 64 KiB. When the message text is empty, the section text and button labels form its fallback. When message encryption is enabled, both the blocks and the fallback text are encrypted at rest.
+
+Approval action blocks include a response-only `state` when the associated approval batch is loaded. It is not part of the stored block schema and must not be sent back in an edit.
+
+Message edits use the current `version` to prevent concurrent changes from overwriting one another. The HTTP edit route requires an active participant and an application-defined `le-chat.update-message` gate; without that gate, edits are denied. A stale version returns a conflict. PHP callers must authorize the actor before calling `updateContent`.
+
+## Sending files
+Enable `Features::files()` in the [package configuration](/package-configuration#files) before using shared files.
+
+Shared files are uploaded independently and referenced by file ID when sending messages. Only the uploader may share a file into a chatroom they can send to. Deleting a message removes its share, while other shares remain accessible. A file is downloadable only through a visible, non-deleted message share.
+
+File visibility uses the same message scope, history setting, and inclusive join/leave boundaries. The upload time and uploader's identity do not determine who can download a shared file. Any visible share grants access; hidden or deleted shares do not. Former participants may still download files shared in messages they can see.
+
+PHP callers can query accessible files with the same visibility overrides:
+
+```php
+use Mmedia\LeChat\Models\ChatFile;
+
+$files = ChatFile::visibleTo($participant)->get();
+$files = ChatFile::visibleTo($participant, includeBeforeJoined: true)->get();
+$files = ChatFile::visibleTo($participant, includeLeftChatrooms: false)->get();
+```
+
+These overrides are server-side query options, not client-controlled download parameters. Consumer apps customizing message history must apply the same options to their file queries.
+
+Pass ready file IDs in the message configuration when sending a message or reply:
+
+```php
+$message = $sender->sendMessageTo($chatroom, 'See attached', messageConfiguration: [
+    'files' => [$file->id],
+]);
+
+$reply = $message->replyAs($sender, '', [
+    'files' => [$file->id],
+]);
+```
+
+An empty message is allowed when files are shared. Its text remains empty, and notifications use a generic attachment preview. The `files` option is available to `Chatroom::sendMessageAs()`; system messages may share ownerless files. Access file details through `$message->files`.
+
+Files are stored on a private disk. The download endpoint checks the same membership period as message visibility. Bulk database deletes and database cascades bypass model events and do not update file retention; delete messages individually when cleanup is required. Message-text encryption does not encrypt file bytes.
+
+File storage is not transactional. Configure storage limits and privacy as described in [Configuration](/package-configuration#files).
 ### Retrieving replies to a message
 You can retrieve all 1-level deep replies to a given message using the `replies` relationship on the `ChatMessage` model:
 

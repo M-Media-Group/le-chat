@@ -6,6 +6,9 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Laravel\Ai\Approvals\PendingApproval;
 use Laravel\Ai\Contracts\ConversationStore;
+use Laravel\Ai\Responses\AgentResponse;
+use Mmedia\LeChat\Ai\ApprovalBatches;
+use Mmedia\LeChat\Ai\ChatAttachments;
 use Mmedia\LeChat\Ai\ChatroomConversationStore;
 use Mmedia\LeChat\Ai\RequesterEnvelope;
 use Mmedia\LeChat\Contracts\RespondsToChatMessages;
@@ -29,6 +32,7 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
     {
         return [
             (new WithoutOverlapping('le-chat-ai:'.$event->message->chatroom_id))
+                ->shared()
                 ->releaseAfter(30)
                 ->expireAfter(600),
         ];
@@ -44,11 +48,11 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
 
     public function handle(MessageCreated $event): void
     {
-        $message = $event->message;
+        $message = $event->message->fresh();
 
         $store = $this->conversationStore();
 
-        if (! $store instanceof ChatroomConversationStore || ! $this->isFromPerson($message)) {
+        if ($message === null || ! $store instanceof ChatroomConversationStore || ! $this->isFromPerson($message)) {
             return;
         }
 
@@ -83,6 +87,10 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
             ->filter(fn (ChatParticipant $agent) => $this->shouldRespond($agent, $message));
 
         foreach ($agents as $participant) {
+            if (! ChatMessage::query()->visibleTo($participant)->withoutTrashed()->whereKey($message->getKey())->exists()) {
+                continue;
+            }
+
             $agentClass = substr($participant->reference_id, strlen(ChatroomConversationStore::AGENT_REFERENCE_PREFIX));
 
             if (! class_exists($agentClass)) {
@@ -102,15 +110,34 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
 
                 try {
                     $prompt = [
-                        RequesterEnvelope::current($message->sender->display_name ?? '', $message->message),
+                        RequesterEnvelope::current($message->sender->display_name ?? '', $message->message ?? ''),
                         ...config('chat-options.'.Features::aiSdkIntegration().'.prompt_config', []),
                     ];
+
+                    if (Features::enabled(Features::files())) {
+                        $attachments = ChatAttachments::fromFiles($message->files()->get());
+                        if ($attachments !== []) {
+                            if (array_key_exists(1, $prompt)) {
+                                $prompt[1] = [...$prompt[1], ...$attachments];
+                            } else {
+                                $prompt['attachments'] = [...($prompt['attachments'] ?? []), ...$attachments];
+                            }
+                        }
+                    }
 
                     if ($agentIsConversational) {
                         $agent->continue($conversationId, as: $message->sender?->participatingModel);
                     }
 
                     $response = $agent->prompt(...$prompt);
+
+                    if ($response instanceof AgentResponse && $response->hasPendingApprovals()) {
+                        if (! $agentIsConversational || $response->assistantMessageId === null) {
+                            throw new \LogicException('Tool approvals require a persisted conversational agent.');
+                        }
+                        $paused = $message->chatroom->messages()->findOrFail($response->assistantMessageId);
+                        app(ApprovalBatches::class)->create($message, $paused);
+                    }
 
                     if (! $agentIsConversational) {
                         $participant->sendMessage($response, ['metadata' => ['ai' => [
@@ -136,7 +163,15 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
 
     public function failed(MessageCreated $event, Throwable $exception): void
     {
-        $event->message->chatroom->sendMessage("Sorry, I couldn't respond just now. Please try again shortly.");
+        $message = $event->message;
+        $hasFiles = Features::enabled(Features::files()) && (
+            $message->files()->exists()
+            || ($message->sender !== null && $message->chatroom->messages()
+                ->visibleTo($message->sender)->withoutTrashed()->whereHas('files')->exists())
+        );
+        $message->chatroom->sendMessage($hasFiles
+            ? "Sorry, I couldn't process that message or its attachments. Please try again."
+            : "Sorry, I couldn't respond just now. Please try again shortly.");
     }
 
     /**
@@ -152,7 +187,11 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
      */
     protected function isFromPerson(ChatMessage $message): bool
     {
-        if ($message->sender_id === null || $message->deleted_at !== null || blank($message->message)) {
+        if ($message->sender_id === null || $message->deleted_at !== null) {
+            return false;
+        }
+
+        if (blank($message->message) && (! Features::enabled(Features::files()) || ! $message->files()->exists())) {
             return false;
         }
 

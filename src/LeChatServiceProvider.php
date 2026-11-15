@@ -2,13 +2,18 @@
 
 namespace Mmedia\LeChat;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Laravel\Ai\Contracts\ConversationStore;
 use Mmedia\LeChat\Ai\ChatroomConversationStore;
+use Mmedia\LeChat\Ai\RequesterApprovalPolicy;
 use Mmedia\LeChat\Commands\DecryptMessages;
 use Mmedia\LeChat\Commands\DeleteMessages;
 use Mmedia\LeChat\Commands\EncryptMessages;
+use Mmedia\LeChat\Commands\ExpireApprovals;
 use Mmedia\LeChat\Commands\LeChatCommand;
 use Mmedia\LeChat\Commands\NotifyUsersOfRecentUnreadMessages;
+use Mmedia\LeChat\Commands\PruneFiles;
+use Mmedia\LeChat\Contracts\ApprovalPolicy;
 use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\Events\ParticipantCreated;
 use Mmedia\LeChat\Events\ParticipantDeleted;
@@ -34,6 +39,7 @@ class LeChatServiceProvider extends PackageServiceProvider
             ->hasRoutes('channels')
             ->hasCommand(LeChatCommand::class)
             ->hasCommand(EncryptMessages::class)
+            ->hasCommand(ExpireApprovals::class)
             ->hasCommand(DecryptMessages::class)
             ->hasCommand(DeleteMessages::class)
             ->hasCommand(NotifyUsersOfRecentUnreadMessages::class);
@@ -42,6 +48,8 @@ class LeChatServiceProvider extends PackageServiceProvider
     // Package config is merged only after configurePackage(), so features can't be read there
     public function packageRegistered(): void
     {
+        $this->app->bindIf(ApprovalPolicy::class, RequesterApprovalPolicy::class);
+
         if (Features::enabled(Features::routes())) {
             $this->package->hasRoute('api');
         }
@@ -50,6 +58,24 @@ class LeChatServiceProvider extends PackageServiceProvider
     // The boot
     public function bootingPackage(): void
     {
+        if (Features::enabled(Features::files())) {
+            $this->package->hasCommand(PruneFiles::class);
+        }
+
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+            if (Features::enabled(Features::aiSdkIntegration()) && interface_exists(ConversationStore::class)) {
+                $schedule->command(ExpireApprovals::class)->everyMinute()->withoutOverlapping(60);
+            }
+            if (Features::enabled(Features::files())) {
+                $schedule->command(PruneFiles::class)->everyTenMinutes()->withoutOverlapping(60);
+            }
+            if (Features::enabled(Features::dailyUnreadNotifications())) {
+                $schedule->command(NotifyUsersOfRecentUnreadMessages::class, [
+                    '--days' => config('chat-options.daily-unread-notifications.days', 1),
+                ])->dailyAt(config('chat-options.daily-unread-notifications.at', '09:00'))->withoutOverlapping(60);
+            }
+        });
+
         // Bound while booting so it wins over the AI SDK's own registration regardless of provider order
         if (Features::enabled(Features::aiSdkIntegration()) && interface_exists(ConversationStore::class)) {
             $this->app->singleton(ConversationStore::class, fn () => new ChatroomConversationStore);

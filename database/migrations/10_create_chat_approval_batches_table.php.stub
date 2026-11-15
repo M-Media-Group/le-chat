@@ -1,0 +1,32 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('chat_approval_batches', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('requester_message_id')->constrained('chat_messages')->cascadeOnDelete();
+            $table->foreignId('assistant_message_id')->constrained('chat_messages')->cascadeOnDelete();
+            $table->unsignedInteger('generation');
+            $table->json('fingerprints');
+            $table->string('status');
+            $table->timestamp('expires_at');
+            $table->nullableMorphs('approver');
+            $table->string('idempotency_key')->nullable();
+            $table->string('decision_hash', 64)->nullable();
+            $table->text('failure_reason')->nullable();
+            $table->timestamps();
+            $table->unique(['assistant_message_id', 'generation']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('chat_approval_batches');
+    }
+};

@@ -1,12 +1,26 @@
 <?php
 
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
+use Laravel\Ai\Ai;
+use Laravel\Ai\AiServiceProvider;
 use Laravel\Ai\Contracts\ConversationStore;
 use Laravel\Ai\Contracts\Providers\TextProvider;
+use Laravel\Ai\Files\Base64Document;
+use Laravel\Ai\Files\Document;
+use Laravel\Ai\Files\StoredAudio;
+use Laravel\Ai\Files\StoredDocument;
+use Laravel\Ai\Files\StoredImage;
+use Laravel\Ai\Files\StoredVideo;
+use Laravel\Ai\Gateway\FakeTextGateway;
 use Laravel\Ai\Messages\AssistantMessage;
 use Laravel\Ai\Messages\ToolResultMessage;
 use Laravel\Ai\Messages\UserMessage;
@@ -18,17 +32,26 @@ use Laravel\Ai\Responses\Data\Step;
 use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\Data\ToolCall;
 use Laravel\Ai\Responses\Data\ToolResult;
+use Mmedia\LeChat\Ai\ApprovalBatches;
+use Mmedia\LeChat\Ai\ChatAttachments;
 use Mmedia\LeChat\Ai\ChatroomConversationStore;
 use Mmedia\LeChat\Ai\RequesterEnvelope;
+use Mmedia\LeChat\Contracts\ApprovalPolicy;
+use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Events\MessageCreated;
+use Mmedia\LeChat\Events\MessageUpdated;
 use Mmedia\LeChat\Features;
 use Mmedia\LeChat\LeChatServiceProvider;
 use Mmedia\LeChat\Listeners\PromptAgentsOnMessageCreated;
+use Mmedia\LeChat\Models\ChatApprovalBatch;
+use Mmedia\LeChat\Models\ChatFile;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 beforeEach(function () {
+    ChatMessage::flushMessageMode();
     if (! interface_exists(ConversationStore::class)) {
         $this->markTestSkipped('laravel/ai is not installed.');
     }
@@ -37,6 +60,8 @@ beforeEach(function () {
 
     Schema::create('ai_store_owners', function (Blueprint $table): void {
         $table->id();
+        $table->boolean('active')->default(true);
+        $table->string('role')->default('manager');
         $table->timestamps();
     });
 
@@ -61,6 +86,50 @@ function aiStoreTurn(string $text): array
 
     return [$prompt, $response];
 }
+
+function aiStoreChatFile(ChatParticipant $sender): ChatFile
+{
+    Storage::disk('local')->put('chat-files/example', 'private contents');
+
+    return ChatFile::create([
+        'owner_type' => $sender->getMorphClass(), 'owner_id' => $sender->getKey(),
+        'disk' => 'local', 'path' => 'chat-files/example', 'name' => 'example.bin',
+        'mime_type' => 'application/octet-stream', 'size' => 16,
+        'sha256' => hash('sha256', 'private contents'), 'status' => 'ready', 'expires_at' => now()->addDay(),
+    ]);
+}
+
+it('maps chat files to private disk-backed AI attachments', function (string $mimeType, string $expectedClass) {
+    Storage::fake('private-files');
+    Storage::disk('private-files')->put('chat-files/example', 'content');
+    $file = new ChatFile(['disk' => 'private-files', 'path' => 'chat-files/example', 'name' => 'example', 'mime_type' => $mimeType, 'status' => 'ready']);
+
+    $attachment = ChatAttachments::fromFiles([$file])[0];
+
+    expect($attachment)->toBeInstanceOf($expectedClass)
+        ->and($attachment->disk)->toBe('private-files')
+        ->and($attachment->path)->toBe('chat-files/example')
+        ->and($attachment->name())->toBe('example')
+        ->and($attachment->mimeType())->toBe($mimeType);
+})->with([
+    ['image/png', StoredImage::class],
+    ['audio/mpeg', StoredAudio::class],
+    ['video/mp4', StoredVideo::class],
+    ['application/octet-stream', StoredDocument::class],
+]);
+
+it('does not silently omit unavailable chat attachments', function (string $status, bool $exists) {
+    Storage::fake('private-files');
+    if ($exists) {
+        Storage::disk('private-files')->put('chat-files/example', 'content');
+    }
+    $file = new ChatFile(['disk' => 'private-files', 'path' => 'chat-files/example', 'name' => 'example', 'mime_type' => 'application/octet-stream', 'status' => $status]);
+
+    expect(fn () => ChatAttachments::fromFiles([$file]))->toThrow(RuntimeException::class, 'A chat attachment is unavailable.');
+})->with([
+    ['ready', false],
+    ['deleting', true],
+]);
 
 it('stores a conversation as a chatroom owned by an admin participant', function () {
     $id = aiStoreTestStore()->storeConversation(aiStoreTestOwner()->getMorphClass(), aiStoreTestOwner()->getKey(), 'Greeting');
@@ -115,6 +184,178 @@ it('replays stored messages to the model in order', function () {
             ['user', '<earlier from="Owner">Hello</earlier>'],
             ['assistant', 'Hi there'],
         ]);
+});
+
+it('replays visible chat files as AI attachments without storing paths in metadata', function () {
+    Event::fake([MessageCreated::class]);
+    Storage::fake('local');
+    config(['chat.create_system_messages' => false]);
+    $room = Chatroom::create(['name' => 'Files']);
+    $sender = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'sender']);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreEchoAgent::class]);
+    $file = aiStoreChatFile($sender);
+    $message = $room->sendMessageAs($sender, '', ['files' => [$file->id]]);
+    $current = $room->sendMessageAs($sender, 'Use the file');
+
+    $history = aiStoreTestStore()->answering($current, AiStoreEchoAgent::class,
+        fn () => aiStoreTestStore()->getLatestConversationMessages((string) $room->id, 10));
+    $fileTurns = $history->filter(fn ($turn) => $turn instanceof UserMessage && $turn->attachments->isNotEmpty())->values();
+
+    expect($fileTurns)->toHaveCount(1)
+        ->and($fileTurns[0]->attachments)->toHaveCount(1)
+        ->and($fileTurns[0]->attachments[0])->toBeInstanceOf(StoredDocument::class)
+        ->and($fileTurns[0]->attachments[0]->content())->toBe('private contents')
+        ->and($message->fresh()->metadata)->toBeNull();
+});
+
+it('preserves native SDK attachments in conversation history', function () {
+    $owner = aiStoreTestOwner();
+    $conversation = aiStoreTestStore()->storeConversation($owner->getMorphClass(), $owner->getKey(), 'Files');
+    aiStoreTestStore()->storeUserMessage($conversation, $owner->getMorphClass(), $owner->getKey(), AiStoreAgent::class,
+        new UserMessage('Review this', [Document::fromString('native content', 'text/plain')]));
+
+    $history = aiStoreTestStore()->getLatestConversationMessages($conversation, 10);
+    $turn = $history->first(fn ($message) => $message instanceof UserMessage && $message->attachments->isNotEmpty());
+
+    expect($turn)->not->toBeNull()
+        ->and($turn->attachments)->toHaveCount(1)
+        ->and($turn->attachments[0])->toBeInstanceOf(Base64Document::class)
+        ->and($turn->attachments[0]->content())->toBe('native content');
+});
+
+it('prompts an agent with a file-only chat message', function () {
+    Storage::fake('local');
+    Event::forget(MessageCreated::class);
+    AiStoreEchoAgent::$log = [];
+    AiStoreEchoAgent::$attachments = [];
+    AiStoreEchoAgent::$historyAttachments = [];
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    $room = Chatroom::create(['name' => 'Files']);
+    $sender = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'sender']);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreEchoAgent::class]);
+    $file = aiStoreChatFile($sender);
+    $message = $room->sendMessageAs($sender, '', ['files' => [$file->id]]);
+
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($message));
+
+    expect(AiStoreEchoAgent::$log)->toHaveCount(1)
+        ->and(AiStoreEchoAgent::$attachments)->toHaveCount(1)
+        ->and(AiStoreEchoAgent::$attachments[0])->toBeInstanceOf(StoredDocument::class)
+        ->and(AiStoreEchoAgent::$attachments[0]->content())->toBe('private contents')
+        ->and(AiStoreEchoAgent::$historyAttachments)->toBe([])
+        ->and($message->fresh()->message)->toBe('');
+});
+
+it('passes file attachments through the actual AI SDK prompt', function () {
+    Storage::fake('local');
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    $received = [];
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway(function ($prompt, $attachments) use (&$received) {
+        $received = $attachments->all();
+
+        return 'Received';
+    }));
+    $room = Chatroom::create(['name' => 'Files']);
+    $sender = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'sender']);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreAgent::class]);
+    $file = aiStoreChatFile($sender);
+    $message = $room->sendMessageAs($sender, '', ['files' => [$file->id]]);
+
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($message));
+
+    expect($received)->toHaveCount(1)
+        ->and($received[0])->toBeInstanceOf(StoredDocument::class)
+        ->and($received[0]->content())->toBe('private contents');
+});
+
+it('replays an earlier file when a later instruction prompts the agent', function () {
+    Storage::fake('local');
+    Event::forget(MessageCreated::class);
+    AiStoreEchoAgent::$log = [];
+    AiStoreEchoAgent::$historyAttachments = [];
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    $room = Chatroom::create(['name' => 'Files']);
+    $sender = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'sender']);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreEchoAgent::class]);
+    $file = aiStoreChatFile($sender);
+    $room->sendMessageAs($sender, '', ['files' => [$file->id]]);
+    $instruction = $room->sendMessageAs($sender, 'Use the earlier file');
+
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($instruction));
+
+    expect(AiStoreEchoAgent::$log)->toHaveCount(1)
+        ->and(AiStoreEchoAgent::$historyAttachments)->toHaveCount(1)
+        ->and(AiStoreEchoAgent::$historyAttachments[0]->content())->toBe('private contents');
+});
+
+it('does not send a queued file message to an agent that cannot see it', function () {
+    Storage::fake('local');
+    Event::forget(MessageCreated::class);
+    AiStoreEchoAgent::$log = [];
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    $room = Chatroom::create(['name' => 'Files']);
+    $sender = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'sender']);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreEchoAgent::class]);
+    $file = aiStoreChatFile($sender);
+    $message = $room->sendMessageAs($sender, '', ['files' => [$file->id]]);
+    $agent->forceFill(['created_at' => now()->addMinute()])->saveQuietly();
+
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($message));
+
+    expect(AiStoreEchoAgent::$log)->toBe([]);
+});
+
+it('does not replay files the current requester cannot see', function () {
+    Storage::fake('local');
+    Event::forget(MessageCreated::class);
+    AiStoreEchoAgent::$historyAttachments = [];
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    $room = Chatroom::create(['name' => 'Files']);
+    $originalSender = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'original']);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreEchoAgent::class]);
+    $originalSender->forceFill(['created_at' => now()->subMinutes(10)])->saveQuietly();
+    $agent->forceFill(['created_at' => now()->subMinutes(10)])->saveQuietly();
+    $file = aiStoreChatFile($originalSender);
+    $earlierMessage = $room->sendMessageAs($originalSender, '', ['files' => [$file->id]]);
+    $earlierMessage->forceFill(['created_at' => now()->subMinutes(5)])->saveQuietly();
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'requester']);
+    $instruction = $room->sendMessageAs($requester, 'Use the earlier file');
+
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($instruction));
+
+    expect(AiStoreEchoAgent::$historyAttachments)->toBe([]);
+});
+
+it('reports when an agent cannot process a file message', function () {
+    Storage::fake('local');
+    Event::forget(MessageCreated::class);
+    $room = Chatroom::create(['name' => 'Files']);
+    $sender = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'sender']);
+    $file = aiStoreChatFile($sender);
+    $message = $room->sendMessageAs($sender, '', ['files' => [$file->id]]);
+
+    (new PromptAgentsOnMessageCreated)->failed(new MessageCreated($message), new RuntimeException('provider secret'));
+
+    expect($room->messages()->latest('id')->firstOrFail()->message)
+        ->toBe("Sorry, I couldn't process that message or its attachments. Please try again.");
+});
+
+it('reports attachment processing failures for later instructions', function () {
+    Storage::fake('local');
+    Event::forget(MessageCreated::class);
+    $room = Chatroom::create(['name' => 'Files']);
+    $sender = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'sender']);
+    $file = aiStoreChatFile($sender);
+    $room->sendMessageAs($sender, '', ['files' => [$file->id]]);
+    $instruction = $room->sendMessageAs($sender, 'Use the earlier file');
+
+    (new PromptAgentsOnMessageCreated)->failed(new MessageCreated($instruction), new RuntimeException('provider secret'));
+
+    expect($room->messages()->latest('id')->firstOrFail()->message)
+        ->toBe("Sorry, I couldn't process that message or its attachments. Please try again.");
 });
 
 it('reconstructs completed tool turns through the SDK store helpers', function () {
@@ -191,6 +432,69 @@ it('starts bounded provider history at a user turn when it cuts off a tool turn'
         ->and($messages->first()->content)->toContain('Latest request');
 });
 
+it('collapses older completed tool history only for the configured agent during automatic responses', function () {
+    $owner = aiStoreTestOwner();
+    $type = $owner->getMorphClass();
+    $store = aiStoreTestStore();
+    $id = $store->storeConversation($type, $owner->getKey(), 'Collapsed tool history');
+
+    $store->storeUserMessage($id, $type, $owner->getKey(), AiStoreAgent::class, new UserMessage('First request'));
+
+    $room = Chatroom::query()->where('metadata->ai->conversation_id', $id)->firstOrFail();
+    $agentParticipant = $room->participants()->where('reference_id', 'ai-agent:'.AiStoreAgent::class)->firstOrFail();
+    $storeAssistantTurn = fn (string $content, string $callId): ChatMessage => $room->sendMessageAs($agentParticipant, $content, ['metadata' => ['ai' => [
+        'role' => 'assistant',
+        'agent' => AiStoreAgent::class,
+        'meta' => ['provider' => 'provider-a', 'model' => 'test-model'],
+        'status' => 'completed',
+        'steps' => [[
+            'content' => $content,
+            'tool_calls' => [[
+                'id' => $callId,
+                'name' => 'example_tool',
+                'arguments' => [],
+                'result' => $content === '' ? 'blank result' : $content,
+            ]],
+            'replay_blocks' => [],
+            'provider_tool_calls' => [],
+        ]],
+    ]]]);
+
+    $olderTurn = $storeAssistantTurn('Earlier tool result', 'older-call');
+    $store->storeUserMessage($id, $type, $owner->getKey(), AiStoreAgent::class, new UserMessage('Second request'));
+    $blankTurn = $storeAssistantTurn('', 'blank-call');
+    $store->storeUserMessage($id, $type, $owner->getKey(), AiStoreAgent::class, new UserMessage('Third request'));
+    $storeAssistantTurn('Latest tool result', 'latest-call');
+    $currentId = $store->storeUserMessage($id, $type, $owner->getKey(), AiStoreAgent::class, new UserMessage('Current request'));
+    $current = ChatMessage::findOrFail($currentId);
+    $callIds = fn ($messages): array => $messages
+        ->filter(fn ($message) => $message instanceof AssistantMessage)
+        ->flatMap(fn (AssistantMessage $message) => $message->toolCalls)
+        ->pluck('id')->all();
+
+    config(['chat-options.ai-sdk-integration.collapse_tool_history' => [AiStoreAgent::class]]);
+
+    $manualHistory = $store->getLatestConversationMessages($id, 20);
+    expect($callIds($manualHistory))->toContain('older-call')->toContain('blank-call');
+
+    $otherAgentHistory = $store->answering($current, AiStoreEchoAgent::class,
+        fn () => $store->getLatestConversationMessages($id, 20));
+    expect($callIds($otherAgentHistory))->toContain('older-call');
+
+    $automaticHistory = $store->answering($current, AiStoreAgent::class,
+        fn () => $store->getLatestConversationMessages($id, 20));
+    $olderAssistant = $automaticHistory->first(fn ($message) => $message instanceof AssistantMessage && $message->content === 'Earlier tool result');
+    $latestAssistant = $automaticHistory->first(fn ($message) => $message instanceof AssistantMessage && $message->content === 'Latest tool result');
+
+    expect($olderAssistant)->toBeInstanceOf(AssistantMessage::class);
+    expect($olderAssistant->toolCalls)->toBeEmpty();
+    expect($latestAssistant)->toBeInstanceOf(AssistantMessage::class);
+    expect($latestAssistant->toolCalls->first()->id)->toBe('latest-call');
+    expect($callIds($automaticHistory))->not->toContain('older-call')->not->toContain('blank-call');
+    expect($olderTurn->fresh()->metadata['ai']['steps'][0]['tool_calls'][0]['id'])->toBe('older-call')
+        ->and($blankTurn->fresh()->metadata['ai']['steps'][0]['tool_calls'][0]['id'])->toBe('blank-call');
+});
+
 it('stops listing an approval after its tool call is resolved', function () {
     $type = aiStoreTestOwner()->getMorphClass();
     $id = aiStoreTestStore()->storeConversation($type, aiStoreTestOwner()->getKey(), 'Resolved approval');
@@ -225,6 +529,670 @@ it('stops listing an approval after its tool call is resolved', function () {
     expect(aiStoreTestStore()->pendingApprovalsFor($id))->toBe([]);
 });
 
+it('uses the default policy and binds an approval batch to the original tool calls', function () {
+    Event::fake([MessageCreated::class]);
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [[
+            'id' => 'call-1', 'name' => 'example_tool', 'arguments' => ['secret' => 'private'], 'approval_reason' => 'Review',
+        ]], 'replay_blocks' => []]],
+    ]]]);
+
+    $batch = app(ApprovalBatches::class)->create($request, $paused);
+
+    expect($batch->status)->toBe('pending')
+        ->and($batch->requester_message_id)->toBe($request->id)
+        ->and($batch->fingerprints)->toHaveKey('call-1')
+        ->and(json_encode($batch->toArray()))->not->toContain('private')
+        ->and($paused->fresh()->blocks[0]['block_id'])->toBe('approval-'.$batch->id)
+        ->and(json_encode($paused->fresh()->blocks))->not->toContain('private');
+});
+
+it('records a failed requester reauthorization without running a tool again on retry', function () {
+    Event::fake([MessageCreated::class]);
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [[
+            'id' => 'call-1', 'name' => 'example_tool', 'arguments' => ['target' => 'original'], 'approval_reason' => 'Review',
+        ]], 'replay_blocks' => []]],
+    ]]]);
+    app()->instance(ApprovalPolicy::class, new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): string
+        {
+            return 'Requester session expired.';
+        }
+    });
+    $service = app(ApprovalBatches::class);
+    $batch = $service->create($request, $paused);
+    $decisions = ['call-1' => ['action' => 'approve']];
+    Event::fake([MessageUpdated::class]);
+
+    $lock = Cache::lock('laravel-queue-overlap:le-chat-ai:'.$room->id, 60);
+    expect($lock->get())->toBeTrue();
+    try {
+        $pending = $service->decide($batch, $requester, $decisions, 'request-1');
+        expect($pending->status)->toBe('pending');
+    } finally {
+        $lock->release();
+    }
+
+    $result = $service->decide($batch, $requester, $decisions, 'request-1');
+    $retry = $service->decide($batch->fresh(), $requester, $decisions, 'request-1');
+
+    expect($result->status)->toBe('cancelled')
+        ->and($result->failure_reason)->toBe('Requester session expired.')
+        ->and($result->idempotency_key)->toBe('request-1')
+        ->and($result->approver_id)->toBe($requester->id)
+        ->and($retry->status)->toBe('cancelled');
+    Event::assertDispatched(MessageUpdated::class, fn (MessageUpdated $event): bool => $event->message->approvalBatch?->status === 'cancelled');
+});
+
+it('does not resume when the requester is deactivated or loses their role', function (array $changes) {
+    Event::fake([MessageCreated::class]);
+    AiStoreApprovalAgent::$resumeLog = [];
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreApprovalAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [[
+            'id' => 'call-1', 'name' => 'example_tool', 'arguments' => [], 'approval_reason' => 'Review',
+        ]], 'replay_blocks' => []]],
+    ]]]);
+    app()->instance(ApprovalPolicy::class, new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool|string
+        {
+            $owner = $requester->sender->participatingModel?->fresh();
+
+            return $owner !== null && $owner->active && $owner->role === 'manager' ? true : 'Requester is no longer authorized.';
+        }
+    });
+    $service = app(ApprovalBatches::class);
+    $batch = $service->create($request, $paused);
+    aiStoreTestOwner()->update($changes);
+
+    $result = $service->decide($batch, $requester, ['call-1' => ['action' => 'approve']], 'request-1');
+
+    expect($result->status)->toBe('cancelled')
+        ->and($result->failure_reason)->toBe('Requester is no longer authorized.')
+        ->and(AiStoreApprovalAgent::$resumeLog)->toBe([]);
+})->with([
+    'deactivated' => [['active' => false]],
+    'role revoked' => [['role' => 'viewer']],
+]);
+
+it('projects approval blocks when an agent pauses', function () {
+    Event::fake([MessageCreated::class]);
+    config(['chat.features' => [Features::aiSdkIntegration()]]);
+    Schema::drop('chat_message_files');
+    Schema::drop('chat_files');
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    app()->instance(ApprovalPolicy::class, new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return false;
+        }
+    });
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+
+    $batch = ChatApprovalBatch::sole();
+    $paused = ChatMessage::findOrFail($batch->assistant_message_id);
+    expect($batch->requester_message_id)->toBe($request->id)
+        ->and($paused->blocks[0]['block_id'])->toBe('approval-'.$batch->id)
+        ->and(json_encode($paused->blocks))->not->toContain('private');
+});
+
+it('encrypts approval blocks and their fallback text', function () {
+    Event::fake([MessageCreated::class]);
+    config(['chat.features' => [Features::encryptMessagesAtRest()]]);
+    ChatMessage::flushMessageMode();
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreApprovalAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [[
+            'id' => 'call-1', 'name' => 'example_tool', 'arguments' => [], 'approval_reason' => 'Review',
+        ]], 'replay_blocks' => []]],
+    ]]]);
+    app()->instance(ApprovalPolicy::class, new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return false;
+        }
+    });
+
+    app(ApprovalBatches::class)->create($request, $paused);
+
+    $raw = DB::table('chat_messages')->where('id', $paused->id)->first();
+    expect($raw->message)->not->toContain('Tool approval required')
+        ->and($raw->blocks)->not->toContain('Tool approval required')
+        ->and($paused->fresh()->message)->toContain('Tool approval required')
+        ->and($paused->fresh()->blocks[0]['text'])->toBe('Tool approval required');
+});
+
+it('resumes approved tools as the requester rather than the approver', function () {
+    Event::fake([MessageCreated::class]);
+    AiStoreApprovalAgent::$resumeLog = [];
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $approver = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'approver']);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreApprovalAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [[
+            'id' => 'call-1', 'name' => 'example_tool', 'arguments' => ['target' => 'original'], 'approval_reason' => 'Review',
+        ]], 'replay_blocks' => []]],
+    ]]]);
+    app()->instance(ApprovalPolicy::class, new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+    });
+    $service = app(ApprovalBatches::class);
+    $batch = $service->create($request, $paused);
+
+    $result = $service->decide($batch, $approver, ['call-1' => ['action' => 'approve']], 'request-1');
+    $resumption = AiStoreApprovalAgent::resumptions()[0] ?? throw new LogicException('Expected one resumption.');
+
+    expect($result->status)->toBe('resumed')
+        ->and($result->approver_id)->toBe($approver->id)
+        ->and(AiStoreApprovalAgent::$resumeLog)->toHaveCount(1)
+        ->and($resumption['requester']->getKey())->toBe(aiStoreTestOwner()->getKey())
+        ->and($resumption['decisions']->get('call-1')->isApproved())->toBeTrue();
+});
+
+it('pauses and resumes a real SDK tool approval as the requester', function () {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('call-1', 'AiStoreNativeApprovalTool', ['target' => 'original']), 'Done',
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $approver = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'approver']);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreNativeApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+    expect(AiStoreNativeApprovalTool::$executions)->toBe([]);
+    $batch = ChatApprovalBatch::sole();
+    $service = app(ApprovalBatches::class);
+    expect(fn () => $service->details($batch, $approver))->toThrow(AuthorizationException::class)
+        ->and(fn () => $service->decide($batch, $approver, ['call-1' => ['action' => 'approve']], 'other-request'))->toThrow(AuthorizationException::class);
+    $result = $service->decide($batch, $requester, ['call-1' => ['action' => 'approve']], 'request-1');
+
+    expect($result->status)->toBe('resumed')
+        ->and(AiStoreNativeApprovalTool::$executions)->toBe([['requester' => aiStoreTestOwner()->getKey(), 'target' => 'original']])
+        ->and(aiStoreTestStore()->pendingApprovalsFor(aiStoreTestStore()->conversationIdOf($room)))->toBe([]);
+});
+
+it('preserves an application approval policy registered before the package', function () {
+    $policy = new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return false;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return false;
+        }
+    };
+    app()->instance(ApprovalPolicy::class, $policy);
+
+    (new LeChatServiceProvider($this->app))->register();
+
+    expect(app(ApprovalPolicy::class))->toBe($policy);
+});
+
+it('records an explicit rejection in the real SDK approval loop', function () {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('call-1', 'AiStoreNativeApprovalTool', ['target' => 'original']), 'Not executed',
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreNativeApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+    app()->instance(ApprovalPolicy::class, new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+    });
+
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+    $batch = ChatApprovalBatch::sole();
+    $result = app(ApprovalBatches::class)->decide($batch, $requester, ['call-1' => ['action' => 'reject', 'result' => 'Declined']], 'request-1');
+    $storedCall = ChatMessage::findOrFail($batch->assistant_message_id)->metadata['ai']['steps'][0]['tool_calls'][0];
+
+    expect($result->status)->toBe('resumed')
+        ->and(AiStoreNativeApprovalTool::$executions)->toBe([])
+        ->and($storedCall['denied'])->toBeTrue()
+        ->and($storedCall['result'])->toBe('Declined');
+});
+
+it('accepts a complete mixed decision batch and treats reordered retries as idempotent', function () {
+    Event::fake([MessageCreated::class]);
+    AiStoreApprovalAgent::$resumeLog = [];
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run tools');
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreApprovalAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [
+            ['id' => 'call-1', 'name' => 'first_tool', 'arguments' => [], 'approval_reason' => 'Review'],
+            ['id' => 'call-2', 'name' => 'second_tool', 'arguments' => [], 'approval_reason' => 'Review'],
+        ], 'replay_blocks' => []]],
+    ]]]);
+    app()->instance(ApprovalPolicy::class, new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+    });
+    $service = app(ApprovalBatches::class);
+    $batch = $service->create($request, $paused);
+    expect(fn () => $service->decide($batch, $requester, ['call-1' => ['action' => 'approve']], 'incomplete'))
+        ->toThrow(ValidationException::class);
+    $decisions = ['call-1' => ['action' => 'approve'], 'call-2' => ['action' => 'reject', 'result' => 'Declined']];
+
+    $result = $service->decide($batch, $requester, $decisions, 'request-1');
+    $retry = $service->decide($batch->fresh(), $requester, array_reverse($decisions, true), 'request-1');
+    $resumption = AiStoreApprovalAgent::resumptions()[0] ?? throw new LogicException('Expected one resumption.');
+
+    expect($result->status)->toBe('resumed')->and($retry->status)->toBe('resumed')
+        ->and(AiStoreApprovalAgent::$resumeLog)->toHaveCount(1)
+        ->and($resumption['decisions']->get('call-1')->isApproved())->toBeTrue()
+        ->and($resumption['decisions']->get('call-2')->result)->toBe('Declined');
+});
+
+it('allows only one approval when two decisions interleave', function () {
+    Event::fake([MessageCreated::class]);
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $other = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'other']);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreApprovalAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [[
+            'id' => 'call-1', 'name' => 'example_tool', 'arguments' => [], 'approval_reason' => 'Review',
+        ]], 'replay_blocks' => []]],
+    ]]]);
+    $policy = new class implements ApprovalPolicy
+    {
+        public ?Closure $beforeClaim = null;
+
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            if ($this->beforeClaim !== null) {
+                $callback = $this->beforeClaim;
+                $this->beforeClaim = null;
+                $callback();
+            }
+
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return false;
+        }
+    };
+    app()->instance(ApprovalPolicy::class, $policy);
+    $service = app(ApprovalBatches::class);
+    $batch = $service->create($request, $paused);
+    $policy->beforeClaim = fn () => $service->decide($batch->fresh(), $other, ['call-1' => ['action' => 'reject']], 'other-request');
+
+    expect(fn () => $service->decide($batch, $requester, ['call-1' => ['action' => 'approve']], 'first-request'))
+        ->toThrow(ConflictHttpException::class);
+    expect($batch->fresh()->approver_id)->toBe($other->id)
+        ->and($batch->fresh()->status)->toBe('cancelled');
+});
+
+it('rechecks approver authorization immediately before claiming a batch', function () {
+    Event::fake([MessageCreated::class]);
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreApprovalAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [[
+            'id' => 'call-1', 'name' => 'example_tool', 'arguments' => [], 'approval_reason' => 'Review',
+        ]], 'replay_blocks' => []]],
+    ]]]);
+    $policy = new class implements ApprovalPolicy
+    {
+        public int $calls = 0;
+
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return ++$this->calls === 1;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+    };
+    app()->instance(ApprovalPolicy::class, $policy);
+    $service = app(ApprovalBatches::class);
+    $batch = $service->create($request, $paused);
+
+    expect(fn () => $service->decide($batch, $requester, ['call-1' => ['action' => 'approve']], 'request-1'))
+        ->toThrow(AuthorizationException::class);
+    expect($batch->fresh()->status)->toBe('pending');
+});
+
+it('rejects approval of modified tool arguments', function () {
+    Event::fake([MessageCreated::class]);
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreApprovalAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [[
+            'id' => 'call-1', 'name' => 'example_tool', 'arguments' => ['target' => 'original'], 'approval_reason' => 'Review',
+        ]], 'replay_blocks' => []]],
+    ]]]);
+    app()->instance(ApprovalPolicy::class, new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+    });
+    $service = app(ApprovalBatches::class);
+    $batch = $service->create($request, $paused);
+    $metadata = $paused->fresh()->metadata->getArrayCopy();
+    $metadata['ai']['steps'][0]['tool_calls'][0]['arguments']['target'] = 'changed';
+    $paused->fresh()->forceFill(['metadata' => $metadata])->saveQuietly();
+
+    expect(fn () => $service->decide($batch, $requester, ['call-1' => ['action' => 'approve']], 'request-1'))
+        ->toThrow(ValidationException::class);
+    expect($batch->fresh()->status)->toBe('pending');
+});
+
+it('rejects duplicate pending tool call identifiers', function () {
+    Event::fake([MessageCreated::class]);
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run tools');
+    $tool = ['id' => 'duplicate', 'name' => 'example_tool', 'arguments' => [], 'approval_reason' => 'Review'];
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreApprovalAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [$tool, $tool], 'replay_blocks' => []]],
+    ]]]);
+    app()->instance(ApprovalPolicy::class, new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+    });
+
+    expect(fn () => app(ApprovalBatches::class)->create($request, $paused))->toThrow(LogicException::class);
+    expect(ChatApprovalBatch::count())->toBe(0);
+});
+
+it('expires approval batches without executing the tool', function () {
+    Event::fake([MessageCreated::class]);
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreApprovalAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [[
+            'id' => 'call-1', 'name' => 'example_tool', 'arguments' => [], 'approval_reason' => 'Review',
+        ]], 'replay_blocks' => []]],
+    ]]]);
+    app()->instance(ApprovalPolicy::class, new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+    });
+    $service = app(ApprovalBatches::class);
+    $batch = $service->create($request, $paused);
+    $batch->update(['expires_at' => now()->subMinute()]);
+
+    expect(fn () => $service->decide($batch, $requester, ['call-1' => ['action' => 'approve']], 'request-1'))
+        ->toThrow(ValidationException::class);
+    expect($batch->fresh()->status)->toBe('expired');
+});
+
+it('marks abandoned approval batches expired', function () {
+    Event::fake([MessageCreated::class]);
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreApprovalAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [[
+            'id' => 'call-1', 'name' => 'example_tool', 'arguments' => [], 'approval_reason' => 'Review',
+        ]], 'replay_blocks' => []]],
+    ]]]);
+    app()->instance(ApprovalPolicy::class, new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+    });
+    $batch = app(ApprovalBatches::class)->create($request, $paused);
+    $batch->update(['expires_at' => now()->subMinute()]);
+    Event::fake([MessageUpdated::class]);
+
+    $this->artisan('le-chat:expire-approvals')->assertSuccessful();
+
+    expect($batch->fresh()->status)->toBe('expired');
+    Event::assertDispatched(MessageUpdated::class, fn (MessageUpdated $event): bool => $event->message->approvalBatch?->status === 'expired');
+});
+
+it('cancels a pending approval when its requester message is deleted', function () {
+    Event::fake([MessageCreated::class]);
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreApprovalAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [[
+            'id' => 'call-1', 'name' => 'example_tool', 'arguments' => [], 'approval_reason' => 'Review',
+        ]], 'replay_blocks' => []]],
+    ]]]);
+    app()->instance(ApprovalPolicy::class, new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+    });
+    $batch = app(ApprovalBatches::class)->create($request, $paused);
+
+    $request->delete();
+
+    expect($batch->fresh()->status)->toBe('cancelled')
+        ->and($batch->fresh()->failure_reason)->not->toBeNull();
+});
+
+it('creates a new approval batch when the same assistant turn pauses again', function () {
+    Event::fake([MessageCreated::class]);
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run tools');
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreApprovalAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [[
+            'id' => 'call-1', 'name' => 'first_tool', 'arguments' => [], 'approval_reason' => 'Review',
+        ]], 'replay_blocks' => []]],
+    ]]]);
+    app()->instance(ApprovalPolicy::class, new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+    });
+    $service = app(ApprovalBatches::class);
+    $first = $service->create($request, $paused);
+    $first->update(['status' => 'resumed']);
+    $metadata = $paused->fresh()->metadata->getArrayCopy();
+    $metadata['ai']['steps'][0]['tool_calls'][0] = ['id' => 'call-2', 'name' => 'second_tool', 'arguments' => [], 'approval_reason' => 'Review again'];
+    $paused->fresh()->forceFill(['metadata' => $metadata])->saveQuietly();
+
+    $second = $service->create($request, $paused->fresh());
+
+    expect($second->id)->not->toBe($first->id)
+        ->and($second->fingerprints)->toHaveKey('call-2')
+        ->and($paused->fresh()->approvalBatch->id)->toBe($second->id);
+});
+
+it('projects another approval if the resumed agent pauses again', function () {
+    Event::fake([MessageCreated::class]);
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run tools');
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreApprovalAgent::class, 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [[
+            'id' => 'call-1', 'name' => 'first_tool', 'arguments' => [], 'approval_reason' => 'Review',
+        ]], 'replay_blocks' => []]],
+    ]]]);
+    app()->instance(ApprovalPolicy::class, new class implements ApprovalPolicy
+    {
+        public function mayApprove(ChatParticipantInterface $actor, ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+
+        public function mayResume(ChatMessage $requester, array $approvals): bool
+        {
+            return true;
+        }
+    });
+    $service = app(ApprovalBatches::class);
+    $batch = $service->create($request, $paused);
+    AiStoreApprovalAgent::$pauseAgainMessageId = $paused->id;
+
+    try {
+        $service->decide($batch, $requester, ['call-1' => ['action' => 'approve']], 'request-1');
+    } finally {
+        AiStoreApprovalAgent::$pauseAgainMessageId = null;
+    }
+
+    expect($batch->fresh()->status)->toBe('resumed')
+        ->and($paused->fresh()->approvalBatch->fingerprints)->toHaveKey('call-2');
+});
+
 it('retains opaque provider replay data when storing completed turns', function () {
     $type = aiStoreTestOwner()->getMorphClass();
     $id = aiStoreTestStore()->storeConversation($type, aiStoreTestOwner()->getKey(), 'Tool turn');
@@ -256,6 +1224,7 @@ it('retains opaque provider replay data when storing completed turns', function 
 });
 
 it('finds the latest conversation for an owner and agent, and can continue a plain chatroom by id', function () {
+    $this->freezeTime();
     $type = aiStoreTestOwner()->getMorphClass();
     $id = aiStoreTestStore()->storeConversation($type, aiStoreTestOwner()->getKey(), 'Greeting');
     aiStoreTestStore()->storeUserMessage($id, $type, aiStoreTestOwner()->getKey(), AiStoreAgent::class, new UserMessage('Hello'));

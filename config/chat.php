@@ -8,6 +8,16 @@ use Mmedia\LeChat\Listeners\SendParticipantCreatedNotification;
 use Mmedia\LeChat\Listeners\SendParticipantDeletedNotification;
 
 return [
+    'blocks' => [
+        'max_blocks' => 50,
+        'max_text_length' => 3000,
+        'max_payload_bytes' => 65536,
+    ],
+
+    'approvals' => [
+        'ttl_minutes' => 15,
+    ],
+
     /**
      * Determines if, when looking for a best channel, the order we should apply. If true, if more than one channel matches, the latest updated channel will be used. If false, the first channel that matches will be used.
      *
@@ -16,11 +26,12 @@ return [
     'latest_channel' => true,
 
     /**
-     * Don't allow participants by default to see messages on a channel that were sent prior to when they joined.
+     * Whether participants can see messages and their files sent before they joined.
      *
-     * If true, users that join a channel will not see messages that were sent before they joined.
+     * If false, only messages sent at or after joining are visible. Messages sent
+     * after leaving remain hidden regardless of this setting.
      *
-     * @todo make This can be ovverriden on the participant level by setting the `can_see_messages_before_joined` property to true.
+     * PHP visibility queries may override this setting using includeBeforeJoined.
      */
     'can_see_messages_before_joined' => false,
 
@@ -66,10 +77,10 @@ return [
     'participant_deleted_listener' => SendParticipantDeletedNotification::class,
 
     'features' => [
-        Features::routes([
+        Features::routes(config('chat-options.routes', [
             'middleware' => ['api', 'auth:sanctum'],
             'prefix' => 'api',
-        ]),
+        ])),
         Features::aiSdkIntegration([
             'auto_respond' => true,
             'typing_indicators' => true,

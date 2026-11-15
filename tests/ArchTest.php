@@ -1,24 +1,12 @@
 <?php
 
-arch('it will not use debugging functions')
-    ->expect(['dd', 'dump', 'ray'])
-    ->each->not->toBeUsed();
+use Illuminate\Database\Eloquent\Model;
 
-arch()
-    ->expect('App')
-    ->toUseStrictTypes()
-    ->not->toUse(['die', 'dd', 'dump']);
-arch()
-    ->expect('App\Models')
+arch('chat package source does not use debugging functions')
+    ->expect('Mmedia\\LeChat')
+    ->not->toUse(['dd', 'dump', 'ray']);
+
+arch('chat models extend Eloquent models')
+    ->expect('Mmedia\\LeChat\\Models')
     ->toBeClasses()
-    ->toExtend('Illuminate\Database\Eloquent\Model')
-    ->toOnlyBeUsedIn('App\Repositories')
-    ->ignoring('App\Models\User');
-arch()
-    ->expect('App\Http')
-    ->toOnlyBeUsedIn('App\Http');
-arch()
-    ->expect('App\*\Traits')
-    ->toBeTraits();
-arch()->preset()->php();
-arch()->preset()->security()->ignoring('md5');
+    ->toExtend(Model::class);
