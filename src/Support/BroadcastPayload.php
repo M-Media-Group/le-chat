@@ -2,6 +2,7 @@
 
 namespace Mmedia\LeChat\Support;
 
+use Illuminate\Http\Request;
 use Mmedia\LeChat\Http\Resources\MessageResource;
 use Mmedia\LeChat\Models\ChatMessage;
 
@@ -18,7 +19,7 @@ class BroadcastPayload
      */
     public static function forMessage(ChatMessage $message): array
     {
-        return self::fit(MessageResource::make($message)->resolve());
+        return self::fit(MessageResource::make($message)->resolve(new Request));
     }
 
     /**

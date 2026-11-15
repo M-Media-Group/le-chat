@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Laravel\Ai\Ai;
 use Laravel\Ai\AiServiceProvider;
+use Laravel\Ai\Approvals\PendingApproval;
 use Laravel\Ai\Contracts\ConversationStore;
 use Laravel\Ai\Contracts\Providers\TextProvider;
 use Laravel\Ai\Files\Base64Document;
@@ -776,6 +777,202 @@ it('pauses and resumes a real SDK tool approval as the requester', function () {
     expect($result->status)->toBe('resumed')
         ->and(AiStoreNativeApprovalTool::$executions)->toBe([['requester' => aiStoreTestOwner()->getKey(), 'target' => 'original']])
         ->and(aiStoreTestStore()->pendingApprovalsFor(aiStoreTestStore()->conversationIdOf($room)))->toBe([]);
+});
+
+it('replaces a pending approval when its requester sends a correction', function () {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('call-1', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+        new ToolCall('call-2', 'AiStoreNativeApprovalTool', ['target' => 'changed']),
+        'Done',
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreNativeApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run the original action');
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+    $original = ChatApprovalBatch::sole();
+    $correction = $room->sendMessageAs($requester, 'Actually use the changed target');
+
+    expect(fn () => app(ApprovalBatches::class)->decide($original, $requester, ['call-1' => ['action' => 'approve']], 'stale'))
+        ->toThrow(ConflictHttpException::class);
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($correction));
+
+    $replacement = ChatApprovalBatch::query()->where('requester_message_id', $correction->id)->firstOrFail();
+    $oldAssistant = $original->assistantMessage->fresh();
+    expect($original->fresh()->status)->toBe('cancelled')
+        ->and($oldAssistant->metadata['ai']['steps'][0]['tool_calls'][0]['denied'])->toBeTrue()
+        ->and($oldAssistant->message)->toContain('cancelled', 'No action was performed')
+        ->and($replacement->status)->toBe('pending')
+        ->and($replacement->fingerprints)->toHaveKey('call-2')
+        ->and(AiStoreNativeApprovalTool::$executions)->toBe([]);
+    expect(fn () => app(ApprovalBatches::class)->decide($original->fresh(), $requester, ['call-1' => ['action' => 'approve']], 'old'))
+        ->toThrow(ConflictHttpException::class);
+
+    app(ApprovalBatches::class)->decide($replacement, $requester, ['call-2' => ['action' => 'approve']], 'new');
+    expect(AiStoreNativeApprovalTool::$executions)->toBe([['requester' => aiStoreTestOwner()->getKey(), 'target' => 'changed']]);
+});
+
+it('allows only the requester to replace an unclaimed approval', function (string $status) {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('call-1', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+    ]));
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    $otherOwner = AiStoreOwner::create();
+    $other = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => $otherOwner->getMorphClass(), 'participant_id' => $otherOwner->getKey()]);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreNativeApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+    $batch = ChatApprovalBatch::sole();
+
+    $otherMessage = $room->sendMessageAs($other, 'Change it');
+    expect(app(ApprovalBatches::class)->supersedeWith($otherMessage))->toBeFalse();
+    $batch->update(['status' => $status, 'idempotency_key' => 'reserved']);
+    $ownMessage = $room->sendMessageAs($requester, 'Change it');
+    expect(app(ApprovalBatches::class)->supersedeWith($ownMessage))->toBeTrue()
+        ->and($batch->fresh()->status)->toBe('cancelled');
+})->with(['pending', 'expired']);
+
+it('stops an unchanged failed action without requesting another approval', function (bool $throws, string $expectedFailure) {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('call-1', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+        new ToolCall('call-2', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    AiStoreNativeApprovalTool::$result = '{"error":"Private validation error"}';
+    AiStoreNativeApprovalTool::$fail = $throws;
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreNativeApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+
+    try {
+        (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+        $batch = ChatApprovalBatch::sole();
+        $result = app(ApprovalBatches::class)->decide($batch, $requester, ['call-1' => ['action' => 'approve']], 'request-1');
+    } finally {
+        AiStoreNativeApprovalTool::$result = 'Done';
+        AiStoreNativeApprovalTool::$fail = false;
+    }
+
+    $assistant = ChatMessage::findOrFail($batch->assistant_message_id);
+    expect($result->status)->toBe('resumed')
+        ->and($result->failure_reason)->toContain($expectedFailure)
+        ->and(AiStoreNativeApprovalTool::$executions)->toHaveCount(1)
+        ->and(ChatApprovalBatch::count())->toBe(1)
+        ->and(aiStoreTestStore()->pendingApprovalsFor(aiStoreTestStore()->conversationIdOf($room)))->toBe([])
+        ->and($assistant->metadata['ai']['status'])->toBe('completed')
+        ->and($assistant->message)->toContain('previous action failed', 'retry was stopped')
+        ->and($assistant->message)->not->toContain($expectedFailure)
+        ->and($assistant->blocks)->toBeNull();
+})->with([[false, 'Private validation error'], [true, 'Private runtime error']]);
+
+it('explains a renewed approval after an action fails with different arguments', function () {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('call-1', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+        new ToolCall('call-2', 'AiStoreNativeApprovalTool', ['target' => 'changed']),
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    AiStoreNativeApprovalTool::$result = '{"error":"Private validation error"}';
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreNativeApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+
+    try {
+        (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+        $batch = ChatApprovalBatch::sole();
+        app(ApprovalBatches::class)->decide($batch, $requester, ['call-1' => ['action' => 'approve']], 'request-1');
+    } finally {
+        AiStoreNativeApprovalTool::$result = 'Done';
+    }
+
+    $assistant = ChatMessage::findOrFail($batch->assistant_message_id);
+    $details = app(ApprovalBatches::class)->details($assistant->approvalBatch, $requester);
+    expect(AiStoreNativeApprovalTool::$executions)->toHaveCount(1)
+        ->and(ChatApprovalBatch::count())->toBe(2)
+        ->and($assistant->approvalBatch->fingerprints)->toHaveKey('call-2')
+        ->and($details[0]['reason'])->toContain('Previous attempt failed: Private validation error')
+        ->and($assistant->blocks[0]['text'])->toContain('previous action failed')
+        ->and($assistant->message)->toContain('previous action failed')
+        ->and($assistant->message)->not->toContain('Private validation error');
+});
+
+it('keeps changed calls pending when a batch also repeats a failed action', function () {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('call-1', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+        AgentResponse::fakeWithPendingApprovals([
+            new PendingApproval('call-2', 'AiStoreNativeApprovalTool', ['target' => 'original'], 'Review'),
+            new PendingApproval('call-3', 'AiStoreNativeApprovalTool', ['target' => 'changed'], 'Review'),
+        ]),
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    AiStoreNativeApprovalTool::$result = '{"error":"Validation failed"}';
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreNativeApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run tools');
+
+    try {
+        (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+        $batch = ChatApprovalBatch::sole();
+        app(ApprovalBatches::class)->decide($batch, $requester, ['call-1' => ['action' => 'approve']], 'request-1');
+    } finally {
+        AiStoreNativeApprovalTool::$result = 'Done';
+    }
+
+    $assistant = ChatMessage::findOrFail($batch->assistant_message_id);
+    expect(AiStoreNativeApprovalTool::$executions)->toHaveCount(1)
+        ->and(array_keys($assistant->approvalBatch->fingerprints))->toBe(['call-3'])
+        ->and($assistant->metadata['ai']['status'])->toBe('paused')
+        ->and($assistant->metadata['ai']['steps'][1]['tool_calls'][0]['denied'])->toBeTrue();
+});
+
+it('does not suppress another approval after a successful action', function () {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('call-1', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+        new ToolCall('call-2', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreNativeApprovalAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run a tool');
+
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+    $batch = ChatApprovalBatch::sole();
+    app(ApprovalBatches::class)->decide($batch, $requester, ['call-1' => ['action' => 'approve']], 'request-1');
+
+    $assistant = ChatMessage::findOrFail($batch->assistant_message_id);
+    expect(AiStoreNativeApprovalTool::$executions)->toHaveCount(1)
+        ->and($assistant->approvalBatch->fingerprints)->toHaveKey('call-2')
+        ->and($assistant->blocks[0]['text'])->toContain('another action')
+        ->and($assistant->blocks[0]['text'])->not->toContain('failed');
 });
 
 it('preserves an application approval policy registered before the package', function () {

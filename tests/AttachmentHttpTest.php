@@ -17,6 +17,7 @@ use Mmedia\LeChat\Contracts\ApprovalPolicy;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Events\BlockInteracted;
 use Mmedia\LeChat\Events\MessageCreated;
+use Mmedia\LeChat\Events\MessageUpdated;
 use Mmedia\LeChat\Events\ParticipantCreated;
 use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Http\Controllers\ChatroomController;
@@ -747,9 +748,10 @@ it('restricts default approvals to the original requester over HTTP', function (
     $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:Example']);
     $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
         'role' => 'assistant', 'agent' => 'Example', 'status' => 'paused',
-        'steps' => [['content' => '', 'tool_calls' => [[
-            'id' => 'call-1', 'name' => 'example_tool', 'arguments' => ['target' => 'private'], 'approval_reason' => 'Review',
-        ]], 'replay_blocks' => []]],
+        'steps' => [['content' => '', 'tool_calls' => [
+            ['id' => 'previous', 'name' => 'example_tool', 'arguments' => ['target' => 'old'], 'approval_reason' => 'Review', 'result' => '{"error":"Private validation error"}'],
+            ['id' => 'call-1', 'name' => 'example_tool', 'arguments' => ['target' => 'private'], 'approval_reason' => 'Review'],
+        ], 'replay_blocks' => []]],
     ]]]);
     $batch = app(ApprovalBatches::class)->create($request, $paused);
     $url = '/api/approvals/'.$batch->id;
@@ -757,8 +759,35 @@ it('restricts default approvals to the original requester over HTTP', function (
 
     $this->actingAs($other)->getJson($url)->assertForbidden();
     $this->postJson($url, $payload)->assertForbidden();
-    $this->actingAs($requester)->getJson($url)->assertOk()->assertJsonPath('approvals.0.arguments.target', 'private');
+    $this->actingAs($requester)->getJson($url)->assertOk()->assertJsonPath('approvals.0.arguments.target', 'private')
+        ->assertJsonPath('approvals.0.reason', 'Review Previous attempt failed: Private validation error');
     expect($batch->fresh()->status)->toBe('pending');
+});
+
+it('shows a stopped action failure only to the approver and never broadcasts it', function () {
+    $room = Chatroom::create(['name' => 'Approval']);
+    $requester = AttachmentTestUser::create();
+    $other = AttachmentTestUser::create();
+    $room->addParticipant($requester);
+    $room->addParticipant($other);
+    $request = $requester->sendMessageTo($room, 'Run a tool');
+    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:Example']);
+    $paused = $room->sendMessageAs($agent, '', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => 'Example', 'status' => 'paused',
+        'steps' => [['content' => '', 'tool_calls' => [[
+            'id' => 'call-1', 'name' => 'example_tool', 'arguments' => [], 'approval_reason' => 'Review',
+        ]], 'replay_blocks' => []]],
+    ]]]);
+    $batch = app(ApprovalBatches::class)->create($request, $paused);
+    $batch->update(['status' => 'resumed', 'approver_type' => $requester->getMorphClass(), 'approver_id' => $requester->getKey(), 'failure_reason' => 'The end must be after the start.']);
+    $paused->refresh()->updateContent($paused->version, ['message' => 'The previous action failed. The retry was stopped.', 'blocks' => null]);
+
+    $this->actingAs($requester)->getJson(route('messages.show', $paused->id))->assertOk()
+        ->assertJsonPath('data.message', "The previous action failed. The retry was stopped.\nReason: The end must be after the start.");
+    expect(json_encode((new MessageUpdated($paused->fresh()->load('approvalBatch')))->broadcastWith()))
+        ->not->toContain('The end must be after the start.');
+    $this->actingAs($other)->getJson(route('messages.show', $paused->id))->assertOk()
+        ->assertJsonPath('data.message', 'The previous action failed. The retry was stopped.');
 });
 
 it('matches requester identity across model types and requires an active requester', function () {

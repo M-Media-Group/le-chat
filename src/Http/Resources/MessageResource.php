@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Casts\ArrayObject;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Route;
+use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Models\ChatFile;
 use Mmedia\LeChat\Models\ChatMessage;
@@ -22,7 +23,7 @@ class MessageResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'message' => $this->message,
+            'message' => $this->messageFor($request),
             'blocks' => $this->whenHas('blocks', fn (?array $blocks): ?array => $this->blocksWithApprovalState($blocks)),
             'version' => $this->whenHas('version'),
             'edited_at' => $this->whenHas('edited_at'),
@@ -56,6 +57,22 @@ class MessageResource extends JsonResource
                 },
             ),
         ];
+    }
+
+    private function messageFor(Request $request): ?string
+    {
+        $message = $this->resource->getAttribute('message');
+        if (! is_string($message)) {
+            return null;
+        }
+        $actor = $request->user();
+        $batch = $this->resource->relationLoaded('approvalBatch') ? $this->approvalBatch : null;
+        if (! $actor instanceof ChatParticipantInterface || $batch === null || $batch->status !== 'resumed' || $batch->failure_reason === null
+            || $batch->approver_type !== $actor->getMorphClass() || (string) $batch->approver_id !== (string) $actor->getKey()) {
+            return $message;
+        }
+
+        return $message."\nReason: ".$batch->failure_reason;
     }
 
     /**

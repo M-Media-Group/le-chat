@@ -24,13 +24,17 @@ use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\Data\ToolCall;
 use Laravel\Ai\Tools\Request;
+use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Contracts\RespondsToChatMessages;
 use Mmedia\LeChat\Models\ChatMessage;
+use Mmedia\LeChat\Traits\IsChatParticipant;
 
 use function Pest\Laravel\mock;
 
-class AiStoreOwner extends Model
+class AiStoreOwner extends Model implements ChatParticipantInterface
 {
+    use IsChatParticipant;
+
     protected $table = 'ai_store_owners';
 
     protected $guarded = [];
@@ -166,6 +170,10 @@ class AiStoreNativeApprovalTool implements Approvable, Tool
 
     public static array $executions = [];
 
+    public static string $result = 'Done';
+
+    public static bool $fail = false;
+
     public function __construct(private Model $requester) {}
 
     public function description(): string
@@ -182,7 +190,11 @@ class AiStoreNativeApprovalTool implements Approvable, Tool
     {
         self::$executions[] = ['requester' => $this->requester->getKey(), 'target' => $request['target']];
 
-        return 'Done';
+        if (self::$fail) {
+            throw new RuntimeException('Private runtime error');
+        }
+
+        return self::$result;
     }
 }
 

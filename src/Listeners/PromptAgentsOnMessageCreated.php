@@ -61,7 +61,7 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
 
         $pendingApprovals = $store->pendingApprovalsFor($conversationId);
 
-        if ($pendingApprovals !== []) {
+        if ($pendingApprovals !== [] && ! app(ApprovalBatches::class)->supersedeWith($message)) {
             $pausedMessage = $room->messages()
                 ->where('metadata->ai->status', 'paused')
                 ->latest('id')
