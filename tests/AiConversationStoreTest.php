@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
@@ -13,7 +14,9 @@ use Illuminate\Validation\ValidationException;
 use Laravel\Ai\Ai;
 use Laravel\Ai\AiServiceProvider;
 use Laravel\Ai\Approvals\PendingApproval;
+use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\ConversationStore;
+use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Contracts\Providers\TextProvider;
 use Laravel\Ai\Files\Base64Document;
 use Laravel\Ai\Files\Document;
@@ -25,7 +28,9 @@ use Laravel\Ai\Gateway\FakeTextGateway;
 use Laravel\Ai\Messages\AssistantMessage;
 use Laravel\Ai\Messages\ToolResultMessage;
 use Laravel\Ai\Messages\UserMessage;
+use Laravel\Ai\Promptable;
 use Laravel\Ai\Prompts\AgentPrompt;
+use Laravel\Ai\Providers\Tools\ToolSearch;
 use Laravel\Ai\Responses\AgentResponse;
 use Laravel\Ai\Responses\Data\FinishReason;
 use Laravel\Ai\Responses\Data\Meta;
@@ -33,9 +38,15 @@ use Laravel\Ai\Responses\Data\Step;
 use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\Data\ToolCall;
 use Laravel\Ai\Responses\Data\ToolResult;
+use Laravel\Ai\Tools\AgentTool;
+use Laravel\Ai\Tools\Request;
 use Mmedia\LeChat\Ai\ApprovalBatches;
 use Mmedia\LeChat\Ai\ChatAttachments;
 use Mmedia\LeChat\Ai\ChatroomConversationStore;
+use Mmedia\LeChat\Ai\DelegatedAgent;
+use Mmedia\LeChat\Ai\DelegatedRuns;
+use Mmedia\LeChat\Ai\DelegatingAgentTool;
+use Mmedia\LeChat\Ai\DelegationTools;
 use Mmedia\LeChat\Ai\RequesterEnvelope;
 use Mmedia\LeChat\Contracts\ApprovalPolicy;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
@@ -749,6 +760,352 @@ it('resumes approved tools as the requester rather than the approver', function 
         ->and(AiStoreApprovalAgent::$resumeLog)->toHaveCount(1)
         ->and($resumption['requester']->getKey())->toBe(aiStoreTestOwner()->getKey())
         ->and($resumption['decisions']->get('call-1')->isApproved())->toBeTrue();
+});
+
+it('preserves runtime tool overrides and restores them after a Le Chat invocation', function (bool $fails) {
+    $child = new AiStoreStatelessApprovalAgent(aiStoreTestOwner());
+    $agent = new AiStoreNativeApprovalAgent(aiStoreTestOwner());
+    $resolutions = 0;
+    $agent->withTools(function (array $declared) use ($child, &$resolutions): array {
+        $resolutions++;
+
+        return [...$declared, $child];
+    });
+    $invoke = function () use ($agent, $child, $fails, &$resolutions): void {
+        DelegationTools::within($agent, function () use ($agent, $child, $fails, &$resolutions): void {
+            $tools = DelegationTools::forAgent($agent);
+            expect($tools[0])->toBeInstanceOf(AiStoreNativeApprovalTool::class);
+            expect($tools[1])->toBeInstanceOf(DelegatingAgentTool::class)
+                ->and($tools[1]->agent())->toBe($child)
+                ->and(DelegationTools::forAgent($agent))->toBe($tools)
+                ->and($resolutions)->toBe(1);
+            $nested = DelegatedAgent::wrap($agent, [], 'root/parent')->tools();
+            expect($nested[1])->toBeInstanceOf(DelegatingAgentTool::class)
+                ->and($nested[1]->agent())->toBe($child);
+
+            if ($fails) {
+                throw new RuntimeException('Invocation failed');
+            }
+        });
+    };
+
+    if ($fails) {
+        expect($invoke)->toThrow(RuntimeException::class, 'Invocation failed');
+    } else {
+        $invoke();
+    }
+
+    expect(DelegationTools::forAgent($agent)[1])->toBe($child)
+        ->and($resolutions)->toBe(2);
+})->with([false, true]);
+
+it('leaves normal SDK subagents untouched when AI integration is disabled', function () {
+    config(['chat.features' => []]);
+    $agent = new AiStoreDelegatingAgent(aiStoreTestOwner());
+
+    $tools = DelegationTools::within($agent, fn () => DelegationTools::forAgent($agent));
+
+    expect($tools[0])->toBeInstanceOf(AiStoreNativeApprovalAgent::class);
+});
+
+it('normalizes deferred subagents without mutating their original tool search', function () {
+    $child = new AiStoreStatelessApprovalAgent(aiStoreTestOwner());
+    $search = new ToolSearch([new AgentTool($child)], 'bm25');
+    $agent = (new AiStoreNativeApprovalAgent(aiStoreTestOwner()))->withTools([$search]);
+
+    DelegationTools::within($agent, function () use ($agent, $search, $child): void {
+        $tools = DelegationTools::forAgent($agent);
+        expect($tools[0])->not->toBe($search)
+            ->and($tools[0]->strategy)->toBe('bm25')
+            ->and($tools[0]->tools[0])->toBeInstanceOf(DelegatingAgentTool::class)
+            ->and(DelegationTools::delegates($tools)[0]->agent())->toBe($child);
+    });
+
+    expect(DelegationTools::forAgent($agent)[0])->toBe($search)
+        ->and($search->tools[0])->not->toBeInstanceOf(DelegatingAgentTool::class);
+});
+
+it('prepares a delegated approval without executing the action or creating a chatroom', function () {
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('child-call', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    $tool = new DelegatingAgentTool((new AiStoreNativeApprovalAgent(aiStoreTestOwner()))->forUser(aiStoreTestOwner()));
+
+    $approval = $tool->shouldRequestApproval(new Request(['task' => 'Run the original action'], 'parent-call'));
+
+    expect($approval?->reason)->toContain('AiStoreNativeApprovalTool', 'original')
+        ->and(AiStoreNativeApprovalTool::$executions)->toBe([])
+        ->and(Chatroom::count())->toBe(0);
+});
+
+it('checkpoints delegated state when optional step metadata is absent', function (array $ai) {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('child-call', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+    ]));
+    $room = Chatroom::create(['name' => 'Checkpoint']);
+    $assistant = $room->sendMessage('Pending', ['metadata' => ['ai' => $ai, 'custom' => 'preserved']]);
+    app(DelegatedRuns::class)->load($assistant);
+    $tool = new DelegatingAgentTool(new AiStoreNativeApprovalAgent(aiStoreTestOwner()));
+
+    $approval = $tool->shouldRequestApproval(new Request(['task' => 'Run original'], 'parent-call'));
+
+    $metadata = $assistant->fresh()->metadata->getArrayCopy();
+    expect($approval?->reason)->toContain('AiStoreNativeApprovalTool', 'original')
+        ->and($metadata['ai']['delegations']['root/parent-call']['status'])->toBe('paused')
+        ->and($metadata['custom'])->toBe('preserved');
+    unset($metadata['ai']['delegations']);
+    expect($metadata['ai'])->toBe($ai);
+})->with([
+    'missing steps' => [[]],
+    'null steps' => [['steps' => null]],
+    'missing tool calls' => [['steps' => [['content' => 'Earlier message']]]],
+    'null tool calls' => [['steps' => [['content' => 'Earlier message', 'tool_calls' => null]]]],
+]);
+
+it('returns a read-only delegated result without creating a chatroom', function () {
+    app()->register(AiServiceProvider::class);
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway(['Internal answer']));
+    $tool = new DelegatingAgentTool((new AiStoreNativeApprovalAgent(aiStoreTestOwner()))->forUser(aiStoreTestOwner()));
+    $request = new Request(['task' => 'Read only'], 'read-call');
+
+    expect($tool->shouldRequestApproval($request))->toBeNull()
+        ->and($tool->handle($request))->toBe('Internal answer')
+        ->and(Chatroom::count())->toBe(0);
+
+    $stream = $tool->stream($request);
+    expect(iterator_to_array($stream))->toBe([])
+        ->and($stream->getReturn())->toBe('Internal answer');
+});
+
+it('preserves the structured schema of an isolated child agent', function () {
+    app()->register(AiServiceProvider::class);
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([]));
+    $child = new class implements Agent, HasStructuredOutput
+    {
+        use Promptable;
+
+        public function instructions(): string
+        {
+            return 'Return a structured answer.';
+        }
+
+        public function schema(JsonSchema $schema): array
+        {
+            return ['answer' => $schema->string()->required()];
+        }
+    };
+    $tool = new DelegatingAgentTool($child);
+    $request = new Request(['task' => 'Answer'], 'structured-call');
+
+    expect($tool->shouldRequestApproval($request))->toBeNull()
+        ->and(json_decode($tool->handle($request), true, flags: JSON_THROW_ON_ERROR))->toHaveKey('answer')
+        ->and(Chatroom::count())->toBe(0);
+});
+
+it('does not execute a delegated action with an unauthorized or stale approval', function (string $scenario, string $exceptionClass) {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('parent-call', 'AiStoreNativeApprovalAgent', ['task' => 'Run original']),
+        new ToolCall('child-call', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    $room = Chatroom::create(['name' => 'Delegation']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreDelegatingAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run original');
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+    $batch = ChatApprovalBatch::sole();
+    $actor = $requester;
+    if ($scenario === 'unauthorized') {
+        $actor = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'other-approver']);
+    } elseif ($scenario === 'changed') {
+        $assistant = $batch->assistantMessage;
+        $metadata = $assistant->metadata->getArrayCopy();
+        $metadata['ai']['delegations']['root/parent-call']['pending'][0]['arguments']['target'] = 'changed';
+        $assistant->forceFill(['metadata' => $metadata])->saveQuietly();
+    } else {
+        $batch->update(['expires_at' => now()->subMinute()]);
+    }
+    app()->instance(DelegatedRuns::class, new DelegatedRuns);
+
+    expect(fn () => app(ApprovalBatches::class)->decide($batch, $actor, ['parent-call' => ['action' => 'approve']], 'invalid'))->toThrow($exceptionClass);
+    expect(AiStoreNativeApprovalTool::$executions)->toBe([]);
+})->with([
+    ['unauthorized', AuthorizationException::class],
+    ['changed', ValidationException::class],
+    ['expired', ValidationException::class],
+]);
+
+it('resumes a delegated approval from persisted child history without creating another room', function (string $parentClass, string $childClass) {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('parent-call', $childClass, ['task' => 'Run the original action']),
+        new ToolCall('child-call', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+        'Child completed', 'Parent completed',
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    $room = Chatroom::create(['name' => 'Delegation']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.$parentClass]);
+    $request = $room->sendMessageAs($requester, 'Run a delegated tool');
+
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+    $batch = ChatApprovalBatch::sole();
+    expect(AiStoreNativeApprovalTool::$executions)->toBe([])
+        ->and($batch->assistantMessage->metadata['ai']['delegations']['root/parent-call']['pending'][0]['arguments'])->toBe(['target' => 'original']);
+    app()->instance(DelegatedRuns::class, new DelegatedRuns);
+
+    $result = app(ApprovalBatches::class)->decide($batch, $requester, ['parent-call' => ['action' => 'approve']], 'approve-delegation');
+
+    expect($result->status)->toBe('resumed')
+        ->and($result->failure_reason)->toBeNull()
+        ->and(AiStoreNativeApprovalTool::$executions)->toBe([['requester' => aiStoreTestOwner()->getKey(), 'target' => 'original']])
+        ->and(Chatroom::count())->toBe(1)
+        ->and($room->participants()->where('reference_id', 'like', 'ai-agent:%')->count())->toBe(1)
+        ->and($batch->assistantMessage->fresh()->message)->toBe('Parent completed');
+})->with([
+    [AiStoreDelegatingAgent::class, AiStoreNativeApprovalAgent::class],
+    [AiStoreStatelessDelegatingAgent::class, AiStoreStatelessApprovalAgent::class],
+    [AiStoreRuntimeDelegatingAgent::class, AiStoreStatelessApprovalAgent::class],
+]);
+
+it('does not replay a delegated mutation after an interrupted child continuation', function () {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('parent-call', 'AiStoreNativeApprovalAgent', ['task' => 'Run original']),
+        new ToolCall('child-call', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+        fn () => throw new RuntimeException('Provider disconnected after execution'),
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    $room = Chatroom::create(['name' => 'Interrupted delegation']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreDelegatingAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run original');
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+    $batch = ChatApprovalBatch::sole();
+    app()->instance(DelegatedRuns::class, new DelegatedRuns);
+
+    $result = app(ApprovalBatches::class)->decide($batch, $requester, ['parent-call' => ['action' => 'approve']], 'interrupted');
+    app(ApprovalBatches::class)->decide($result->fresh(), $requester, ['parent-call' => ['action' => 'approve']], 'interrupted');
+    app()->instance(DelegatedRuns::class, new DelegatedRuns);
+    app(DelegatedRuns::class)->load($batch->assistantMessage->fresh());
+    $tool = new DelegatingAgentTool(new AiStoreNativeApprovalAgent(aiStoreTestOwner()));
+
+    expect($result->failure_reason)->toContain('uncertain')
+        ->and(fn () => $tool->advance(new Request(['task' => 'Run original'], 'parent-call')))->toThrow(LogicException::class, 'uncertain')
+        ->and(AiStoreNativeApprovalTool::$executions)->toBe([['requester' => aiStoreTestOwner()->getKey(), 'target' => 'original']]);
+});
+
+it('keeps the parent paused for a second child approval without replaying the first action', function () {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('parent-call', 'AiStoreNativeApprovalAgent', ['task' => 'Run two actions']),
+        new ToolCall('first-child-call', 'AiStoreNativeApprovalTool', ['target' => 'first']),
+        new ToolCall('second-child-call', 'AiStoreNativeApprovalTool', ['target' => 'second']),
+        'Child completed', 'Parent completed',
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    $room = Chatroom::create(['name' => 'Delegation']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreDelegatingAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run two delegated tools');
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+    $first = ChatApprovalBatch::sole();
+    app()->instance(DelegatedRuns::class, new DelegatedRuns);
+
+    app(ApprovalBatches::class)->decide($first, $requester, ['parent-call' => ['action' => 'approve']], 'first');
+
+    $second = ChatApprovalBatch::query()->where('generation', 2)->sole();
+    expect($second->status)->toBe('pending')
+        ->and(AiStoreNativeApprovalTool::$executions)->toBe([['requester' => aiStoreTestOwner()->getKey(), 'target' => 'first']])
+        ->and($second->assistantMessage->metadata['ai']['status'])->toBe('paused')
+        ->and(app(ApprovalBatches::class)->details($second, $requester)[0]['reason'])->toContain('second');
+    app(ApprovalBatches::class)->decide($first->fresh(), $requester, ['parent-call' => ['action' => 'approve']], 'first');
+    app()->instance(DelegatedRuns::class, new DelegatedRuns);
+
+    app(ApprovalBatches::class)->decide($second, $requester, ['parent-call' => ['action' => 'approve']], 'second');
+
+    expect(AiStoreNativeApprovalTool::$executions)->toBe([
+        ['requester' => aiStoreTestOwner()->getKey(), 'target' => 'first'],
+        ['requester' => aiStoreTestOwner()->getKey(), 'target' => 'second'],
+    ])->and($second->assistantMessage->fresh()->message)->toBe('Parent completed')
+        ->and(Chatroom::count())->toBe(1);
+});
+
+it('resumes approvals through two levels of delegated conversational agents', function () {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('parent-call', 'AiStoreDelegatingAgent', ['task' => 'Delegate again']),
+        new ToolCall('middle-call', 'AiStoreNativeApprovalAgent', ['task' => 'Run original']),
+        new ToolCall('child-call', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+        'Child completed', 'Middle completed', 'Parent completed',
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    $room = Chatroom::create(['name' => 'Nested delegation']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreNestedDelegatingAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Delegate twice');
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+    $batch = ChatApprovalBatch::sole();
+    app()->instance(DelegatedRuns::class, new DelegatedRuns);
+
+    $result = app(ApprovalBatches::class)->decide($batch, $requester, ['parent-call' => ['action' => 'approve']], 'nested');
+
+    expect($result->failure_reason)->toBeNull()
+        ->and(AiStoreNativeApprovalTool::$executions)->toBe([['requester' => aiStoreTestOwner()->getKey(), 'target' => 'original']])
+        ->and($batch->assistantMessage->fresh()->message)->toBe('Parent completed')
+        ->and(Chatroom::count())->toBe(1);
+});
+
+it('rejects delegated changes without executing the child action', function () {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('parent-call', 'AiStoreNativeApprovalAgent', ['task' => 'Run original']),
+        new ToolCall('child-call', 'AiStoreNativeApprovalTool', ['target' => 'original']),
+        'No changes made',
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    $room = Chatroom::create(['name' => 'Rejected delegation']);
+    $requester = ChatParticipant::create(['chatroom_id' => $room->id, 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
+    ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreDelegatingAgent::class]);
+    $request = $room->sendMessageAs($requester, 'Run original');
+    (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($request));
+    $batch = ChatApprovalBatch::sole();
+    app()->instance(DelegatedRuns::class, new DelegatedRuns);
+
+    $result = app(ApprovalBatches::class)->decide($batch, $requester, ['parent-call' => ['action' => 'reject']], 'reject');
+
+    expect($result->failure_reason)->toBeNull()
+        ->and(AiStoreNativeApprovalTool::$executions)->toBe([])
+        ->and($batch->assistantMessage->fresh()->message)->toBe('No changes made')
+        ->and(Chatroom::count())->toBe(1);
 });
 
 it('pauses and resumes a real SDK tool approval as the requester', function () {

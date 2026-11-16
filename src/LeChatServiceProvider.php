@@ -5,6 +5,7 @@ namespace Mmedia\LeChat;
 use Illuminate\Console\Scheduling\Schedule;
 use Laravel\Ai\Contracts\ConversationStore;
 use Mmedia\LeChat\Ai\ChatroomConversationStore;
+use Mmedia\LeChat\Ai\DelegatedRuns;
 use Mmedia\LeChat\Ai\RequesterApprovalPolicy;
 use Mmedia\LeChat\Commands\DecryptMessages;
 use Mmedia\LeChat\Commands\DeleteMessages;
@@ -49,6 +50,7 @@ class LeChatServiceProvider extends PackageServiceProvider
     public function packageRegistered(): void
     {
         $this->app->bindIf(ApprovalPolicy::class, RequesterApprovalPolicy::class);
+        $this->app->scoped(DelegatedRuns::class);
 
         if (Features::enabled(Features::routes())) {
             $this->package->hasRoute('api');

@@ -10,6 +10,7 @@ use Laravel\Ai\Responses\AgentResponse;
 use Mmedia\LeChat\Ai\ApprovalBatches;
 use Mmedia\LeChat\Ai\ChatAttachments;
 use Mmedia\LeChat\Ai\ChatroomConversationStore;
+use Mmedia\LeChat\Ai\DelegationTools;
 use Mmedia\LeChat\Ai\RequesterEnvelope;
 use Mmedia\LeChat\Contracts\RespondsToChatMessages;
 use Mmedia\LeChat\Events\MessageCreated;
@@ -129,7 +130,7 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
                         $agent->continue($conversationId, as: $message->sender?->participatingModel);
                     }
 
-                    $response = $agent->prompt(...$prompt);
+                    $response = DelegationTools::within($agent, fn () => $agent->prompt(...$prompt));
 
                     if ($response instanceof AgentResponse && $response->hasPendingApprovals()) {
                         if (! $agentIsConversational || $response->assistantMessageId === null) {

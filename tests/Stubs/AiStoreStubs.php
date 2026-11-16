@@ -4,6 +4,7 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Ai\Approvals\Decisions;
 use Laravel\Ai\Approvals\PendingApproval;
+use Laravel\Ai\Attributes\RepairToolCalls;
 use Laravel\Ai\Concerns\InteractsWithApprovals;
 use Laravel\Ai\Concerns\RemembersConversations;
 use Laravel\Ai\Contracts\Agent;
@@ -217,5 +218,76 @@ final class AiStoreNativeApprovalAgent implements Agent, Conversational, HasTool
     public function tools(): iterable
     {
         return [new AiStoreNativeApprovalTool($this->requester)];
+    }
+}
+
+class AiStoreDelegatingAgent implements Agent, Conversational, HasTools, RespondsToChatMessages
+{
+    use Promptable, RemembersConversations;
+
+    public function __construct(protected Model $requester) {}
+
+    public static function forChatMessage(ChatMessage $message): static
+    {
+        return new static($message->sender->participatingModel);
+    }
+
+    public function instructions(): string
+    {
+        return 'Delegate the task.';
+    }
+
+    public function tools(): iterable
+    {
+        return [(new AiStoreNativeApprovalAgent($this->requester))->forUser($this->requester)];
+    }
+}
+
+class AiStoreNestedDelegatingAgent extends AiStoreDelegatingAgent
+{
+    public function tools(): iterable
+    {
+        return [(new AiStoreDelegatingAgent($this->requester))->forUser($this->requester)];
+    }
+}
+
+#[RepairToolCalls]
+class AiStoreStatelessApprovalAgent implements Agent, HasTools
+{
+    use Promptable;
+
+    public function __construct(private Model $requester) {}
+
+    public function instructions(): string
+    {
+        return 'Complete the delegated task.';
+    }
+
+    public function tools(): iterable
+    {
+        return [new AiStoreNativeApprovalTool($this->requester)];
+    }
+}
+
+class AiStoreStatelessDelegatingAgent extends AiStoreDelegatingAgent
+{
+    public function tools(): iterable
+    {
+        return [new AiStoreStatelessApprovalAgent($this->requester)];
+    }
+}
+
+class AiStoreRuntimeDelegatingAgent extends AiStoreDelegatingAgent
+{
+    public static function forChatMessage(ChatMessage $message): static
+    {
+        return parent::forChatMessage($message)->withTools([
+            new AiStoreStatelessApprovalAgent($message->sender->participatingModel),
+        ]);
+    }
+
+    public function tools(): iterable
+    {
+        return [];
     }
 }

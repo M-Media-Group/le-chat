@@ -220,7 +220,20 @@ class ApprovalBatches
                     throw new \LogicException('The paused agent cannot resume conversations.');
                 }
                 $agent->continue($conversationId, as: $requesterModel);
-                $response = $agent->prompt(Decisions::from($sdkDecisions));
+                $delegations = app(DelegatedRuns::class);
+                $delegations->load($assistant);
+                $ready = true;
+                $response = DelegationTools::within($agent, function () use ($agent, $delegations, $currentApprovals, $sdkDecisions, &$ready) {
+                    $ready = $delegations->advanceTools($agent, $currentApprovals, $sdkDecisions);
+
+                    return $ready ? $agent->prompt(Decisions::from($sdkDecisions)) : null;
+                });
+                if (! $ready) {
+                    $batch->update(['status' => 'resumed']);
+                    $this->create($requester, $assistant->fresh());
+
+                    return $batch->refresh();
+                }
                 $batch->update(['status' => 'resumed']);
                 if ($response instanceof AgentResponse && $response->hasPendingApprovals()) {
                     $nextMessage = ChatMessage::findOrFail($response->assistantMessageId ?? $assistant->id);
@@ -353,16 +366,19 @@ class ApprovalBatches
         $requester = $batch->requesterMessage;
         $sender = $requester->sender;
         $conversationId = app(ChatroomConversationStore::class)->conversationIdOf($requester->chatroom);
+        $delegations = ChatMessage::query()->find($batch->assistant_message_id)?->metadata['ai']['delegations'] ?? [];
         foreach ($approvals as $approval) {
             if ($approval->id === '' || array_key_exists($approval->id, $fingerprints)) {
                 throw new \LogicException('Pending tool call identifiers must be unique and non-empty.');
             }
+            $delegation = array_filter($delegations, fn (string $key): bool => $key === 'root/'.$approval->id || str_starts_with($key, 'root/'.$approval->id.'/'), ARRAY_FILTER_USE_KEY);
             $payload = $this->canonicalize([
                 'batch_id' => $batch->id, 'conversation_id' => $conversationId,
                 'requester_message_id' => $batch->requester_message_id,
                 'requester_sender_id' => $requester->sender_id,
                 'requester_type' => $sender?->participant_type, 'requester_id' => $sender?->participant_id,
                 'tool_call_id' => $approval->id, 'tool' => $approval->tool, 'arguments' => $approval->arguments,
+                ...($delegation !== [] ? ['delegation' => $delegation] : []),
             ]);
             $fingerprints[$approval->id] = hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION));
         }

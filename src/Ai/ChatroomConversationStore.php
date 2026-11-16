@@ -73,6 +73,7 @@ class ChatroomConversationStore extends DatabaseConversationStore
         $previousAgentClass = $this->activeAgentClass;
         $this->pendingMessage = $message;
         $this->activeAgentClass = $agentClass;
+        app(DelegatedRuns::class)->load();
 
         try {
             return $callback();
@@ -188,6 +189,7 @@ class ChatroomConversationStore extends DatabaseConversationStore
                 'agent' => $prompt->agent::class,
                 'attachments' => [],
                 'steps' => $this->plain($steps),
+                'delegations' => app(DelegatedRuns::class)->snapshot(),
                 'usage' => $this->plain($response->usage),
                 'meta' => $this->plain($this->metaFor($response, $exception)),
                 'status' => $this->statusFor($response, $exception)->value,
@@ -397,6 +399,7 @@ class ChatroomConversationStore extends DatabaseConversationStore
 
         $this->updateRecord($paused, [
             'steps' => $this->plain($steps),
+            'delegations' => app(DelegatedRuns::class)->snapshot(),
             'usage' => $this->plain(TextUsage::fromArray($this->decoded($paused->usage))->add($response->usage)),
             'meta' => $this->plain($this->mergedMeta($paused, $response, $exception)),
             'status' => $this->statusFor($response, $exception)->value,

@@ -75,6 +75,31 @@ $this->app->bind(ApprovalPolicy::class, ChatApprovalPolicy::class);
 
 Approval batches expire after 15 minutes by default. Change `chat.approvals.ttl_minutes` to adjust this. Retrying the same decision with the same idempotency key is safe; a conflicting decision is rejected. If a tool may have changed data before an error occurred, check the result before trying the action again. All application workers must use a shared cache store so simultaneous prompts and approval decisions for one chatroom do not overlap.
 
+## Subagents
+
+With `Features::aiSdkIntegration()` enabled, Le Chat automatically adapts subagents during chatroom auto-responses and approval resumes. Declare subagents using the normal SDK API:
+
+```php
+use App\Ai\Agents\AttributesAssistant;
+
+public function tools(): iterable
+{
+    return [
+        new AttributesAssistant($this->conversationUser),
+    ];
+}
+```
+
+Le Chat keeps the child task and history isolated, even if the child uses `RemembersConversations`. It does not create another chatroom, add another chat participant, or append internal child messages to the visible conversation. Nested agents and agents inside SDK tool-search groups are adapted recursively. Existing runtime tool overrides are preserved, and the original tool configuration is restored when the invocation ends, including on failure.
+
+This automatic behavior applies only to Le Chat-owned invocations. Calling an agent's SDK `prompt()` or `stream()` directly does not pass through the chat listener and is not intercepted. `DelegatingAgentTool` remains available for explicitly adapted tools, but is not required in Le Chat-managed agent declarations. Native SDK delegation outside these flows still has the SDK's own approval and persistence behavior.
+
+When a child pauses, the parent pauses with an approval describing the exact pending child tools and arguments. Approval covers only those listed actions, not the whole delegated task. If the child requests more approval afterward, a new approval batch is created and the parent remains paused. Rejecting a delegated call does not execute its pending child actions.
+
+Continue using the chat approval routes, which resume the saved child execution before resuming the parent. Do not resume a delegated approval by calling the parent's SDK `prompt(Decisions::from(...))` directly. Pass the original requester into the child's tools so they can recheck authorization when executed. If a child continuation fails after a mutation may have run, the approval is marked uncertain and automatic replay is refused; reconcile the outcome before retrying.
+
+Child state is stored in the parent assistant message's private `metadata.ai`, bound to the approval fingerprint. It is not exposed by message resources. The same metadata storage and encryption limitations described below apply.
+
 ## Internal storage
 
 Le Chat stores AI SDK conversation state in the chatroom and message tables. SDK-specific details are kept in the `metadata.ai` JSON value. This is an internal storage format, not a stable application API; do not build clients against it or expose it in message responses. It may contain tool arguments, results, and provider state. The `metadata` column is not encrypted by the message-encryption feature, so treat its contents accordingly.
