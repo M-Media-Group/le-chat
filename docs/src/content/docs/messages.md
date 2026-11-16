@@ -72,6 +72,79 @@ To reply to a message, you can use the `replyAs` method on the `ChatMessage` mod
 $message->replyAs($participant, $replyContent);
 ```
 
+## Mentions in your frontend
+
+Le Chat does not provide a chat screen or a ready-made mention dropdown. Your frontend decides how people select participants and how messages are displayed. The backend provides stable mention tokens and validates them.
+
+### 1. Get the room's participant list
+
+Use the `participants` array returned by your chatroom API response. Each entry contains an `id`, `display_name`, and `mention_token`. See [participant resources](/participants#mentioning-a-participant) for an example.
+
+Use participants from the **same room** as the message. Do not build the picker from a global list of users or assume that a user ID is a participant ID.
+
+### 2. Insert the token, not the label
+
+Suppose Alex's participant entry has `"mention_token": "<@123>"`:
+
+- Show **@Alex** as the selectable label in your editor.
+- When the person selects Alex, insert **`<@123>`** into the message value you submit.
+- Your editor may display a friendly mention chip, but its saved value must retain that token.
+
+For example, a message request for chatroom `42` contains:
+
+```json
+{
+    "to_entity_type": "chatroom",
+    "to_entity_id": 42,
+    "message": "Hello <@123>, can you help?"
+}
+```
+
+Send that payload to your configured message-send endpoint; see [Routing](/routing). Le Chat checks that participant `123` is active in room `42`. It does not resolve `@Alex` by looking for a matching display name. A mention of someone from another room returns a `422` validation response.
+
+### 3. Render the stored token as a name
+
+When displaying a stored message, look up each `<@123>` token in the room's participant list and display `@` followed by that participant's `display_name`. Keep the original token in your stored message and when editing it; do not save the rendered label back to the API.
+
+If a participant cannot be resolved, keep the token as plain text rather than guessing which person it means. Treat both message text and display names as untrusted text. Do not insert them into raw HTML.
+
+This contract works with React, Vue, a rich-text editor, or plain JavaScript. You do not have to use Le Chat's JavaScript helper.
+
+### Optional JavaScript helper
+
+The package includes small functions for building picker data and rendering mentions. They do **not** create a picker UI, send messages, fetch participants, or run automatically. The `.mjs` extension means the file is a JavaScript ES module, which must be imported explicitly.
+
+For a frontend served by the **same Laravel application**, publish the helper:
+
+```bash
+php artisan vendor:publish --tag=chat-mention-assets
+```
+
+This makes `/vendor/le-chat/mentions.mjs` available from that application's public directory. Import it from a module script or your frontend's module entry point:
+
+```javascript
+import {
+        mentionSuggestions,
+        renderMentions,
+} from '/vendor/le-chat/mentions.mjs';
+
+// room and message are objects your frontend has already received from the API.
+const options = mentionSuggestions(room.participants, 'alex');
+
+// options contains entries such as:
+// { id: 123, label: '@Alex', token: '<@123>' }
+// Your picker displays option.label and inserts option.token when selected.
+
+const messageElement = document.querySelector('#message-text');
+renderMentions(messageElement, message.message, room.participants);
+```
+
+The example assumes your page has an element with `id="message-text"`. `renderMentions` replaces that element's contents with safe text nodes and `chat-mention` spans. Each span has a `data-participant-id` attribute for your own styling or click handling. Unknown or removed participant IDs remain literal text.
+
+If your frontend is a **separate application or origin**, the import path above does not automatically point at your Laravel backend. Implement the token contract in that frontend's existing mention component, or include the helper in its own build. Publishing the helper on the backend does not wire it into a separate frontend.
+
+Mentions can also select which AI agents respond. Configure those rules on the backend as described in [Choose when an agent responds](/ai-sdk#choose-when-an-agent-responds).
+
 ## Message blocks
 Messages may contain a versioned list of section and action blocks:
 

@@ -69,6 +69,59 @@ it('resolves a sender and its direct replies', function () {
         ->and($reply->parentMessage->getKey())->toBe($original->getKey());
 });
 
+it('validates mention IDs against active membership in this room rather than model IDs', function (string $invalidTarget) {
+    $room = Chatroom::create(['name' => 'Mentions']);
+    $sender = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'sender']);
+    $otherRoom = Chatroom::create(['name' => 'Other room']);
+    $target = ChatParticipant::create(['chatroom_id' => $invalidTarget === 'other_room' ? $otherRoom->id : $room->id, 'reference_id' => 'target', 'participant_id' => 999999]);
+    if ($invalidTarget === 'removed') {
+        $target->delete();
+    }
+    $id = $invalidTarget === 'model_id' ? $target->participant_id : $target->id;
+    $count = $room->messages()->count();
+
+    expect(fn () => $room->sendMessageAs($sender, 'Hello <@'.$id.'>'))
+        ->toThrow(ValidationException::class, 'Mentions must reference active participants');
+
+    expect($room->messages()->count())->toBe($count);
+    Event::assertNotDispatched(MessageCreated::class);
+})->with(['other_room', 'removed', 'model_id']);
+
+it('keeps canonical mention IDs in message text and accepts repeated valid mentions', function () {
+    $room = Chatroom::create(['name' => 'Mentions']);
+    $sender = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'sender']);
+    $target = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'target', 'display_name' => 'Guide']);
+    $text = 'Hello '.$target->mentionToken().' and again '.$target->mentionToken();
+
+    $message = $room->sendMessageAs($sender, $text);
+
+    expect($message->fresh()->message)->toBe($text);
+    Event::assertDispatched(MessageCreated::class, fn (MessageCreated $event): bool => $event->message->is($message));
+});
+
+it('rejects invalid mentions during edits without persisting a changed version', function () {
+    $room = Chatroom::create(['name' => 'Mentions']);
+    $sender = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'sender']);
+    $message = $room->sendMessageAs($sender, 'Original');
+
+    expect(fn () => $message->updateContent(1, ['message' => 'Hello <@999999>']))->toThrow(ValidationException::class);
+
+    expect($message->fresh()->message)->toBe('Original')
+        ->and($message->fresh()->version)->toBe(1);
+    Event::assertNotDispatched(MessageUpdated::class);
+});
+
+it('validates mentions in section blocks even when the message text does not repeat them', function () {
+    $room = Chatroom::create(['name' => 'Mentions']);
+    $sender = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'sender']);
+
+    expect(fn () => $room->sendMessageAs($sender, 'Question', ['blocks' => [
+        ['schema_version' => 1, 'block_id' => 'question', 'type' => 'section', 'text' => 'Hello <@999999>'],
+    ]]))->toThrow(ValidationException::class, 'Mentions must reference active participants');
+
+    Event::assertNotDispatched(MessageCreated::class);
+});
+
 it('delegates read marking and reply creation to the participant', function () {
     $message = new ChatMessage;
     $participant = Mockery::mock(ChatParticipantInterface::class);

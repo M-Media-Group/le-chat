@@ -6,8 +6,10 @@ use Illuminate\Events\CallQueuedListener;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Events\ParticipantCreated;
+use Mmedia\LeChat\Http\Resources\ChatParticipantResource;
 use Mmedia\LeChat\Listeners\SendParticipantCreatedNotification;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
@@ -47,6 +49,51 @@ it('sends a message as the participant to its chatroom', function () {
         ->and($message->sender_id)->toBe($participant->getKey())
         ->and($message->message)->toBe('Hello from the participant');
 });
+
+it('stores generic mention aliases and exposes no AI policy for human participants', function () {
+    $room = Chatroom::create(['name' => 'Mentions', 'metadata' => ['reference_id' => 'keep-me']]);
+    $first = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'agent:first', 'display_name' => 'Guide AI']);
+    $second = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'agent:second']);
+
+    $first->setMentionAliases(['GSAI']);
+    $second->setMentionAliases(['other']);
+
+    $first = $first->fresh();
+    expect($first->mentionAliases())->toBe(['gsai'])
+        ->and($room->fresh()->metadata['reference_id'])->toBe('keep-me')
+        ->and($room->fresh()->metadata['participant_settings'][(string) $second->id]['mention_aliases'])->toBe(['other']);
+    $payload = (new ChatParticipantResource($first))->resolve();
+    expect($payload['mention_token'])->toBe('<@'.$first->id.'>')
+        ->and($payload['mention_aliases'])->toBe(['gsai'])
+        ->and($payload)->not->toHaveKey('ai_response_mode');
+});
+
+it('rejects ambiguous aliases without changing another participant settings', function () {
+    $room = Chatroom::create(['name' => 'Mentions']);
+    $first = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'agent:first']);
+    $second = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'agent:second']);
+    $first->setMentionAliases(['gsai']);
+
+    expect(fn () => $second->setMentionAliases(['GSAI']))->toThrow(ValidationException::class, 'unique within the chatroom');
+
+    expect($first->fresh()->mentionAliases())->toBe(['gsai'])
+        ->and($second->fresh()->mentionAliases())->toBe([]);
+});
+
+it('rejects invalid alias values before changing stored preferences', function (mixed $alias) {
+    $room = Chatroom::create(['name' => 'Mentions']);
+    $participant = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'agent:first']);
+
+    expect(fn () => $participant->setMentionAliases([$alias]))->toThrow(ValidationException::class);
+
+    expect($participant->fresh()->mentionAliases())->toBe([])
+        ->and((new ChatParticipantResource($participant->fresh()))->resolve())->not->toHaveKey('ai_response_mode');
+})->with([
+    'number' => [123],
+    'array' => [['not-a-string']],
+    'spaces' => ['contains spaces'],
+    'at-sign prefix' => ['@gsai'],
+]);
 
 it('creates and reuses a personal chatroom for its model participant', function () {
     $owner = ChatParticipantTestOwner::create(['name' => 'Personal owner']);

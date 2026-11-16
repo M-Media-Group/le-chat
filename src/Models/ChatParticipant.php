@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Events\ParticipantCreated;
 use Mmedia\LeChat\Events\ParticipantDeleted;
@@ -89,6 +90,54 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
                     }
                 });
             }
+        });
+    }
+
+    public function mentionToken(): string
+    {
+        return '<@'.$this->getKey().'>';
+    }
+
+    public function isAgent(): bool
+    {
+        return str_starts_with((string) $this->reference_id, 'ai-agent:');
+    }
+
+    /** @return list<string> */
+    public function mentionAliases(): array
+    {
+        $aliases = $this->chatroom?->metadata['participant_settings'][(string) $this->getKey()]['mention_aliases'] ?? [];
+
+        return is_array($aliases) ? array_values(array_unique(array_map('strtolower', array_filter(
+            $aliases, fn (mixed $alias): bool => is_string($alias) && preg_match('/^[a-z][a-z0-9_-]{0,31}$/iD', $alias) === 1,
+        )))) : [];
+    }
+
+    /** @param list<mixed> $aliases Values are validated before being stored as normalized aliases. */
+    public function setMentionAliases(array $aliases): void
+    {
+        foreach ($aliases as $alias) {
+            if (! is_string($alias) || preg_match('/^[a-z][a-z0-9_-]{0,31}$/iD', $alias) !== 1) {
+                throw ValidationException::withMessages(['mention_aliases' => 'Mention aliases must start with a letter and contain at most 32 letters, digits, underscores, or hyphens.']);
+            }
+        }
+        $aliases = array_values(array_unique(array_map('strtolower', $aliases)));
+
+        $this->getConnection()->transaction(function () use ($aliases): void {
+            $room = Chatroom::query()->lockForUpdate()->findOrFail($this->chatroom_id);
+            if (! $room->hasParticipant($this)) {
+                throw ValidationException::withMessages(['participant' => 'The participant must be active in this chatroom.']);
+            }
+            foreach ($room->participants()->where('id', '!=', $this->getKey())->get() as $other) {
+                $other->setRelation('chatroom', $room);
+                if (array_intersect($aliases, $other->mentionAliases()) !== []) {
+                    throw ValidationException::withMessages(['mention_aliases' => 'Mention aliases must be unique within the chatroom.']);
+                }
+            }
+            $metadata = $room->metadata ?? [];
+            $metadata['participant_settings'][(string) $this->getKey()]['mention_aliases'] = $aliases;
+            $room->update(['metadata' => $metadata]);
+            $this->setRelation('chatroom', $room);
         });
     }
 

@@ -20,6 +20,7 @@ use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\Events\MessageUpdated;
 use Mmedia\LeChat\Features;
+use Mmedia\LeChat\Support\ChatMentions;
 use Mmedia\LeChat\Support\MessageBlocks;
 use Mmedia\LeChat\Traits\BelongsToChatroom;
 use Mmedia\LeChat\Traits\OverwriteDeletes;
@@ -105,6 +106,9 @@ final class ChatMessage extends Model
         self::saving(function (ChatMessage $message): void {
             if ($message->isDirty('blocks') && blank($message->message) && $message->blocks !== null) {
                 $message->message = MessageBlocks::fallback($message->blocks);
+            }
+            if ($message->isDirty('message') || $message->isDirty('blocks')) {
+                ChatMentions::validate($message);
             }
         });
 
@@ -213,6 +217,7 @@ final class ChatMessage extends Model
         if (array_key_exists('blocks', $attributes) && $attributes['blocks'] !== null && blank($attributes['message'] ?? null)) {
             $this->message = MessageBlocks::fallback($this->blocks);
         }
+        ChatMentions::validate($this);
 
         $now = $this->freshTimestamp();
         $stored = $this->getAttributes();

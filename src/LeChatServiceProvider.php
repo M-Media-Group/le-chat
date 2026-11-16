@@ -60,6 +60,10 @@ class LeChatServiceProvider extends PackageServiceProvider
     // The boot
     public function bootingPackage(): void
     {
+        $this->publishes([
+            __DIR__.'/../resources/js/mentions.mjs' => public_path('vendor/le-chat/mentions.mjs'),
+        ], 'chat-mention-assets');
+
         if (Features::enabled(Features::files())) {
             $this->package->hasCommand(PruneFiles::class);
         }

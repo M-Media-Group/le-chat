@@ -178,6 +178,62 @@ In order to do the inverse and get the model from the `ChatParticipant`, you can
 $participant = $chatParticipant->participatingModel; // Will return the original model (e.g., Teacher or Student)
 ```
 
+### Mentioning a participant
+
+Use the chat participant's ID when mentioning someone, not the ID of their underlying user, teacher, or student model.
+
+For example, Alex might be user **7** in your application's `users` table but participant **123** in this chatroom. The correct mention is `<@123>`, not `<@7>`. The same user can have a different participant ID in another room.
+
+Get the correct participant and its token in PHP:
+
+```php
+$chatParticipant = $teacher->asParticipantIn($chatroom);
+
+if ($chatParticipant === null) {
+        // The teacher is not an active participant in this room.
+        return;
+}
+
+$token = $chatParticipant->mentionToken();
+$student->sendMessageTo($chatroom, 'I have a question for '.$token.'.');
+```
+
+In this example, both `$teacher` and `$student` must already be participants in `$chatroom`. The stored message keeps the ID token. A frontend can show it as `@Alex` by looking up participant `123` in the room's participant list.
+
+Participant API resources include the information needed for this lookup. This is an example of the relevant fields, not the complete resource:
+
+```json
+{
+    "id": 123,
+    "participant_id": 7,
+    "display_name": "Alex",
+    "mention_token": "<@123>",
+    "mention_aliases": []
+}
+```
+
+| Field | What to use it for |
+| --- | --- |
+| `id` | Identifies this participant in the chat system. |
+| `participant_id` | Identifies the underlying application model. **Do not use it to create a mention.** It may be `null` for agents and other model-less participants. |
+| `display_name` | The label shown to people. It can change and does not determine who is mentioned. |
+| `mention_token` | The exact text your frontend should insert into a message when this participant is selected. |
+| `mention_aliases` | Explicitly configured plain-text alternatives, such as `support` for `@support`. A display name does not automatically become an alias. |
+
+AI agent resources additionally include `ai_response_mode`; human participant resources omit it. The room owns that policy. See [Choose when an agent responds](/ai-sdk#choose-when-an-agent-responds).
+
+Aliases are a separate, optional convenience for both people and agents. Configure them on a participant from trusted server code:
+
+```php
+$chatParticipant->setMentionAliases(['alex']);
+```
+
+This makes `@alex` resolve to that participant in this room. It does not turn a human into an AI or change when an agent replies. Aliases must be unique among active room participants. Passing an empty list clears them; the participant's ID token is unchanged.
+
+Le Chat validates mention tokens when messages are sent or edited, including tokens in section blocks. A token must refer to an active participant in the same room. Unknown IDs, IDs from another room, and removed participants are rejected with a validation error; the HTTP APIs return `422`. Renaming a participant does not change their token.
+
+For frontend examples, see [Mentions in your frontend](/messages#mentions-in-your-frontend). To control whether an AI answers a mention, see [Choose when an agent responds](/ai-sdk#choose-when-an-agent-responds).
+
 ### Customizing the display name and avatar
 By default, Le Chat will use the `name` or `email` attribute of your model as the display name and the `avatar_url` attribute as the avatar URL. However, you can customize this behavior by implementing the `getDisplayName` and `getAvatarUrl` methods in your model.
 

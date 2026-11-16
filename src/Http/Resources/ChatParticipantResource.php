@@ -21,6 +21,10 @@ class ChatParticipantResource extends JsonResource
             'participant_id' => $this->participant_id,
             'participant_type' => $this->participant_type,
             'display_name' => $this->display_name,
+            'mention_token' => $this->resource->mentionToken(),
+            /** @var list<string> */
+            'mention_aliases' => $this->resource->mentionAliases(),
+            'ai_response_mode' => $this->when($this->resource->isAgent(), fn () => $this->resource->chatroom?->agentResponseMode($this->resource) ?? 'off'),
             'avatar_url' => $this->avatar_url,
             'created_at' => $this->created_at,
             'deleted_at' => $this->deleted_at,

@@ -118,7 +118,9 @@ use Mmedia\LeChat\Features;
 ],
 ```
 
-`auto_respond` controls whether agents answer new chat messages automatically. Set it to `false` if your application will prompt agents itself. `typing_indicators` controls whether the agent participant broadcasts typing status while it works. `prompt_config` is appended to the arguments passed to the Laravel AI SDK's `prompt()` method; use only options supported by your agent and SDK version.
+`auto_respond` is the global switch for automatic AI replies. Set it to `false` if your application will prompt agents itself; a room's agent policy cannot override it. Leave it `true` and use `$chatroom->setAgentResponseMode(YourAgent::class, 'mentions')` to choose when a particular agent responds. The available modes are `all`, `mentions`, and `off`. See [Choose when an agent responds](/ai-sdk#choose-when-an-agent-responds) for a step-by-step guide, including human handoff and avoiding unnecessary model requests.
+
+`typing_indicators` controls whether the agent participant broadcasts typing status while it works. `prompt_config` is appended to the arguments passed to the Laravel AI SDK's `prompt()` method; use only options supported by your agent and SDK version.
 
 `collapse_tool_history` is an empty list by default, so older tool calls remain in the conversation context sent to the agent. Add agent class names to replay older, completed turns from those agents as plain text instead of including their full tool-call history. Replace the empty list in the AI SDK configuration above with:
 

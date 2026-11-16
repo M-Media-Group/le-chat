@@ -118,14 +118,14 @@ You can also pass a plain chatroom ID to continue a chatroom that was **not** cr
 The model receives the history visible to that agent participant: messages created after it joined, including system notices, are passed as user messages. The message that triggered an automatic response is passed as the current prompt and excluded from replayed history.
 
 ## Agents answer chatroom messages
-Once an agent is a participant in a chatroom, it answers whenever a person posts there, not only when your code prompts it. A queued listener (`PromptAgentsOnMessageCreated`) runs on `MessageCreated`, continues the chatroom's conversation with each agent, and prompts it with the message. The reply is posted as the agent.
+With `auto_respond` enabled, Le Chat can reply to chat messages using the agents in that room. You do not need to call `prompt()` for each incoming message. A queued listener (`PromptAgentsOnMessageCreated`) selects the agents that should answer, continues their conversations, and posts their replies in the room.
 
 - Shared chat files are sent as AI SDK attachments, including on file-only messages and in conversation history visible to both the agent and the requester. The provider receives their contents; supported formats and size limits depend on the provider and model. A failed request produces a generic message without exposing provider details.
 - The message that triggered the run is reused as the turn's user message, so it is not stored or shown to the model twice.
 - Agent replies, messages the AI SDK wrote and system notices never trigger an agent, so agents cannot loop.
 - When a tool is paused for approval, additional chat messages do not prompt the agent until the pending decision is resolved. The assistant message contains approval blocks and the batch status; authorized approvers can load the exact tool details and submit a complete decision batch through the [approval routes](/routing#approval-decisions). Raw provider replay data is not exposed in message resources.
 - If all queue attempts fail, Le Chat posts a generic system message asking the user to try again. Provider error details stay in the server logs.
-- Every agent in the chatroom currently answers every message. A per-participant option, such as only answering when tagged, is planned.
+- Each agent has its own response mode. New agent participants default to `all`; use `mentions` to require an explicit mention, or `off` to stop automatic replies from that agent.
 
 To keep the AI SDK integration but prompt agents only from your own code, disable automatic responses:
 
@@ -137,6 +137,108 @@ To keep the AI SDK integration but prompt agents only from your own code, disabl
     ]),
 ],
 ```
+
+### Choose when an agent responds
+
+There are two separate controls:
+
+- **The global switch** is `auto_respond` in `config/chat.php`. If it is `false`, no agent automatically answers chat messages, regardless of its individual settings.
+- **The room's agent policy** decides when a particular agent answers in that room. It only takes effect when the global switch is `true`. Human participants do not have an AI response policy.
+
+These settings are checked in PHP **before the agent is constructed or the external AI provider is called**. An agent that is skipped does not incur a model request for that message. This is different from asking the model to stay quiet in its prompt: a prompt instruction alone cannot prevent a provider request.
+
+#### 1. Add an agent to the room
+
+Start with an existing `$chatroom` and an agent class such as `App\Ai\Agents\SupportAgent`. The agent must follow the [construction rules below](#building-the-agent). The people who will send messages must already be participants in the room.
+
+Use `addAgent()` rather than creating a participant row or assembling a reference string yourself:
+
+```php
+use App\Ai\Agents\SupportAgent;
+
+$agentParticipant = $chatroom->addAgent(
+    SupportAgent::class,
+    aliases: ['support'],
+    responseMode: 'all',
+);
+
+// Optional: choose the label people see in the chat.
+$agentParticipant->update(['display_name' => 'Support assistant']);
+```
+
+`$agentParticipant` is the agent's `ChatParticipant` row, not an instance of `SupportAgent`. Adding an agent does not construct it or send a request to the model. Calling `addAgent(SupportAgent::class)` again returns the existing participant without resetting its aliases or response mode. New agents default to `all` when no mode is supplied.
+
+The optional `aliases` list contains plain-text names without `@`. In this example, a person can mention the assistant by typing `@support`. Omit `aliases` when re-adding an agent to keep its existing aliases; pass an empty list to clear them.
+
+#### 2. Choose a response mode
+
+```php
+$chatroom->setAgentResponseMode(SupportAgent::class, 'all');
+```
+
+The first argument identifies an agent already in this room. The second argument is its response mode. Changing the mode preserves its mention aliases and does not add a missing or removed agent back to the room.
+
+| Mode | Ordinary message with no mentions | Message mentioning this agent | Message mentioning somebody else |
+| --- | --- | --- | --- |
+| `all` | Replies | Replies | Does not reply |
+| `mentions` | Does not reply | Replies | Does not reply |
+| `off` | Does not reply | Does not reply | Does not reply |
+
+If a message mentions several agents, each mentioned agent may answer unless its mode is `off`. Mentioning a human does not invoke unrelated AIs. Agents still need to be active participants and able to see the message.
+
+Configure these values in trusted server code, such as your own service or AI handoff tool. Do not let guests write arbitrary room settings. Le Chat stores the policy in existing room metadata; no extra database column or migration is needed. Use the room methods instead of editing that metadata yourself.
+
+#### 3. Mention the agent
+
+The stable mention format is `<@123>`, where `123` is the agent's **chat participant ID**. Get the correct token rather than assembling a user ID yourself:
+
+```php
+$token = $agentParticipant->mentionToken();
+
+$user->sendMessageTo($chatroom, 'Can you help me, '.$token.'?');
+```
+
+Here, `$user` is a person already participating in `$chatroom`. If the agent participant's ID is `123`, the stored message contains `Can you help me, <@123>?`. Your frontend can display that token as `@Support assistant`; it must still send the original token to the backend. See [participant IDs and mentions](/participants#mentioning-a-participant) and [frontend integration](/messages#mentions-in-your-frontend).
+
+The alias configured above also works:
+
+```php
+$user->sendMessageTo($chatroom, '@support, can you help me?');
+```
+
+Aliases are useful in SMS or WhatsApp messages, where a person cannot use your frontend's mention picker. They are case-insensitive and must be unique among active participants in the room. An alias starts with a letter and may contain letters, numbers, underscores, or hyphens, up to 32 characters. Pass `support`, not `@support`, when configuring it. Text such as `contact@support.example` or `@supportbot` does not mention the alias `support`.
+
+Display names are not aliases. Naming a participant `Support assistant` does not automatically make `@Support assistant` a working mention.
+
+#### 4. Hand the conversation to a human
+
+When your application decides a human should take over, add that person to the room and switch the agent to `mentions`:
+
+```php
+// $supportUser is an existing chat-capable user your application allows to join.
+$chatroom->addParticipant($supportUser);
+$chatroom->setAgentResponseMode(SupportAgent::class, 'mentions');
+```
+
+The human can now answer. Ordinary messages no longer trigger this agent or a provider request. A person can still explicitly ask it for help with `<@123>` or `@support`. Le Chat does not decide when someone is frustrated or which employee should join; that decision belongs in your application or an agent tool.
+
+The `support` alias from step 1 is preserved automatically. Mention aliases are separate from AI response policy. To change the aliases for any participant, human or AI, use `$agentParticipant->setMentionAliases(['support', 'help'])`. Pass an empty list to remove aliases; the ID token still works.
+
+To stop automatic replies from this agent completely, including replies to mentions:
+
+```php
+$chatroom->setAgentResponseMode(SupportAgent::class, 'off');
+```
+
+This does not remove the agent or delete any messages. These modes control Le Chat's automatic response listener only. Your own direct calls to the SDK's `prompt()` or `stream()` still run the model.
+
+#### If the agent does not answer
+
+- Check that `auto_respond` is `true` and a queue worker is running.
+- Check that the agent is still an active participant and its mode is not `off`.
+- In `mentions` mode, use its `mention_token` or an explicitly configured alias, not a user ID or display name.
+- If you mention another participant, unrelated agents will not answer even in `all` mode.
+- Check [message visibility](/messages#message-visibility) and whether a tool is waiting for approval.
 
 ### Building the agent
 Le Chat has to create the agent to prompt it. If its constructor can be resolved by the container, nothing else is needed. If it needs something else (such as the signed-in user), implement `RespondsToChatMessages` and build it from the message:
@@ -157,7 +259,7 @@ class SupportAgent implements Agent, Conversational, RespondsToChatMessages
 }
 ```
 
-The agent must use `RemembersConversations`, and it only answers in chatrooms where it is already a participant (it is added the first time it is prompted in one, or add it yourself with a `ChatParticipant` as described [below](#agents-as-participants)).
+The agent must use `RemembersConversations`, and it only answers in chatrooms where it is already a participant. It is added the first time it is prompted in one, or you can register it with `$chatroom->addAgent(SupportAgent::class)`.
 
 ## Agents as participants
 An agent does not need a model. It is a `ChatParticipant` with no `participant_type` / `participant_id`, identified by its `reference_id`:
@@ -167,7 +269,7 @@ An agent does not need a model. It is a `ChatParticipant` with no `participant_t
 | `reference_id` | `ai-agent:App\Ai\Agents\SupportAgent` |
 | `display_name` | The agent's class basename            |
 
-It is added the first time the agent is used in a chatroom. Change `display_name` or `avatar_url` on the participant row to customise how it appears. Because it has no model, an agent is never sent notifications.
+It is added the first time the agent is used in a chatroom, or when your code calls `$chatroom->addAgent(SupportAgent::class)`. Use that room method instead of constructing the `reference_id` yourself. Change `display_name` or `avatar_url` on the returned participant row to customise how it appears. Because it has no model, an agent is never sent notifications.
 
 ## What your application must do
 - Install `laravel/ai` and run the Le Chat migrations (see [Installation](#installation)). If you published the Le Chat migrations earlier, publish again and add only the new ones.

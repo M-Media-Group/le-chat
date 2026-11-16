@@ -17,6 +17,7 @@ use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
+use Mmedia\LeChat\Support\ChatMentions;
 use Throwable;
 
 /**
@@ -24,6 +25,9 @@ use Throwable;
  */
 class PromptAgentsOnMessageCreated implements ShouldQueue
 {
+    /** @var array{targeted: bool, participant_ids: list<int>}|null */
+    protected ?array $resolvedMentions = null;
+
     /**
      * Keep messages in one chatroom from generating overlapping assistant turns.
      *
@@ -49,15 +53,24 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
 
     public function handle(MessageCreated $event): void
     {
+        $this->resolvedMentions = null;
         $message = $event->message->fresh();
 
         $store = $this->conversationStore();
 
-        if ($message === null || ! $store instanceof ChatroomConversationStore || ! $this->isFromPerson($message)) {
+        if ($message === null || ! $store instanceof ChatroomConversationStore || ! $this->isFromPerson($message)
+            || ! Features::optionEnabled(Features::aiSdkIntegration(), 'auto_respond')) {
             return;
         }
 
         $room = $message->chatroom;
+        $room->load('participants');
+        $agents = $room->participants
+            ->filter(fn (ChatParticipant $agent): bool => str_starts_with((string) $agent->reference_id, ChatroomConversationStore::AGENT_REFERENCE_PREFIX))
+            ->filter(fn (ChatParticipant $agent) => $this->shouldRespond($agent, $message));
+        if ($agents->isEmpty()) {
+            return;
+        }
         $conversationId = $store->conversationIdOf($room);
 
         $pendingApprovals = $store->pendingApprovalsFor($conversationId);
@@ -81,11 +94,6 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
 
             return;
         }
-
-        $agents = $room->participants()
-            ->where('reference_id', 'like', ChatroomConversationStore::AGENT_REFERENCE_PREFIX.'%')
-            ->get()
-            ->filter(fn (ChatParticipant $agent) => $this->shouldRespond($agent, $message));
 
         foreach ($agents as $participant) {
             if (! ChatMessage::query()->visibleTo($participant)->withoutTrashed()->whereKey($message->getKey())->exists()) {
@@ -175,12 +183,33 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
             : "Sorry, I couldn't respond just now. Please try again shortly.");
     }
 
-    /**
-     * Whether the agent should answer this message. Every agent in the chatroom answers every message for now.
-     */
+    /** Whether the agent should answer before constructing or prompting a model. */
     protected function shouldRespond(ChatParticipant $agent, ChatMessage $message): bool
     {
-        return true;
+        if (! Features::optionEnabled(Features::aiSdkIntegration(), 'auto_respond')) {
+            return false;
+        }
+        $mode = $message->chatroom->agentResponseMode($agent);
+        if ($mode === 'off') {
+            return false;
+        }
+        $mentions = $this->messageMentions($message);
+
+        return $mentions['targeted']
+            ? in_array($agent->getKey(), $mentions['participant_ids'], true)
+            : $mode === 'all';
+    }
+
+    /** @return array{targeted: bool, participant_ids: list<int>} */
+    protected function messageMentions(ChatMessage $message): array
+    {
+        return $this->resolvedMentions ??= $this->resolveMentions($message);
+    }
+
+    /** @return array{targeted: bool, participant_ids: list<int>} */
+    protected function resolveMentions(ChatMessage $message): array
+    {
+        return ChatMentions::resolve($message->chatroom, ChatMentions::text($message));
     }
 
     /**

@@ -61,7 +61,15 @@ class AiStoreAgent implements Agent
     }
 }
 
-class AiStoreEchoAgent implements RemembersConversationsContract, RespondsToChatMessages
+final class AiStoreResponderWithoutAgent implements RespondsToChatMessages
+{
+    public static function forChatMessage(ChatMessage $message): static
+    {
+        return new self;
+    }
+}
+
+class AiStoreEchoAgent implements Agent, RemembersConversationsContract, RespondsToChatMessages
 {
     use Promptable, RemembersConversations;
 
@@ -74,17 +82,34 @@ class AiStoreEchoAgent implements RemembersConversationsContract, RespondsToChat
 
     public static array $historyAttachments = [];
 
+    public function instructions(): string
+    {
+        return 'Echo test messages.';
+    }
+
     public static function forChatMessage(ChatMessage $message): static
     {
         return new static;
     }
 
-    public function prompt(string $text, array $attachments = []): void
-    {
+    public function prompt(
+        AgentInput|UserMessage|Decisions|string $prompt,
+        array $attachments = [],
+        Lab|array|string|null $provider = null,
+        ?string $model = null,
+        ?int $timeout = null,
+    ): AgentResponse {
         if (static::$failure !== null) {
             throw static::$failure;
         }
 
+        $inputMessage = $prompt instanceof AgentInput ? $prompt->message() : null;
+        $text = match (true) {
+            is_string($prompt) => $prompt,
+            $prompt instanceof UserMessage => $prompt->content,
+            $inputMessage !== null => $inputMessage->content,
+            default => '',
+        };
         $store = app(ConversationStore::class);
 
         $store->storeUserMessage($this->conversationId, null, null, static::class, new UserMessage($text, $attachments));
@@ -97,7 +122,14 @@ class AiStoreEchoAgent implements RemembersConversationsContract, RespondsToChat
             'text' => $text,
             'history' => $history->map(fn ($message) => $message->content)->all(),
         ];
+
+        return new AgentResponse('fake-invocation', 'Echo', new TextUsage(3, 5), new Meta('openai', 'model'));
     }
+}
+
+class AiStoreSecondaryEchoAgent extends AiStoreEchoAgent
+{
+    public static array $log = [];
 }
 
 final class AiStoreApprovalAgent implements Agent, RemembersConversationsContract, RespondsToChatMessages
