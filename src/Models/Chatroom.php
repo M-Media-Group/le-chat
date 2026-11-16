@@ -139,7 +139,7 @@ final class Chatroom extends Model
             }
             if ($aliases !== null) {
                 $participant->setMentionAliases($aliases);
-                $room->setAttribute('metadata', $participant->chatroom->metadata ?? $room->metadata);
+                $room->refresh();
             }
             if ($responseMode !== null) {
                 $this->storeAgentResponseMode($room, $participant, $responseMode);

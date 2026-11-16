@@ -1852,6 +1852,9 @@ it('registers agents and changes response modes through the room without losing 
     $room = Chatroom::create(['name' => 'Agent configuration', 'metadata' => ['reference_id' => 'keep-me']]);
 
     $agent = $room->addAgent(AiStoreEchoAgent::class, aliases: ['GSAI'], responseMode: 'all');
+    expect($agent->mentionAliases())->toBe(['gsai'])
+        ->and($agent->chatroom->agentResponseMode($agent))->toBe('all')
+        ->and($agent->chatroom->metadata)->toBe($room->fresh()->metadata);
     $room->setAgentResponseMode(AiStoreEchoAgent::class, 'mentions');
 
     expect($room->agentResponseMode($agent))->toBe('mentions')
