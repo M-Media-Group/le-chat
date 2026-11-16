@@ -32,6 +32,8 @@ use Mmedia\LeChat\Traits\IsChatParticipant;
  * @property int|null $participant_id
  * @property string $role
  * @property string|null $reference_id
+ * @property string|null $avatar_url
+ * @property array<string, mixed>|null $metadata
  * @property Carbon|null $deleted_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -47,6 +49,8 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
 {
     use BelongsToChatroom, ConnectsToBroadcast, IsChatParticipant, SoftDeletes;
 
+    private const AI_RESPONSE_MODES = ['all', 'mentions', 'off'];
+
     /** @var list<string> */
     protected $fillable = [
         'chatroom_id',
@@ -59,6 +63,7 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
         'display_name',
         'avatar_url',
         'reference_id',
+        'metadata',
 
         'read_at',
     ];
@@ -67,6 +72,7 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
     /** @var array<string, string> */
     protected $casts = [
         'read_at' => 'datetime',
+        'metadata' => 'array',
     ];
 
     /** @var array<string, class-string> */
@@ -103,10 +109,35 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
         return str_starts_with((string) $this->reference_id, 'ai-agent:');
     }
 
+    /** @return 'all'|'mentions'|'off' */
+    public function aiResponseMode(): string
+    {
+        if (! $this->exists || $this->trashed() || ! $this->isAgent()) {
+            return 'off';
+        }
+
+        $mode = $this->metadata['ai_response_mode'] ?? 'all';
+
+        return in_array($mode, self::AI_RESPONSE_MODES, true) ? $mode : 'off';
+    }
+
+    public function setAiResponseMode(string $mode): void
+    {
+        if (! in_array($mode, self::AI_RESPONSE_MODES, true)) {
+            throw ValidationException::withMessages(['ai_response_mode' => 'Choose all, mentions, or off.']);
+        }
+        if (! $this->isAgent() || ! self::query()->whereKey($this->getKey())->exists()) {
+            throw ValidationException::withMessages(['participant' => 'The agent participant must be active.']);
+        }
+
+        $this->refresh();
+        $this->update(['metadata' => array_replace($this->metadata ?? [], ['ai_response_mode' => $mode])]);
+    }
+
     /** @return list<string> */
     public function mentionAliases(): array
     {
-        $aliases = $this->chatroom?->metadata['participant_settings'][(string) $this->getKey()]['mention_aliases'] ?? [];
+        $aliases = $this->metadata['mention_aliases'] ?? [];
 
         return is_array($aliases) ? array_values(array_unique(array_map('strtolower', array_filter(
             $aliases, fn (mixed $alias): bool => is_string($alias) && preg_match('/^[a-z][a-z0-9_-]{0,31}$/iD', $alias) === 1,
@@ -129,15 +160,12 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
                 throw ValidationException::withMessages(['participant' => 'The participant must be active in this chatroom.']);
             }
             foreach ($room->participants()->where('id', '!=', $this->getKey())->get() as $other) {
-                $other->setRelation('chatroom', $room);
                 if (array_intersect($aliases, $other->mentionAliases()) !== []) {
                     throw ValidationException::withMessages(['mention_aliases' => 'Mention aliases must be unique within the chatroom.']);
                 }
             }
-            $metadata = $room->metadata ?? [];
-            $metadata['participant_settings'][(string) $this->getKey()]['mention_aliases'] = $aliases;
-            $room->update(['metadata' => $metadata]);
-            $this->setRelation('chatroom', $room);
+            $this->refresh();
+            $this->update(['metadata' => array_replace($this->metadata ?? [], ['mention_aliases' => $aliases])]);
         });
     }
 

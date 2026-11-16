@@ -220,7 +220,7 @@ Participant API resources include the information needed for this lookup. This i
 | `mention_token` | The exact text your frontend should insert into a message when this participant is selected. |
 | `mention_aliases` | Explicitly configured plain-text alternatives, such as `support` for `@support`. A display name does not automatically become an alias. |
 
-AI agent resources additionally include `ai_response_mode`; human participant resources omit it. The room owns that policy. See [Choose when an agent responds](/ai-sdk#choose-when-an-agent-responds).
+AI agent resources additionally include `ai_response_mode`; human participant resources omit it. The participant owns its response mode. See [Choose when an agent responds](/ai-sdk#choose-when-an-agent-responds).
 
 Aliases are a separate, optional convenience for both people and agents. Configure them on a participant from trusted server code:
 
@@ -233,6 +233,21 @@ This makes `@alex` resolve to that participant in this room. It does not turn a 
 Le Chat validates mention tokens when messages are sent or edited, including tokens in section blocks. A token must refer to an active participant in the same room. Unknown IDs, IDs from another room, and removed participants are rejected with a validation error; the HTTP APIs return `422`. Renaming a participant does not change their token.
 
 For frontend examples, see [Mentions in your frontend](/messages#mentions-in-your-frontend). To control whether an AI answers a mention, see [Choose when an agent responds](/ai-sdk#choose-when-an-agent-responds).
+
+### Participant metadata
+
+Each `ChatParticipant` has its own nullable JSON `metadata` column. A participant is one membership in one room, not the underlying user or agent class. Settings on this row do not affect that user's or agent's memberships in other rooms.
+
+Le Chat stores mention aliases and AI response modes here:
+
+```json
+{
+    "mention_aliases": ["support"],
+    "ai_response_mode": "mentions"
+}
+```
+
+Use `setMentionAliases()` and, for agents, `setAiResponseMode()` to change these settings. Both preserve unrelated metadata. `mentionAliases()` returns an empty list when no aliases are configured. `aiResponseMode()` defaults to `all` for active agents and returns `off` for humans, removed participants, or invalid stored modes. Raw participant metadata is not included in participant API resources.
 
 ### Customizing the display name and avatar
 By default, Le Chat will use the `name` or `email` attribute of your model as the display name and the `avatar_url` attribute as the avatar URL. However, you can customize this behavior by implementing the `getDisplayName` and `getAvatarUrl` methods in your model.

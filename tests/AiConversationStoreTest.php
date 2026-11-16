@@ -1846,22 +1846,24 @@ it('prompts the agents in a chatroom when a person posts, and answers that messa
     expect(AiStoreEchoAgent::$log)->toHaveCount(1);
 });
 
-it('registers agents and changes response modes through the room without losing aliases', function () {
+it('registers agents without owning or resetting their participant settings', function () {
     Event::forget(MessageCreated::class);
     AiStoreEchoAgent::$log = [];
     $room = Chatroom::create(['name' => 'Agent configuration', 'metadata' => ['reference_id' => 'keep-me']]);
 
-    $agent = $room->addAgent(AiStoreEchoAgent::class, aliases: ['GSAI'], responseMode: 'all');
+    $agent = $room->addAgent(AiStoreEchoAgent::class);
+    $agent->setMentionAliases(['GSAI']);
+    $agent->setAiResponseMode('all');
     expect($agent->mentionAliases())->toBe(['gsai'])
-        ->and($agent->chatroom->agentResponseMode($agent))->toBe('all')
-        ->and($agent->chatroom->metadata)->toBe($room->fresh()->metadata);
-    $room->setAgentResponseMode(AiStoreEchoAgent::class, 'mentions');
+        ->and($agent->aiResponseMode())->toBe('all')
+        ->and($room->fresh()->metadata)->toBe(['reference_id' => 'keep-me']);
+    $agent->setAiResponseMode('mentions');
 
-    expect($room->agentResponseMode($agent))->toBe('mentions')
+    expect($agent->aiResponseMode())->toBe('mentions')
         ->and($agent->fresh()->mentionAliases())->toBe(['gsai'])
         ->and($room->metadata['reference_id'])->toBe('keep-me')
         ->and($room->addAgent(AiStoreEchoAgent::class)->id)->toBe($agent->id)
-        ->and($room->agentResponseMode($agent))->toBe('mentions')
+        ->and($agent->fresh()->aiResponseMode())->toBe('mentions')
         ->and($room->participants()->count())->toBe(1)
         ->and(AiStoreEchoAgent::$log)->toBe([]);
     expect((new ChatParticipantResource($agent->fresh()))->resolve()['ai_response_mode'])->toBe('mentions');
@@ -1869,7 +1871,7 @@ it('registers agents and changes response modes through the room without losing 
     $restored = $room->addAgent(AiStoreEchoAgent::class);
     expect($restored->id)->toBe($agent->id)
         ->and($restored->mentionAliases())->toBe(['gsai'])
-        ->and($room->agentResponseMode($restored))->toBe('mentions');
+        ->and($restored->aiResponseMode())->toBe('mentions');
 });
 
 it('rejects chat responders that do not implement the AI SDK agent contract', function () {
@@ -1884,17 +1886,20 @@ it('rejects chat responders that do not implement the AI SDK agent contract', fu
 it('rejects invalid agent policies without changing an existing registration or aliases', function () {
     Event::forget(MessageCreated::class);
     $room = Chatroom::create(['name' => 'Agent configuration']);
-    $agent = $room->addAgent(AiStoreEchoAgent::class, aliases: ['gsai'], responseMode: 'mentions');
+    $agent = $room->addAgent(AiStoreEchoAgent::class);
+    $agent->setMentionAliases(['gsai']);
+    $agent->setAiResponseMode('mentions');
 
-    expect(fn () => $room->setAgentResponseMode(AiStoreEchoAgent::class, 'invalid'))->toThrow(ValidationException::class);
-    expect(fn () => $room->setAgentResponseMode(AiStoreSecondaryEchoAgent::class, 'all'))->toThrow(ValidationException::class);
+    expect(fn () => $agent->setAiResponseMode('invalid'))->toThrow(ValidationException::class);
+    $missing = new ChatParticipant(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreSecondaryEchoAgent::class]);
+    expect(fn () => $missing->setAiResponseMode('all'))->toThrow(ValidationException::class);
     expect(fn () => $room->addAgent(AiStoreOwner::class))->toThrow(InvalidArgumentException::class);
 
     expect($room->participants()->count())->toBe(1)
-        ->and($room->fresh()->agentResponseMode($agent))->toBe('mentions')
+        ->and($agent->fresh()->aiResponseMode())->toBe('mentions')
         ->and($agent->fresh()->mentionAliases())->toBe(['gsai']);
     $agent->delete();
-    expect(fn () => $room->setAgentResponseMode(AiStoreEchoAgent::class, 'all'))->toThrow(ValidationException::class);
+    expect(fn () => $agent->setAiResponseMode('all'))->toThrow(ValidationException::class);
     expect($room->participants()->count())->toBe(0);
 });
 
@@ -1904,10 +1909,8 @@ it('does not invoke an agent configured for mentions or off on an unmentioned me
     Event::forget(MessageCreated::class);
     $room = Chatroom::create(['name' => 'Room']);
     $person = $room->addParticipant(aiStoreTestOwner());
-    $agent = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'ai-agent:'.AiStoreEchoAgent::class]);
-    $room->update(['metadata' => ['participant_settings' => [
-        (string) $agent->id => ['ai_response_mode' => $mode],
-    ]]]);
+    $agent = $room->addAgent(AiStoreEchoAgent::class);
+    $agent->setAiResponseMode($mode);
     $message = $room->sendMessageAs($person, 'Please let the human team answer.');
 
     (new PromptAgentsOnMessageCreated)->handle(new MessageCreated($message));
@@ -1921,7 +1924,9 @@ it('routes before invoking a model using room participant IDs and explicit alias
     Event::forget(MessageCreated::class);
     $room = Chatroom::create(['name' => 'Routing']);
     $person = $room->addParticipant(aiStoreTestOwner());
-    $agent = $room->addAgent(AiStoreEchoAgent::class, aliases: ['gsai'], responseMode: $mode);
+    $agent = $room->addAgent(AiStoreEchoAgent::class);
+    $agent->setMentionAliases(['gsai']);
+    $agent->setAiResponseMode($mode);
     $agent->update(['display_name' => 'Echo']);
     $text = match ($address) {
         'agent_id' => 'Hello '.$agent->mentionToken(),
@@ -1957,8 +1962,10 @@ it('only invokes explicitly addressed agents when a room has several automatic r
     Event::forget(MessageCreated::class);
     $room = Chatroom::create(['name' => 'Multiple agents']);
     $person = $room->addParticipant(aiStoreTestOwner());
-    $first = $room->addAgent(AiStoreEchoAgent::class, aliases: ['first']);
-    $second = $room->addAgent(AiStoreSecondaryEchoAgent::class, aliases: ['second']);
+    $first = $room->addAgent(AiStoreEchoAgent::class);
+    $first->setMentionAliases(['first']);
+    $second = $room->addAgent(AiStoreSecondaryEchoAgent::class);
+    $second->setMentionAliases(['second']);
     $text = 'Please answer '.$second->mentionToken().($addressBoth ? ' and '.$first->mentionToken() : '');
     $message = $room->sendMessageAs($person, $text);
 
@@ -1975,8 +1982,9 @@ it('resolves mentions once for multiple agents and resets routing when the liste
     Event::forget(MessageCreated::class);
     $room = Chatroom::create(['name' => 'Multiple agents']);
     $person = $room->addParticipant(aiStoreTestOwner());
-    $first = $room->addAgent(AiStoreEchoAgent::class, aliases: ['first']);
-    $room->addAgent(AiStoreSecondaryEchoAgent::class, aliases: ['second']);
+    $first = $room->addAgent(AiStoreEchoAgent::class);
+    $first->setMentionAliases(['first']);
+    $room->addAgent(AiStoreSecondaryEchoAgent::class)->setMentionAliases(['second']);
     $listener = new class extends PromptAgentsOnMessageCreated
     {
         public int $mentionResolutions = 0;

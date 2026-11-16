@@ -11,7 +11,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Validation\ValidationException;
 use Laravel\Ai\Contracts\Agent;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Features;
@@ -117,19 +116,15 @@ final class Chatroom extends Model
 
     /**
      * @param  class-string  $agentClass
-     * @param  list<mixed>|null  $aliases  Null preserves existing aliases.
      */
-    public function addAgent(string $agentClass, ?array $aliases = null, ?string $responseMode = null): ChatParticipant
+    public function addAgent(string $agentClass): ChatParticipant
     {
         if (! is_subclass_of($agentClass, Agent::class)) {
             throw new \InvalidArgumentException('The agent must implement the Laravel AI SDK Agent contract.');
         }
 
-        return $this->getConnection()->transaction(function () use ($agentClass, $aliases, $responseMode): ChatParticipant {
+        return $this->getConnection()->transaction(function () use ($agentClass): ChatParticipant {
             $room = self::query()->lockForUpdate()->findOrFail($this->getKey());
-            if ($responseMode !== null) {
-                $this->validateAgentResponseMode($responseMode);
-            }
             $participant = $room->participants()->withTrashed()->firstOrCreate(
                 ['reference_id' => 'ai-agent:'.$agentClass],
                 ['display_name' => class_basename($agentClass)],
@@ -137,57 +132,9 @@ final class Chatroom extends Model
             if ($participant->trashed()) {
                 $participant->restore();
             }
-            if ($aliases !== null) {
-                $participant->setMentionAliases($aliases);
-                $room->refresh();
-            }
-            if ($responseMode !== null) {
-                $this->storeAgentResponseMode($room, $participant, $responseMode);
-            }
-            $this->refresh();
 
             return $participant->setRelation('chatroom', $this);
         });
-    }
-
-    /** @param class-string $agentClass */
-    public function setAgentResponseMode(string $agentClass, string $mode): void
-    {
-        $this->validateAgentResponseMode($mode);
-        $this->getConnection()->transaction(function () use ($agentClass, $mode): void {
-            $room = self::query()->lockForUpdate()->findOrFail($this->getKey());
-            $participant = $room->participants()->where('reference_id', 'ai-agent:'.$agentClass)->first();
-            if (! $participant) {
-                throw ValidationException::withMessages(['agent' => 'The agent must be active in this chatroom.']);
-            }
-            $this->storeAgentResponseMode($room, $participant, $mode);
-            $this->refresh();
-        });
-    }
-
-    private function validateAgentResponseMode(string $mode): void
-    {
-        if (! in_array($mode, ['all', 'mentions', 'off'], true)) {
-            throw ValidationException::withMessages(['ai_response_mode' => 'Choose all, mentions, or off.']);
-        }
-    }
-
-    private function storeAgentResponseMode(self $room, ChatParticipant $agent, string $mode): void
-    {
-        $metadata = $room->metadata ?? [];
-        $metadata['participant_settings'][(string) $agent->getKey()]['ai_response_mode'] = $mode;
-        $room->update(['metadata' => $metadata]);
-    }
-
-    /** @return 'all'|'mentions'|'off' */
-    public function agentResponseMode(ChatParticipant $agent): string
-    {
-        if ($agent->chatroom_id !== $this->getKey() || ! $agent->isAgent()) {
-            return 'off';
-        }
-        $mode = $this->metadata['participant_settings'][(string) $agent->getKey()]['ai_response_mode'] ?? 'all';
-
-        return in_array($mode, ['all', 'mentions', 'off'], true) ? $mode : 'off';
     }
 
     /**

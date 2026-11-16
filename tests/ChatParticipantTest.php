@@ -52,19 +52,22 @@ it('sends a message as the participant to its chatroom', function () {
 
 it('stores generic mention aliases and exposes no AI policy for human participants', function () {
     $room = Chatroom::create(['name' => 'Mentions', 'metadata' => ['reference_id' => 'keep-me']]);
-    $first = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'agent:first', 'display_name' => 'Guide AI']);
+    $first = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'agent:first', 'display_name' => 'Guide AI', 'metadata' => ['custom' => 'preserved']]);
     $second = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'agent:second']);
 
     $first->setMentionAliases(['GSAI']);
     $second->setMentionAliases(['other']);
 
     $first = $first->fresh();
+    $first->preventsLazyLoading = true;
     expect($first->mentionAliases())->toBe(['gsai'])
-        ->and($room->fresh()->metadata['reference_id'])->toBe('keep-me')
-        ->and($room->fresh()->metadata['participant_settings'][(string) $second->id]['mention_aliases'])->toBe(['other']);
+        ->and($first->metadata)->toBe(['custom' => 'preserved', 'mention_aliases' => ['gsai']])
+        ->and($room->fresh()->metadata)->toBe(['reference_id' => 'keep-me'])
+        ->and($second->fresh()->metadata)->toBe(['mention_aliases' => ['other']]);
     $payload = (new ChatParticipantResource($first))->resolve();
     expect($payload['mention_token'])->toBe('<@'.$first->id.'>')
         ->and($payload['mention_aliases'])->toBe(['gsai'])
+        ->and($payload)->not->toHaveKey('metadata')
         ->and($payload)->not->toHaveKey('ai_response_mode');
 });
 
@@ -94,6 +97,76 @@ it('rejects invalid alias values before changing stored preferences', function (
     'spaces' => ['contains spaces'],
     'at-sign prefix' => ['@gsai'],
 ]);
+
+it('stores AI response modes on each participant without changing room metadata or aliases', function () {
+    $room = Chatroom::create(['metadata' => ['custom' => 'room']]);
+    $otherRoom = Chatroom::create([]);
+    $agent = ChatParticipant::create([
+        'chatroom_id' => $room->id,
+        'reference_id' => 'ai-agent:SupportAgent',
+        'metadata' => ['custom' => 'participant'],
+    ]);
+    $otherAgent = ChatParticipant::create(['chatroom_id' => $otherRoom->id, 'reference_id' => $agent->reference_id]);
+    $agent->setMentionAliases(['support']);
+
+    $agent->setAiResponseMode('mentions');
+
+    expect($agent->fresh()->aiResponseMode())->toBe('mentions')
+        ->and($agent->fresh()->metadata)->toBe([
+            'custom' => 'participant',
+            'mention_aliases' => ['support'],
+            'ai_response_mode' => 'mentions',
+        ])
+        ->and($otherAgent->fresh()->aiResponseMode())->toBe('all')
+        ->and($otherAgent->fresh()->metadata)->toBeNull()
+        ->and($room->fresh()->metadata)->toBe(['custom' => 'room']);
+
+    $agent->setMentionAliases([]);
+
+    expect($agent->fresh()->mentionAliases())->toBe([])
+        ->and($agent->fresh()->aiResponseMode())->toBe('mentions');
+});
+
+it('rejects invalid AI modes without changing participant metadata', function () {
+    $room = Chatroom::create([]);
+    $agent = ChatParticipant::create([
+        'chatroom_id' => $room->id,
+        'reference_id' => 'ai-agent:SupportAgent',
+        'metadata' => ['ai_response_mode' => 'mentions'],
+    ]);
+
+    expect(fn () => $agent->setAiResponseMode('invalid'))->toThrow(ValidationException::class);
+
+    expect($agent->fresh()->metadata)->toBe(['ai_response_mode' => 'mentions']);
+});
+
+it('does not configure human or removed participants as AI responders', function (bool $removed) {
+    $room = Chatroom::create([]);
+    $participant = ChatParticipant::create([
+        'chatroom_id' => $room->id,
+        'reference_id' => $removed ? 'ai-agent:SupportAgent' : 'human',
+    ]);
+    if ($removed) {
+        $participant->delete();
+    }
+
+    expect(fn () => $participant->setAiResponseMode('all'))->toThrow(ValidationException::class);
+
+    expect($participant->aiResponseMode())->toBe('off')
+        ->and($participant->fresh()->metadata)->toBeNull()
+        ->and($participant->fresh()->trashed())->toBe($removed);
+})->with(['human' => false, 'removed agent' => true]);
+
+it('disables automatic replies for invalid stored AI modes', function () {
+    $room = Chatroom::create([]);
+    $agent = ChatParticipant::create([
+        'chatroom_id' => $room->id,
+        'reference_id' => 'ai-agent:SupportAgent',
+        'metadata' => ['ai_response_mode' => 'invalid'],
+    ]);
+
+    expect($agent->fresh()->aiResponseMode())->toBe('off');
+});
 
 it('creates and reuses a personal chatroom for its model participant', function () {
     $owner = ChatParticipantTestOwner::create(['name' => 'Personal owner']);

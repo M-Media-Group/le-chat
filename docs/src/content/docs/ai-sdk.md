@@ -19,7 +19,7 @@ By default, the [Laravel AI SDK](https://laravel.com/docs/ai-sdk) remembers agen
 Only conversation storage changes. The Laravel AI SDK's agent, prompt, streaming, and tool APIs stay the same. AI chatrooms also work with Le Chat's REST API, broadcasting, unread counts, and events. You can add other people to an AI chatroom.
 
 ## Installation
-Install the AI SDK, then publish and run the Le Chat migrations. They add a `metadata` column to `chat_messages` and make a participant's model optional.
+Install the AI SDK, then publish and run the Le Chat migrations. The chat tables include nullable JSON `metadata` columns for rooms, participants, and messages. A participant's underlying application model is optional, so agents can participate without a user record.
 
 ```bash
 composer require laravel/ai
@@ -102,7 +102,13 @@ Child state is stored in the parent assistant message's private `metadata.ai`, b
 
 ## Internal storage
 
-Le Chat stores AI SDK conversation state in the chatroom and message tables. SDK-specific details are kept in the `metadata.ai` JSON value. This is an internal storage format, not a stable application API; do not build clients against it or expose it in message responses. It may contain tool arguments, results, and provider state. The `metadata` column is not encrypted by the message-encryption feature, so treat its contents accordingly.
+Each record owns its own data:
+
+- The chatroom's `metadata.ai.conversation_id` identifies the shared SDK conversation.
+- The participant's `metadata.mention_aliases` and `metadata.ai_response_mode` configure that participant.
+- A message's private `metadata.ai` stores that turn's SDK replay data, including tool arguments, results, and provider state.
+
+SDK replay data is an internal storage format, not a stable application API; do not build clients against it or expose it in message responses. Metadata is not encrypted by the message-encryption feature, so treat its contents accordingly.
 
 Use the AI SDK's conversation methods to continue a conversation. Use the approval routes to retrieve pending tool details; raw provider replay data is not part of the message resource.
 
@@ -143,7 +149,7 @@ To keep the AI SDK integration but prompt agents only from your own code, disabl
 There are two separate controls:
 
 - **The global switch** is `auto_respond` in `config/chat.php`. If it is `false`, no agent automatically answers chat messages, regardless of its individual settings.
-- **The room's agent policy** decides when a particular agent answers in that room. It only takes effect when the global switch is `true`. Human participants do not have an AI response policy.
+- **The agent participant's response mode** decides when that participant answers. It only takes effect when the global switch is `true`. Human participants do not have an AI response mode.
 
 These settings are checked in PHP **before the agent is constructed or the external AI provider is called**. An agent that is skipped does not incur a model request for that message. This is different from asking the model to stay quiet in its prompt: a prompt instruction alone cannot prevent a provider request.
 
@@ -156,27 +162,26 @@ Use `addAgent()` rather than creating a participant row or assembling a referenc
 ```php
 use App\Ai\Agents\SupportAgent;
 
-$agentParticipant = $chatroom->addAgent(
-    SupportAgent::class,
-    aliases: ['support'],
-    responseMode: 'all',
-);
+$agentParticipant = $chatroom->addAgent(SupportAgent::class);
+$agentParticipant->setMentionAliases(['support']);
+$agentParticipant->setAiResponseMode('all');
 
 // Optional: choose the label people see in the chat.
 $agentParticipant->update(['display_name' => 'Support assistant']);
 ```
 
-`$agentParticipant` is the agent's `ChatParticipant` row, not an instance of `SupportAgent`. Adding an agent does not construct it or send a request to the model. Calling `addAgent(SupportAgent::class)` again returns the existing participant without resetting its aliases or response mode. New agents default to `all` when no mode is supplied.
+`$agentParticipant` is the agent's `ChatParticipant` row, not an instance of `SupportAgent`. Adding an agent does not construct it or send a request to the model. Calling `addAgent(SupportAgent::class)` again returns the existing participant, restoring it if removed, without resetting its settings. New agent participants default to `all`.
 
-The optional `aliases` list contains plain-text names without `@`. In this example, a person can mention the assistant by typing `@support`. Omit `aliases` when re-adding an agent to keep its existing aliases; pass an empty list to clear them.
+`setMentionAliases()` accepts plain-text names without `@`. In this example, a person can mention the assistant by typing `@support`. Pass an empty list to clear its aliases.
 
 #### 2. Choose a response mode
 
 ```php
-$chatroom->setAgentResponseMode(SupportAgent::class, 'all');
+$agentParticipant->setAiResponseMode('all');
+$mode = $agentParticipant->aiResponseMode(); // 'all'
 ```
 
-The first argument identifies an agent already in this room. The second argument is its response mode. Changing the mode preserves its mention aliases and does not add a missing or removed agent back to the room.
+Call this on the participant returned by `addAgent()`. The argument is its response mode. Only `all`, `mentions`, and `off` are accepted. Changing the mode preserves its aliases and other metadata. Human and removed participants cannot be configured as active AI responders.
 
 | Mode | Ordinary message with no mentions | Message mentioning this agent | Message mentioning somebody else |
 | --- | --- | --- | --- |
@@ -186,7 +191,7 @@ The first argument identifies an agent already in this room. The second argument
 
 If a message mentions several agents, each mentioned agent may answer unless its mode is `off`. Mentioning a human does not invoke unrelated AIs. Agents still need to be active participants and able to see the message.
 
-Configure these values in trusted server code, such as your own service or AI handoff tool. Do not let guests write arbitrary room settings. Le Chat stores the policy in existing room metadata; no extra database column or migration is needed. Use the room methods instead of editing that metadata yourself.
+Configure these values in trusted server code, such as your own service or AI handoff tool. Do not let guests write arbitrary participant settings. Aliases and response mode are stored in that participant's `metadata` column as `mention_aliases` and `ai_response_mode`. Use the participant methods so validation runs. Chatroom metadata does not store participant settings. The same agent class in another room has a separate participant with independent settings.
 
 #### 3. Mention the agent
 
@@ -217,7 +222,7 @@ When your application decides a human should take over, add that person to the r
 ```php
 // $supportUser is an existing chat-capable user your application allows to join.
 $chatroom->addParticipant($supportUser);
-$chatroom->setAgentResponseMode(SupportAgent::class, 'mentions');
+$agentParticipant->setAiResponseMode('mentions');
 ```
 
 The human can now answer. Ordinary messages no longer trigger this agent or a provider request. A person can still explicitly ask it for help with `<@123>` or `@support`. Le Chat does not decide when someone is frustrated or which employee should join; that decision belongs in your application or an agent tool.
@@ -227,7 +232,7 @@ The `support` alias from step 1 is preserved automatically. Mention aliases are 
 To stop automatic replies from this agent completely, including replies to mentions:
 
 ```php
-$chatroom->setAgentResponseMode(SupportAgent::class, 'off');
+$agentParticipant->setAiResponseMode('off');
 ```
 
 This does not remove the agent or delete any messages. These modes control Le Chat's automatic response listener only. Your own direct calls to the SDK's `prompt()` or `stream()` still run the model.

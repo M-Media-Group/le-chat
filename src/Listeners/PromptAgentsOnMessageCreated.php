@@ -189,7 +189,7 @@ class PromptAgentsOnMessageCreated implements ShouldQueue
         if (! Features::optionEnabled(Features::aiSdkIntegration(), 'auto_respond')) {
             return false;
         }
-        $mode = $message->chatroom->agentResponseMode($agent);
+        $mode = $agent->aiResponseMode();
         if ($mode === 'off') {
             return false;
         }

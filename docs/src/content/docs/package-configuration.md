@@ -118,7 +118,7 @@ use Mmedia\LeChat\Features;
 ],
 ```
 
-`auto_respond` is the global switch for automatic AI replies. Set it to `false` if your application will prompt agents itself; a room's agent policy cannot override it. Leave it `true` and use `$chatroom->setAgentResponseMode(YourAgent::class, 'mentions')` to choose when a particular agent responds. The available modes are `all`, `mentions`, and `off`. See [Choose when an agent responds](/ai-sdk#choose-when-an-agent-responds) for a step-by-step guide, including human handoff and avoiding unnecessary model requests.
+`auto_respond` is the global switch for automatic AI replies. Set it to `false` if your application will prompt agents itself; a participant's response mode cannot override it. Leave it `true` and use `$agentParticipant->setAiResponseMode('mentions')` on the participant returned by `$chatroom->addAgent(YourAgent::class)` to choose when it responds. The available modes are `all`, `mentions`, and `off`. See [Choose when an agent responds](/ai-sdk#choose-when-an-agent-responds) for a step-by-step guide, including human handoff and avoiding unnecessary model requests.
 
 `typing_indicators` controls whether the agent participant broadcasts typing status while it works. `prompt_config` is appended to the arguments passed to the Laravel AI SDK's `prompt()` method; use only options supported by your agent and SDK version.
 
