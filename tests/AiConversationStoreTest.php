@@ -4,6 +4,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -15,8 +16,11 @@ use Laravel\Ai\Ai;
 use Laravel\Ai\AiServiceProvider;
 use Laravel\Ai\Approvals\PendingApproval;
 use Laravel\Ai\Contracts\Agent;
+use Laravel\Ai\Contracts\CanActAsTool;
+use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Contracts\ConversationStore;
 use Laravel\Ai\Contracts\HasStructuredOutput;
+use Laravel\Ai\Contracts\HasTools;
 use Laravel\Ai\Contracts\Providers\TextProvider;
 use Laravel\Ai\Files\Base64Document;
 use Laravel\Ai\Files\Document;
@@ -38,6 +42,7 @@ use Laravel\Ai\Responses\Data\Step;
 use Laravel\Ai\Responses\Data\TextUsage;
 use Laravel\Ai\Responses\Data\ToolCall;
 use Laravel\Ai\Responses\Data\ToolResult;
+use Laravel\Ai\Responses\StructuredTextResponse;
 use Laravel\Ai\Tools\AgentTool;
 use Laravel\Ai\Tools\Request;
 use Mmedia\LeChat\Ai\ApprovalBatches;
@@ -50,6 +55,7 @@ use Mmedia\LeChat\Ai\DelegationTools;
 use Mmedia\LeChat\Ai\RequesterEnvelope;
 use Mmedia\LeChat\Contracts\ApprovalPolicy;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Contracts\IncludesDelegatedToolResults;
 use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\Events\MessageUpdated;
 use Mmedia\LeChat\Features;
@@ -411,7 +417,7 @@ it('reconstructs completed tool turns through the SDK store helpers', function (
         ->and(aiStoreTestStore()->getLatestConversationMessages($id, 10)->last())->toBeInstanceOf(ToolResultMessage::class);
 });
 
-it('starts bounded provider history at a user turn when it cuts off a tool turn', function () {
+it('limits history by stored messages and trims leading assistant tool turns', function () {
     $type = aiStoreTestOwner()->getMorphClass();
     $id = aiStoreTestStore()->storeConversation($type, aiStoreTestOwner()->getKey(), 'Bounded tool history');
 
@@ -440,9 +446,12 @@ it('starts bounded provider history at a user turn when it cuts off a tool turn'
 
     aiStoreTestStore()->storeUserMessage($id, $type, aiStoreTestOwner()->getKey(), AiStoreAgent::class, new UserMessage('Latest request'));
 
+    expect(ChatMessage::query()->where('chatroom_id', $room->id)->whereNotNull('metadata->ai->role')->count())->toBe(3);
+
     $messages = aiStoreTestStore()->getLatestConversationMessages($id, 2);
 
-    expect($messages->map(fn ($message) => $message->role->value)->all())->toBe(['user'])
+    expect($messages)->toHaveCount(1)
+        ->and($messages->map(fn ($message) => $message->role->value)->all())->toBe(['user'])
         ->and($messages->first()->content)->toContain('Latest request');
 });
 
@@ -826,6 +835,63 @@ it('normalizes deferred subagents without mutating their original tool search', 
         ->and($search->tools[0])->not->toBeInstanceOf(DelegatingAgentTool::class);
 });
 
+it('tells custom delegated agents to use isolated self-contained tasks', function () {
+    $customAgent = new class implements Agent, CanActAsTool
+    {
+        use Promptable;
+
+        public function instructions(): string
+        {
+            return 'Find facts and prepare a report.';
+        }
+
+        public function name(): string
+        {
+            return 'research_specialist';
+        }
+
+        public function description(): string
+        {
+            return 'Find facts and prepare a report.';
+        }
+    };
+    $tool = new DelegatingAgentTool($customAgent);
+    $taskSchema = $tool->schema(new JsonSchemaTypeFactory)['task']->toArray();
+    $defaultTool = new DelegatingAgentTool(new AiStoreNativeApprovalAgent(aiStoreTestOwner()));
+
+    expect((string) $tool->description())->toContain('Find facts and prepare a report.', 'isolation', 'parent conversation history', 'self-contained task')
+        ->and($taskSchema['description'])->toContain('child cannot access the parent conversation history', 'self-contained')
+        ->and($taskSchema['minLength'])->toBe(1)
+        ->and((string) $defaultTool->description())->toContain('self-contained task description', 'parent conversation history');
+
+    expect(fn () => app(DelegatedRuns::class)->prepare($customAgent, new Request(['task' => ''], 'empty-task'), 'root/empty-task'))
+        ->toThrow(LogicException::class, 'non-empty string');
+});
+
+it('does not inherit the source agent conversation history', function () {
+    $parentMessage = new UserMessage('Parent-only context');
+    $source = new class($parentMessage) implements Agent, Conversational
+    {
+        use Promptable;
+
+        public function __construct(private UserMessage $parentMessage) {}
+
+        public function instructions(): string
+        {
+            return 'Answer the delegated task.';
+        }
+
+        public function messages(): iterable
+        {
+            return [$this->parentMessage];
+        }
+    };
+
+    $child = DelegatedAgent::wrap($source, [], 'root/call');
+
+    expect($child->messages())->toBe([]);
+});
+
 it('prepares a delegated approval without executing the action or creating a chatroom', function () {
     app()->register(AiServiceProvider::class);
     app()->instance(ConversationStore::class, aiStoreTestStore());
@@ -886,10 +952,16 @@ it('returns a read-only delegated result without creating a chatroom', function 
         ->and($stream->getReturn())->toBe('Internal answer');
 });
 
-it('preserves the structured schema of an isolated child agent', function () {
+it('returns structured child summaries and evidence to the parent', function () {
     app()->register(AiServiceProvider::class);
     config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
-    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([]));
+    $structuredResult = [
+        'summary' => 'Found two matching records.',
+        'evidence' => ['record-17', 'record-23'],
+    ];
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new StructuredTextResponse($structuredResult, 'The child reviewed the records.', new TextUsage, new Meta('openai', 'test-model')),
+    ]));
     $child = new class implements Agent, HasStructuredOutput
     {
         use Promptable;
@@ -901,15 +973,166 @@ it('preserves the structured schema of an isolated child agent', function () {
 
         public function schema(JsonSchema $schema): array
         {
-            return ['answer' => $schema->string()->required()];
+            return [
+                'summary' => $schema->string()->required(),
+                'evidence' => $schema->array()->items($schema->string())->required(),
+            ];
         }
     };
     $tool = new DelegatingAgentTool($child);
     $request = new Request(['task' => 'Answer'], 'structured-call');
 
     expect($tool->shouldRequestApproval($request))->toBeNull()
-        ->and(json_decode($tool->handle($request), true, flags: JSON_THROW_ON_ERROR))->toHaveKey('answer')
+        ->and(json_decode($tool->handle($request), true, flags: JSON_THROW_ON_ERROR))->toBe($structuredResult)
         ->and(Chatroom::count())->toBe(0);
+});
+
+it('preserves legacy text results and empty structured payloads', function () {
+    $room = Chatroom::create(['name' => 'Delegation compatibility']);
+    $parentMessage = $room->sendMessage('Parent task', ['metadata' => ['ai' => ['delegations' => [
+        'root/legacy-call' => ['status' => 'complete', 'text' => 'Legacy child result'],
+        'root/empty-call' => ['status' => 'complete', 'text' => '', 'structured' => []],
+    ]]]]);
+    $runs = new DelegatedRuns;
+    $runs->load($parentMessage);
+
+    expect($runs->result('root/legacy-call'))->toBe('Legacy child result')
+        ->and($runs->result('root/empty-call'))->toBe('[]');
+});
+
+it('passes nested structured child JSON through the parent tool result', function () {
+    app()->register(AiServiceProvider::class);
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    $leafResult = ['summary' => 'Found two relevant records.', 'evidence' => ['record-17', 'record-23']];
+    $leaf = new class implements Agent, HasStructuredOutput
+    {
+        use Promptable;
+
+        public function instructions(): string
+        {
+            return 'Return findings with evidence.';
+        }
+
+        public function schema(JsonSchema $schema): array
+        {
+            return [
+                'summary' => $schema->string()->required(),
+                'evidence' => $schema->array()->items($schema->string())->required(),
+            ];
+        }
+    };
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('inner-call', class_basename($leaf), ['task' => 'Find relevant records.']),
+        new StructuredTextResponse($leafResult, 'Found two records.', new TextUsage, new Meta('openai', 'test-model')),
+        'The parent reviewed the child result.',
+    ]));
+    $parent = new class($leaf) implements Agent, HasTools
+    {
+        use Promptable;
+
+        public function __construct(private Agent $child) {}
+
+        public function instructions(): string
+        {
+            return 'Delegate research to the child and review its result.';
+        }
+
+        public function tools(): iterable
+        {
+            return [$this->child];
+        }
+    };
+    $tool = new DelegatingAgentTool($parent);
+    $request = new Request(['task' => 'Research the records.'], 'outer-call');
+
+    expect($tool->shouldRequestApproval($request))->toBeNull();
+    $parentRun = app(DelegatedRuns::class)->snapshot()['root/outer-call'];
+    $toolResultMessage = collect($parentRun['messages'])->firstWhere('role', 'tool_result');
+    if ($toolResultMessage === null) {
+        throw new LogicException('Expected the parent transcript to contain the nested child result.');
+    }
+    $nestedResult = ToolResult::fromArray($toolResultMessage['tool_results'][0])->result;
+
+    expect(json_decode($nestedResult, true, flags: JSON_THROW_ON_ERROR))->toBe($leafResult)
+        ->and($tool->handle($request))->toBe('The parent reviewed the child result.');
+});
+
+it('returns structured child evidence after reloading an approval checkpoint', function () {
+    Event::fake([MessageCreated::class]);
+    app()->register(AiServiceProvider::class);
+    app()->instance(ConversationStore::class, aiStoreTestStore());
+    config(['ai.default' => 'openai', 'ai.providers.openai' => ['driver' => 'openai', 'key' => 'fake', 'models' => ['text' => ['default' => 'test-model']]]]);
+    $structuredResult = [
+        'summary' => 'The approved operation completed.',
+        'evidence' => ['operation-17 completed'],
+    ];
+    Ai::textProvider('openai')->useTextGateway(new FakeTextGateway([
+        new ToolCall('child-call', 'AiStoreNativeApprovalTool', ['target' => 'operation-17']),
+        new StructuredTextResponse($structuredResult, 'The operation completed.', new TextUsage, new Meta('openai', 'test-model')),
+    ]));
+    AiStoreNativeApprovalTool::$executions = [];
+    AiStoreNativeApprovalTool::$result = 'Done';
+    AiStoreNativeApprovalTool::$fail = false;
+    $requester = aiStoreTestOwner();
+    $room = Chatroom::create(['name' => 'Structured child approval']);
+    $parent = $room->addAgent(AiStoreDelegatingAgent::class);
+    $parentMessage = $room->sendMessageAs($parent, 'Parent task', ['metadata' => ['ai' => [
+        'role' => 'assistant', 'agent' => AiStoreDelegatingAgent::class, 'status' => 'paused', 'steps' => [],
+    ]]]);
+    $child = new class($requester) implements Agent, HasStructuredOutput, HasTools, IncludesDelegatedToolResults
+    {
+        use Promptable;
+
+        public function __construct(private Model $requester) {}
+
+        public function instructions(): string
+        {
+            return 'Complete the task and return a summary with evidence.';
+        }
+
+        public function schema(JsonSchema $schema): array
+        {
+            return [
+                'summary' => $schema->string()->required(),
+                'evidence' => $schema->array()->items($schema->string())->required(),
+            ];
+        }
+
+        public function tools(): iterable
+        {
+            return [new AiStoreNativeApprovalTool($this->requester)];
+        }
+    };
+    $tool = new DelegatingAgentTool($child);
+    $request = new Request(['task' => 'Complete operation-17 and report evidence.'], 'parent-call');
+    $runs = new DelegatedRuns;
+    $runs->load($parentMessage);
+    app()->instance(DelegatedRuns::class, $runs);
+
+    $approval = $tool->shouldRequestApproval($request);
+    $parentMessage->refresh();
+    app()->instance(DelegatedRuns::class, new DelegatedRuns);
+    app(DelegatedRuns::class)->load($parentMessage);
+
+    expect($approval)->not->toBeNull()
+        ->and($parentMessage->metadata['ai']['delegations']['root/parent-call']['structured'])->toBeNull();
+
+    expect($tool->advance($request))->toBeTrue()
+        ->and(AiStoreNativeApprovalTool::$executions)->toBe([['requester' => $requester->getKey(), 'target' => 'operation-17']]);
+
+    app()->instance(DelegatedRuns::class, new DelegatedRuns);
+    app(DelegatedRuns::class)->load($parentMessage->fresh());
+    $parentResult = json_decode($tool->handle($request), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($parentResult['summary'])->toBe('The operation completed.')
+        ->and($parentResult['structured'])->toBe($structuredResult)
+        ->and($parentResult['tool_results'])->toHaveCount(1)
+        ->and($parentResult['tool_results'][0]['name'])->toBe('AiStoreNativeApprovalTool')
+        ->and($parentResult['tool_results'][0]['arguments'])->toBe(['target' => 'operation-17'])
+        ->and($parentResult['tool_results'][0]['result'])->toBe('Done')
+        ->and($parentMessage->fresh()->metadata['ai']['delegations']['root/parent-call']['structured'])->toBe($structuredResult)
+        ->and($parentMessage->fresh()->metadata['ai']['delegations']['root/parent-call']['tool_results'][0]['result'])->toBe('Done')
+        ->and(Chatroom::count())->toBe(1);
 });
 
 it('does not execute a delegated action with an unauthorized or stale approval', function (string $scenario, string $exceptionClass) {

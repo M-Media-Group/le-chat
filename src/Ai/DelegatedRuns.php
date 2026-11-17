@@ -11,8 +11,10 @@ use Laravel\Ai\Messages\UserMessage;
 use Laravel\Ai\Responses\AgentResponse;
 use Laravel\Ai\Responses\Data\ToolCall;
 use Laravel\Ai\Responses\Data\ToolResult;
+use Laravel\Ai\Responses\StructuredAgentResponse;
 use Laravel\Ai\Tools\Request;
 use LogicException;
+use Mmedia\LeChat\Contracts\IncludesDelegatedToolResults;
 use Mmedia\LeChat\Models\ChatMessage;
 
 /** @internal Child transcripts live on the owning assistant turn, never in separate chatrooms. */
@@ -48,9 +50,12 @@ class DelegatedRuns
         if (! is_string($task) || $task === '') {
             throw new LogicException('A delegated task must be a non-empty string.');
         }
+        $includesToolResults = $agent instanceof IncludesDelegatedToolResults;
         $this->runs[$key] = [
             'agent' => $agent::class, 'task' => $task, 'status' => 'running',
-            'messages' => [$this->encode(new UserMessage($task))], 'pending' => [],
+            'messages' => [$this->encode(new UserMessage($task))], 'pending' => [], 'structured' => null,
+            'includes_tool_results' => $includesToolResults,
+            ...($includesToolResults ? ['tool_results' => []] : []),
             'revision' => 0, 'text' => '', 'provider' => null, 'model' => null,
         ];
         $response = DelegatedAgent::wrap($agent, [], $key)->prompt($task);
@@ -72,7 +77,18 @@ class DelegatedRuns
             throw new LogicException('The delegated run must finish its approvals before the parent can resume.');
         }
 
-        return $this->runs[$key]['text'];
+        $structured = $this->runs[$key]['structured'] ?? null;
+        if ($this->runs[$key]['includes_tool_results'] ?? false) {
+            return json_encode([
+                'summary' => $this->runs[$key]['text'],
+                ...(is_array($structured) ? ['structured' => $structured] : []),
+                'tool_results' => $this->runs[$key]['tool_results'] ?? [],
+            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        }
+
+        return is_array($structured)
+            ? json_encode($structured, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+            : $this->runs[$key]['text'];
     }
 
     public function advance(Agent $agent, Request $request, string $key): bool
@@ -149,6 +165,14 @@ class DelegatedRuns
         ])->all();
         $run['status'] = $response->hasPendingApprovals() ? 'paused' : 'complete';
         $run['text'] = $response->text;
+        $run['structured'] = $response instanceof StructuredAgentResponse ? $response->toArray() : null;
+        if ($run['includes_tool_results'] ?? false) {
+            $toolResults = collect($run['tool_results'] ?? [])->keyBy('id');
+            foreach ($response->toolResults as $toolResult) {
+                $toolResults->put($toolResult->id, $toolResult->toArray());
+            }
+            $run['tool_results'] = $toolResults->values()->all();
+        }
         $run['provider'] = $response->meta->provider;
         $run['model'] = $response->meta->model;
         $run['revision']++;
