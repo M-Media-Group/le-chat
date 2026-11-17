@@ -13,6 +13,14 @@ use Mmedia\LeChat\Models\Chatroom;
 class ChatroomResource extends JsonResource
 {
     /**
+     * @return AnonymousResourceCollection<ChatroomResource>
+     */
+    public static function collection(mixed $resource): AnonymousResourceCollection
+    {
+        return parent::collection($resource);
+    }
+
+    /**
      * Transform the resource into an array.
      *
      * @return array<string, mixed>
@@ -24,7 +32,7 @@ class ChatroomResource extends JsonResource
             'name' => $this->name,
             'messages' => $this->whenLoaded(
                 'messages',
-                fn (EloquentCollection $messages): AnonymousResourceCollection => new AnonymousResourceCollection($messages, MessageResource::class),
+                fn (EloquentCollection $messages): AnonymousResourceCollection => MessageResource::collection($messages),
             ),
             'latest_message' => $this->whenLoaded(
                 'latestMessage',
@@ -35,7 +43,7 @@ class ChatroomResource extends JsonResource
             'description' => $this->description,
             'participants' => $this->whenLoaded(
                 'participants',
-                fn (EloquentCollection $participants): AnonymousResourceCollection => new AnonymousResourceCollection($participants, ChatParticipantResource::class),
+                fn (EloquentCollection $participants): AnonymousResourceCollection => ChatParticipantResource::collection($participants),
             ),
             'unread_messages_count' => $this->whenCounted('unread_messages_count'),
         ];

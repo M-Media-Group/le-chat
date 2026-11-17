@@ -31,6 +31,8 @@ it('exports typed schemas for the chat API', function () {
     }
 
     $schemas = $spec['components']['schemas'];
+    $chatroomListSchema = $spec['paths']['/chatrooms']['get']['responses']['200']['content']['application/json']['schema'];
+    $chatroomListSchemaJson = json_encode($chatroomListSchema, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
 
     expect($spec['paths'])->toHaveKeys([
         '/chatrooms',
@@ -39,6 +41,8 @@ it('exports typed schemas for the chat API', function () {
         '/interactions',
         '/messages',
     ])
+        ->and($chatroomListSchemaJson)
+        ->toContain('#/components/schemas/ChatroomResource')
         ->and($schemas['ChatroomResource']['properties']['messages']['items']['$ref'])
         ->toBe('#/components/schemas/MessageResource')
         ->and($schemas['ChatroomResource']['properties']['participants']['items']['$ref'])

@@ -4,6 +4,7 @@ namespace Mmedia\LeChat\Http\Resources;
 
 use Illuminate\Database\Eloquent\Casts\ArrayObject;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Route;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
@@ -14,6 +15,14 @@ use Mmedia\LeChat\Models\ChatMessage;
 /** @mixin ChatMessage */
 class MessageResource extends JsonResource
 {
+    /**
+     * @return AnonymousResourceCollection<MessageResource>
+     */
+    public static function collection(mixed $resource): AnonymousResourceCollection
+    {
+        return parent::collection($resource);
+    }
+
     /**
      * Transform the resource into an array.
      *

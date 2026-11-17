@@ -3,12 +3,21 @@
 namespace Mmedia\LeChat\Http\Resources;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Mmedia\LeChat\Models\ChatParticipant;
 
 /** @mixin ChatParticipant */
 class ChatParticipantResource extends JsonResource
 {
+    /**
+     * @return AnonymousResourceCollection<ChatParticipantResource>
+     */
+    public static function collection(mixed $resource): AnonymousResourceCollection
+    {
+        return parent::collection($resource);
+    }
+
     /**
      * Transform the resource into an array.
      *
