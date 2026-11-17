@@ -1,8 +1,11 @@
 <?php
 
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Event;
 use Mmedia\LeChat\Events\ParticipantCreated;
+use Mmedia\LeChat\Http\Resources\ChatParticipantResource;
 use Mmedia\LeChat\Http\Resources\ChatroomResource;
+use Mmedia\LeChat\Http\Resources\MessageResource;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
@@ -143,6 +146,22 @@ it('serializes a loaded missing latest message as null', function () {
     $payload = ChatroomResource::make($room->load('latestMessage'))->resolve();
 
     expect($payload['latest_message'])->toBeNull();
+});
+
+it('uses the matching resource class for each loaded collection', function () {
+    $room = Chatroom::create(['name' => 'Resource collections']);
+    $room->sendMessage('A message');
+    ChatParticipant::create([
+        'chatroom_id' => $room->getKey(),
+        'reference_id' => 'agent:reader',
+    ]);
+
+    $payload = ChatroomResource::make($room->load(['messages', 'participants']))->toArray(request());
+
+    expect($payload['messages'])->toBeInstanceOf(AnonymousResourceCollection::class)
+        ->and($payload['messages']->collects)->toBe(MessageResource::class)
+        ->and($payload['participants'])->toBeInstanceOf(AnonymousResourceCollection::class)
+        ->and($payload['participants']->collects)->toBe(ChatParticipantResource::class);
 });
 
 it('adds, finds, marks read, and removes participants', function () {

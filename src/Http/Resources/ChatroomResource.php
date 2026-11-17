@@ -24,7 +24,7 @@ class ChatroomResource extends JsonResource
             'name' => $this->name,
             'messages' => $this->whenLoaded(
                 'messages',
-                fn (EloquentCollection $messages): AnonymousResourceCollection => MessageResource::collection($messages),
+                fn (EloquentCollection $messages): AnonymousResourceCollection => new AnonymousResourceCollection($messages, MessageResource::class),
             ),
             'latest_message' => $this->whenLoaded(
                 'latestMessage',
@@ -35,7 +35,7 @@ class ChatroomResource extends JsonResource
             'description' => $this->description,
             'participants' => $this->whenLoaded(
                 'participants',
-                fn (EloquentCollection $participants): AnonymousResourceCollection => ChatParticipantResource::collection($participants),
+                fn (EloquentCollection $participants): AnonymousResourceCollection => new AnonymousResourceCollection($participants, ChatParticipantResource::class),
             ),
             'unread_messages_count' => $this->whenCounted('unread_messages_count'),
         ];
