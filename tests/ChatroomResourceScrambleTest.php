@@ -51,6 +51,13 @@ it('exports typed schemas for the chat API', function () {
     $approvalSchema = $spec['paths']['/approvals/{batch}']['get']['responses']['200']['content']['application/json']['schema'];
     $decisionSchema = $spec['paths']['/approvals/{batch}']['post']['requestBody']['content']['application/json']['schema']['properties']['decisions'];
     $interactionValueSchema = $spec['paths']['/interactions']['post']['requestBody']['content']['application/json']['schema']['properties']['value'];
+    $interactionValueTypes = $interactionValueSchema['type']
+        ?? collect($interactionValueSchema['anyOf'] ?? [])->pluck('type')->all();
+    $interactionValueTypes = collect($interactionValueTypes)
+        ->map(fn (string $type): string => $type === 'integer' ? 'number' : $type)
+        ->unique()
+        ->values()
+        ->all();
     $sendMessageErrorSchema = $spec['paths']['/messages']['post']['responses']['400']['content']['application/json']['schema'];
 
     expect($approvalSchema['properties']['id']['type'])->toBe('integer')
@@ -59,7 +66,7 @@ it('exports typed schemas for the chat API', function () {
         ->toBe('object')
         ->and($decisionSchema['items']['properties']['action']['enum'])
         ->toBe(['approve', 'reject'])
-        ->and($interactionValueSchema['type'])
+        ->and($interactionValueTypes)
         ->toBe(['string', 'number', 'boolean', 'array', 'object', 'null'])
         ->and($sendMessageErrorSchema['properties']['message']['type'])
         ->toBe('string');
