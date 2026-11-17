@@ -26,12 +26,14 @@ return [
     'latest_channel' => true,
 
     /**
-     * Whether participants can see messages and their files sent before they joined.
+     * Default history access copied to newly created chatrooms.
      *
-     * If false, only messages sent at or after joining are visible. Messages sent
-     * after leaving remain hidden regardless of this setting.
+     * Each room copies its value to new participant memberships. Changing this
+     * config does not affect existing rooms or memberships. Message visibility
+     * uses the membership's stored value; post-leave messages remain hidden.
      *
-     * PHP visibility queries may override this setting using includeBeforeJoined.
+     * PHP visibility queries may override the membership's stored value for that
+     * query using includeBeforeJoined, without changing any stored setting.
      */
     'can_see_messages_before_joined' => false,
 

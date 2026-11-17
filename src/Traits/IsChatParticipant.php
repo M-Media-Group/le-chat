@@ -19,6 +19,7 @@ use Mmedia\LeChat\Contracts\TargetedMessageSender;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
+use Mmedia\LeChat\Support\ParticipantMessages;
 use Staudenmeir\EloquentHasManyDeep\HasManyDeep;
 use Staudenmeir\EloquentHasManyDeep\HasRelationships;
 
@@ -94,12 +95,18 @@ trait IsChatParticipant
         // Start from the ChatMessage model query builder.
         $relation = $this->hasManyDeepFromRelations(
             $this->chatParticipants(),
-            (new ChatParticipant)->messages(),
+            (new ChatParticipant)->hasMany(ChatMessage::class, 'chatroom_id', 'chatroom_id'),
         );
 
         $this->assertMessageRelation($relation);
 
-        return $relation;
+        return new ParticipantMessages(
+            $relation->getRelated()->newQuery(),
+            $this,
+            $relation->getThroughParents(),
+            $relation->getForeignKeys(),
+            $relation->getLocalKeys(),
+        );
     }
 
     /**
@@ -179,7 +186,7 @@ trait IsChatParticipant
     /**
      * Query messages visible to this participant, ordered newest first.
      *
-     * @param  bool|null  $includeBeforeJoined  Null uses `chat.can_see_messages_before_joined`; true includes pre-join messages, false excludes them.
+     * @param  bool|null  $includeBeforeJoined  Null uses the stored membership setting; true includes pre-join messages, false excludes them.
      * @return Builder|EloquentBuilder<ChatMessage>
      */
     private function getMessagesQuery(?bool $includeBeforeJoined = null): Builder|EloquentBuilder
@@ -196,7 +203,7 @@ trait IsChatParticipant
     /**
      * Get the messages that are visible to this participant.
      *
-     * @param  bool|null  $includeBeforeJoined  Null uses `chat.can_see_messages_before_joined`; true includes pre-join messages, false excludes them.
+     * @param  bool|null  $includeBeforeJoined  Null uses the stored membership setting; true includes pre-join messages, false excludes them.
      * @return Builder|EloquentBuilder<ChatMessage>
      */
     public function visibleMessages(?int $limit = null, ?int $offset = null, ?bool $includeBeforeJoined = null): Builder|EloquentBuilder
@@ -221,15 +228,15 @@ trait IsChatParticipant
     /**
      * Load messages visible to this participant, optionally with their replies or parent messages.
      *
-     * @param  bool|null  $includeBeforeJoined  Null uses `chat.can_see_messages_before_joined`; true includes pre-join messages, false excludes them.
+     * @param  bool|null  $includeBeforeJoined  Null uses the stored membership setting; true includes pre-join messages, false excludes them.
      * @return Collection<int, ChatMessage>
      */
     public function getMessages(?int $limit = null, ?int $offset = null, ?bool $includeBeforeJoined = null, bool $withReplies = false, bool $withParentMessage = false): Collection
     {
         // Get the messages using the visibleMessages method
         return $this->visibleMessages($limit, $offset, $includeBeforeJoined)
-            ->when($withReplies, fn ($query) => $query->with('replies'))
-            ->when($withParentMessage, fn ($query) => $query->with('parentMessage'))
+            ->when($withReplies, fn ($query) => $query->with(['replies' => fn ($replies) => $replies->visibleTo($this, true, $includeBeforeJoined)]))
+            ->when($withParentMessage, fn ($query) => $query->with(['parentMessage' => fn ($parent) => $parent->visibleTo($this, true, $includeBeforeJoined)]))
             ->get();
     }
 
@@ -281,6 +288,7 @@ trait IsChatParticipant
                 'participant_id' => $this->getKey(),
                 'participant_type' => $this->getMorphClass(),
                 'role' => 'admin',
+                'can_see_messages_before_joined' => $chatRoom->can_see_messages_before_joined,
             ]);
         }
 
@@ -443,6 +451,7 @@ trait IsChatParticipant
             $bestChannel = Chatroom::create($newChannelConfiguration);
             // Add this model and the recipient to the chat room
             $this->chatParticipants()->create([
+                'can_see_messages_before_joined' => $bestChannel->can_see_messages_before_joined,
                 ...$asParticipantConfiguration,
                 'chatroom_id' => $bestChannel->getKey(),
                 'participant_id' => $this->getKey(),
@@ -584,14 +593,6 @@ trait IsChatParticipant
             $messagesQuery->whereNotNull("{$messagesTable}.sender_id")
                 ->whereColumn("{$messagesTable}.sender_id", '!=', "{$participantsTable}.id");
         }
-
-        // 2. Message must have been created after the participant joined the room.
-        // This ensures the participant could have seen the message.
-        $messagesQuery->whereColumn(
-            "{$messagesTable}.created_at",
-            '>=',
-            "{$participantsTable}.created_at"
-        );
 
         // 3. Message is newer than the read timestamp OR the read timestamp is NULL.
         // This is the key fix to handle users who have never read the chat.

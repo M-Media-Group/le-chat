@@ -1,7 +1,10 @@
 <?php
 
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Schema;
 use Mmedia\LeChat\Events\ParticipantCreated;
 use Mmedia\LeChat\Http\Resources\ChatParticipantResource;
 use Mmedia\LeChat\Http\Resources\ChatroomResource;
@@ -15,6 +18,139 @@ it('can create a chatroom with a name', function () {
 
     expect($chatroom->name)->toBe('General Chat');
 });
+
+it('copies the global history default only when creating a room', function (bool $default) {
+    config(['chat.can_see_messages_before_joined' => $default]);
+    $room = Chatroom::create(['name' => 'History default']);
+    $explicit = Chatroom::create(['can_see_messages_before_joined' => ! $default]);
+
+    config(['chat.can_see_messages_before_joined' => ! $default]);
+    $room->update(['name' => 'Renamed']);
+
+    expect($room->fresh()->can_see_messages_before_joined)->toBe($default)
+        ->and($explicit->fresh()->can_see_messages_before_joined)->toBe(! $default)
+        ->and(Chatroom::create()->fresh()->can_see_messages_before_joined)->toBe(! $default);
+})->with([false, true]);
+
+it('saves room history defaults without changing existing memberships', function () {
+    $room = Chatroom::create(['can_see_messages_before_joined' => false, 'metadata' => ['custom' => 'keep']]);
+    $existing = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'existing']);
+
+    $room->setCanSeeMessagesBeforeJoined(true);
+    $new = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'new']);
+
+    expect($room->fresh()->can_see_messages_before_joined)->toBeTrue()
+        ->and($room->fresh()->metadata)->toBe(['custom' => 'keep'])
+        ->and($existing->fresh()->can_see_messages_before_joined)->toBeFalse()
+        ->and($new->fresh()->can_see_messages_before_joined)->toBeTrue();
+});
+
+it('backfills history settings for existing rooms and removed memberships', function (bool $default) {
+    $migration = require __DIR__.'/../database/migrations/12_add_history_settings_to_chat_tables.php.stub';
+    $migration->down();
+    $roomId = DB::table('chatrooms')->insertGetId(['name' => 'Existing room', 'deleted_at' => now()]);
+    $membershipId = DB::table('chat_participants')->insertGetId([
+        'chatroom_id' => $roomId,
+        'reference_id' => 'removed',
+        'deleted_at' => now(),
+    ]);
+    config(['chat.can_see_messages_before_joined' => $default]);
+
+    $migration->up();
+
+    expect(Chatroom::withTrashed()->findOrFail($roomId)->can_see_messages_before_joined)->toBe($default)
+        ->and(ChatParticipant::withTrashed()->findOrFail($membershipId)->can_see_messages_before_joined)->toBe($default);
+    $rawRoomId = DB::table('chatrooms')->insertGetId(['name' => 'Database default']);
+    expect((bool) DB::table('chatrooms')->where('id', $rawRoomId)->value('can_see_messages_before_joined'))->toBeFalse();
+
+    $migration->down();
+    expect(Schema::hasColumn('chatrooms', 'can_see_messages_before_joined'))->toBeFalse()
+        ->and(Schema::hasColumn('chat_participants', 'can_see_messages_before_joined'))->toBeFalse();
+})->with([false, true]);
+
+it('covers participant history lookups with an index and removes it on rollback', function () {
+    if (DB::connection()->getDriverName() !== 'sqlite') {
+        $this->markTestSkipped('This query-plan assertion uses SQLite EXPLAIN QUERY PLAN.');
+    }
+    $identity = new ChatParticipant(['participant_type' => 'history-reader', 'participant_id' => 42]);
+    $query = ChatParticipant::withTrashed()->ofParticipant($identity)
+        ->where('can_see_messages_before_joined', true)->select('chatroom_id');
+    $plan = DB::select('EXPLAIN QUERY PLAN '.$query->toSql(), $query->getBindings());
+
+    expect(implode(' ', array_column($plan, 'detail')))
+        ->toContain('COVERING INDEX chat_participants_history_lookup');
+
+    $migration = require __DIR__.'/../database/migrations/12_add_history_settings_to_chat_tables.php.stub';
+    $migration->down();
+    $indexes = DB::select("PRAGMA index_list('chat_participants')");
+    expect(array_column($indexes, 'name'))->not->toContain('chat_participants_history_lookup')
+        ->toContain('chat_participant_unique', 'chat_participants_participant_type_participant_id_index');
+});
+
+it('rolls back the explicitly named history index with table prefixes', function (bool $prefixIndexes) {
+    config(['database.connections.prefixed_history' => [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+        'prefix' => 'tenant_',
+        'prefix_indexes' => $prefixIndexes,
+    ]]);
+    $defaultConnection = DB::getDefaultConnection();
+
+    try {
+        DB::setDefaultConnection('prefixed_history');
+        Schema::clearResolvedInstance('db.schema');
+        Schema::create('chatrooms', function (Blueprint $table): void {
+            $table->id();
+        });
+        Schema::create('chat_participants', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('chatroom_id');
+            $table->morphs('participant');
+        });
+        $migration = require __DIR__.'/../database/migrations/12_add_history_settings_to_chat_tables.php.stub';
+
+        $migration->up();
+        expect(Schema::hasIndex('chat_participants', 'chat_participants_history_lookup'))->toBeTrue();
+        $migration->down();
+        $migration->down();
+
+        expect(Schema::hasIndex('chat_participants', 'chat_participants_history_lookup'))->toBeFalse()
+            ->and(Schema::hasColumn('chat_participants', 'can_see_messages_before_joined'))->toBeFalse()
+            ->and(Schema::hasColumn('chatrooms', 'can_see_messages_before_joined'))->toBeFalse()
+            ->and(Schema::hasTable('chat_participants'))->toBeTrue();
+    } finally {
+        DB::setDefaultConnection($defaultConnection);
+        Schema::clearResolvedInstance('db.schema');
+        DB::purge('prefixed_history');
+    }
+})->with([false, true]);
+
+it('safely rolls back incomplete history schema and tolerates repeated rollback', function (string $state) {
+    $migration = require __DIR__.'/../database/migrations/12_add_history_settings_to_chat_tables.php.stub';
+    $roomId = DB::table('chatrooms')->insertGetId(['name' => 'Keep this room']);
+    if ($state === 'already rolled back') {
+        $migration->down();
+    } elseif ($state === 'room column missing') {
+        Schema::table('chatrooms', fn ($table) => $table->dropColumn('can_see_messages_before_joined'));
+    } else {
+        Schema::table('chat_participants', fn ($table) => $table->dropIndex('chat_participants_history_lookup'));
+        if ($state === 'membership column missing') {
+            Schema::table('chat_participants', fn ($table) => $table->dropColumn('can_see_messages_before_joined'));
+        }
+    }
+
+    $migration->down();
+    $migration->down();
+
+    expect(Schema::hasColumn('chatrooms', 'can_see_messages_before_joined'))->toBeFalse()
+        ->and(Schema::hasColumn('chat_participants', 'can_see_messages_before_joined'))->toBeFalse()
+        ->and(Schema::hasColumn('chat_participants', 'participant_id'))->toBeTrue()
+        ->and(DB::table('chatrooms')->where('id', $roomId)->value('name'))->toBe('Keep this room');
+
+    $migration->up();
+    expect(Schema::hasColumn('chatrooms', 'can_see_messages_before_joined'))->toBeTrue()
+        ->and(Schema::hasColumn('chat_participants', 'can_see_messages_before_joined'))->toBeTrue();
+})->with(['index missing', 'membership column missing', 'room column missing', 'already rolled back']);
 
 it('finds chatrooms containing every requested participant even with extras', function () {
     $matchingRoom = Chatroom::create(['name' => 'Matching room']);
@@ -217,6 +353,24 @@ it('counts unread messages for a participant', function () {
 
     expect($unreadCount)->toBe(1)
         ->and($readCount)->toBe(0);
+});
+
+it('updates previews and unread counts from membership history without marking it read', function () {
+    Event::fake();
+    $room = Chatroom::create(['can_see_messages_before_joined' => false]);
+    $reader = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'reader']);
+    $reader->forceFill(['created_at' => now()->subMinute()])->saveQuietly();
+    $old = $room->sendMessage('Earlier history');
+    $old->forceFill(['created_at' => now()->subMinutes(2)])->saveQuietly();
+
+    $hidden = Chatroom::withLatestMessageFor($reader)->withUnreadMessagesCountFor($reader)->findOrFail($room->id);
+    expect($hidden->latestMessage)->toBeNull()->and($hidden->unread_messages_count)->toBe(0);
+
+    $reader->setCanSeeMessagesBeforeJoined(true);
+    $visible = Chatroom::withLatestMessageFor($reader)->withUnreadMessagesCountFor($reader)->findOrFail($room->id);
+    expect($visible->latestMessage->id)->toBe($old->id)
+        ->and($visible->unread_messages_count)->toBe(1)
+        ->and($reader->fresh()->read_at)->toBeNull();
 });
 
 it('syncs participants while retaining existing participants', function () {

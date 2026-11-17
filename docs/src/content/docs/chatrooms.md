@@ -36,6 +36,17 @@ Note: adding a participant that has previously been added and then removed will 
 
 Because of how the restoration works, it will cause the participant to see all the messages from the time they first joined to now, including those sent while they were removed.
 
+### History defaults
+
+New rooms copy `chat.can_see_messages_before_joined` into their own `can_see_messages_before_joined` boolean column. Set a different default for memberships created in this room:
+
+```php
+$chatroom->setCanSeeMessagesBeforeJoined(true);
+$membership = $chatroom->addParticipant($student);
+```
+
+The new membership copies `true` and can read earlier messages. Existing memberships are unchanged. Re-adding or restoring a membership preserves its original setting instead of copying the room default again. See [history access](/messages#history-access-per-room-and-participant) for individual membership settings and query overrides.
+
 ### Adding Multiple Participants
 You can also add multiple participants at once by passing an array of models:
 ```php

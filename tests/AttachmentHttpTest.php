@@ -214,7 +214,7 @@ it('applies the same PHP visibility overrides to files and messages', function (
     $message->forceFill(['created_at' => now()->subMinutes(2)])->saveQuietly();
 
     foreach ([false, true] as $includeHistory) {
-        config(['chat.can_see_messages_before_joined' => $includeHistory]);
+        $membership->setCanSeeMessagesBeforeJoined($includeHistory);
         expect(ChatFile::query()->visibleTo($actor)->pluck('id')->all())->toBe($includeHistory ? [$file->id] : []);
         expect($actor->getMessages()->pluck('id')->all())->toBe($includeHistory ? [$message->id] : []);
         expect($actor->visibleMessages()->pluck('id')->all())->toBe($includeHistory ? [$message->id] : []);
@@ -251,7 +251,7 @@ it('grants file access through any visible share but not through hidden remainin
     $visible->delete();
     $this->get($url)->assertNotFound();
 
-    config(['chat.can_see_messages_before_joined' => true]);
+    $membership->setCanSeeMessagesBeforeJoined(true);
     $this->get($url)->assertOk()->assertStreamedContent('Private notes');
     $beforeJoin->delete();
     $this->get($url)->assertNotFound();

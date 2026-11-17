@@ -360,8 +360,6 @@ final class ChatMessage extends Model
         bool $includeLeftChatrooms = true,
         ?bool $includeBeforeJoined = null
     ): Builder {
-        $includeBeforeJoined ??= config('chat.can_see_messages_before_joined', false);
-
         return $query->whereHas(
             'chatroom',
             function ($query) use ($participant, $includeLeftChatrooms) {
@@ -370,9 +368,18 @@ final class ChatMessage extends Model
         )
             ->beforeParticipantDeleted($participant)
             ->when(
-                ! $includeBeforeJoined,
-                function ($query) use ($participant) {
-                    return $query->afterParticipantJoined($participant);
+                $includeBeforeJoined !== true,
+                function (Builder $query) use ($participant, $includeBeforeJoined): Builder {
+                    return $query->where(function (Builder $query) use ($participant, $includeBeforeJoined): void {
+                        $query->afterParticipantJoined($participant);
+
+                        if ($includeBeforeJoined === null) {
+                            $query->orWhereIn($query->getModel()->qualifyColumn('chatroom_id'), ChatParticipant::withTrashed()
+                                ->ofParticipant($participant)
+                                ->where('can_see_messages_before_joined', true)
+                                ->select('chatroom_id'));
+                        }
+                    });
                 }
             );
     }

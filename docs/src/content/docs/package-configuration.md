@@ -14,6 +14,10 @@ php artisan vendor:publish --tag="le-chat-config"
 
 This creates `config/chat.php`. The file contains the defaults; this page explains what the settings do and when to change them.
 
+## Message history defaults
+
+`chat.can_see_messages_before_joined` defaults to `false`. Its value is copied to each new room, and each room copies its own value to new participant memberships. Changing this configuration does not update existing rooms or memberships. Visibility reads the membership's stored boolean, not this configuration. See [history access](/messages#history-access-per-room-and-participant) for room and membership setters.
+
 ## Scheduled tasks
 
 Le Chat registers maintenance tasks with Laravel's scheduler when their related features are enabled:

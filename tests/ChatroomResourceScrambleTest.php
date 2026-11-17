@@ -60,7 +60,12 @@ it('exports typed schemas for the chat API', function () {
         ->and($schemas['ChatParticipantResource']['properties']['ai_response_mode']['enum'])
         ->toBe(['all', 'mentions', 'off'])
         ->and($schemas['ChatParticipantResource']['required'])
-        ->not->toContain('ai_response_mode');
+        ->not->toContain('ai_response_mode')
+        ->and($schemas['ChatroomResource']['properties'])
+        ->not->toHaveKey('can_see_messages_before_joined')
+        ->and($schemas['ChatParticipantResource']['properties'])
+        ->not->toHaveKey('can_see_messages_before_joined')
+        ->not->toHaveKey('metadata');
 
     $approvalSchema = $spec['paths']['/approvals/{batch}']['get']['responses']['200']['content']['application/json']['schema'];
     $decisionSchema = $spec['paths']['/approvals/{batch}']['post']['requestBody']['content']['application/json']['schema']['properties']['decisions'];

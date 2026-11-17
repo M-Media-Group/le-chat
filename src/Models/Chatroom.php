@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Laravel\Ai\Contracts\Agent;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Features;
+use Mmedia\LeChat\Support\ChatroomParticipants;
 use Mmedia\LeChat\Support\MessageFiles;
 
 /**
@@ -21,6 +22,7 @@ use Mmedia\LeChat\Support\MessageFiles;
  * @property string|null $name
  * @property string|null $description
  * @property array<string, mixed>|null $metadata
+ * @property bool $can_see_messages_before_joined
  * @property \Illuminate\Support\Carbon|null $deleted_at
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
@@ -38,16 +40,22 @@ final class Chatroom extends Model
         'name',
         'description',
         'metadata',
+        'can_see_messages_before_joined',
     ];
 
     // Cast
     /** @var array<string, string> */
     protected $casts = [
         'metadata' => 'array',
+        'can_see_messages_before_joined' => 'boolean',
     ];
 
     protected static function booted(): void
     {
+        self::creating(function (Chatroom $chatroom): void {
+            $chatroom->can_see_messages_before_joined ??= (bool) config('chat.can_see_messages_before_joined', false);
+        });
+
         self::deleting(function (Chatroom $chatroom): void {
             if ($chatroom->isForceDeleting() && Features::enabled(Features::files())) {
                 $chatroom->messages()->whereHas('files')->chunkById(100, function ($messages): void {
@@ -67,6 +75,11 @@ final class Chatroom extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(ChatMessage::class);
+    }
+
+    public function setCanSeeMessagesBeforeJoined(bool $value): void
+    {
+        $this->update(['can_see_messages_before_joined' => $value]);
     }
 
     /**
@@ -101,7 +114,9 @@ final class Chatroom extends Model
      */
     public function participants(): HasMany
     {
-        return $this->hasMany(ChatParticipant::class);
+        $participant = (new ChatParticipant)->setConnection($this->getConnectionName());
+
+        return new ChatroomParticipants($participant->newQuery(), $this, $participant->qualifyColumn('chatroom_id'), $this->getKeyName());
     }
 
     /**
@@ -111,7 +126,7 @@ final class Chatroom extends Model
      */
     public function participantsWithTrashed(): HasMany
     {
-        return $this->hasMany(ChatParticipant::class)->withTrashed();
+        return $this->participants()->withTrashed();
     }
 
     /**
@@ -127,7 +142,10 @@ final class Chatroom extends Model
             $room = self::query()->lockForUpdate()->findOrFail($this->getKey());
             $participant = $room->participants()->withTrashed()->firstOrCreate(
                 ['reference_id' => 'ai-agent:'.$agentClass],
-                ['display_name' => class_basename($agentClass)],
+                [
+                    'display_name' => class_basename($agentClass),
+                    'can_see_messages_before_joined' => $room->can_see_messages_before_joined,
+                ],
             );
             if ($participant->trashed()) {
                 $participant->restore();
@@ -221,7 +239,10 @@ final class Chatroom extends Model
                 'participant_id' => $participant->getKey(),
                 'participant_type' => $participant->getMorphClass(),
             ],
-            ['role' => $role],
+            [
+                'role' => $role,
+                'can_see_messages_before_joined' => $this->can_see_messages_before_joined,
+            ],
         );
 
         if ($chatParticipant->trashed()) {

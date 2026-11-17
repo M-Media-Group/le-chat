@@ -16,7 +16,111 @@ ChatMessage::get();
 ### Message visibility
 Not all messages should be visible to all participants. Le Chat automatically handles message visibility based on the participants in a chatroom.
 
-By default, participants can see messages sent at or after joining a chatroom and at or before leaving it. Former participants retain access to that history. Set `chat.can_see_messages_before_joined` to `true` to also allow earlier messages and their files; messages sent after leaving remain hidden. This setting applies to the message APIs and the participant trait's `visibleMessages()` and `getMessages()` methods.
+By default, participants can see messages sent at or after joining a chatroom and at or before leaving it. Former participants retain access to that history. Set `chat.can_see_messages_before_joined` to `true` to enable earlier history by default for newly created rooms. Each room copies this default to its newly created participant memberships. Messages sent after leaving remain hidden.
+
+### History access per room and participant
+
+Each participant membership stores whether it can read messages sent before joining. The global configuration supplies the default for new rooms; each room supplies the default for new memberships. These values are copied at creation, not inherited when reading messages.
+
+#### Set the default for new participants
+
+Call `setCanSeeMessagesBeforeJoined(true)` on a chatroom to allow earlier messages for memberships created after this change:
+
+```php
+$chatroom->setCanSeeMessagesBeforeJoined(true);
+```
+
+Existing memberships do not change. Changing the global configuration likewise does not change existing rooms. Use `false` to disable history for future memberships in this room.
+
+#### Allow earlier messages for one participant
+
+`addParticipant()` returns a `ChatParticipant`: the membership record connecting a chat-capable model to one room. Set history access on that record, not on the underlying model:
+
+```php
+$membership = $chatroom->addParticipant($participant);
+$membership->setCanSeeMessagesBeforeJoined(true);
+```
+
+The participant can now read earlier messages in this room. Their access in other rooms does not change, and other participants in this room keep their own settings.
+
+Use `false` to hide earlier messages for a participant, even when the room allows them:
+
+```php
+$membership->setCanSeeMessagesBeforeJoined(false);
+```
+
+To change an existing membership, retrieve it from the room first. `participant()` returns `null` if the model is not a member:
+
+```php
+$membership = $chatroom->participant($participant);
+
+if ($membership !== null) {
+    $membership->setCanSeeMessagesBeforeJoined(true);
+}
+```
+
+#### Stored settings
+
+| Value | Meaning |
+| --- | --- |
+| `true` | Show messages sent before joining. |
+| `false` | Hide messages sent before joining. |
+
+Both setters accept `bool`, save the change immediately, and return `void`; you do not need to call `save()`. Rooms and memberships each have a non-nullable boolean `can_see_messages_before_joined` database column. `null` is not a stored setting.
+
+Both setters intentionally use normal Eloquent updates: changing the value updates `updated_at` and fires model events. Observers are not suppressed, so auditing and cache invalidation can react to history-setting changes.
+
+You can also supply the boolean when creating a room or membership directly. An explicitly supplied value is preserved instead of copying the creation default.
+
+Defaults are copied by Eloquent model creation events. Raw database inserts bypass those events and use the database default of `false` unless you supply a value.
+
+For bulk membership creation, use the room relation so its default is available without a lookup for each membership:
+
+```php
+$chatroom->participants()->createMany([
+    ['reference_id' => 'first', 'display_name' => 'First participant'],
+    ['reference_id' => 'second', 'display_name' => 'Second participant'],
+]);
+```
+
+An explicitly supplied membership setting takes priority. Direct `ChatParticipant::create()` calls that supply only a room ID look up that room's current default; bulk callers using this path can supply `can_see_messages_before_joined` explicitly to avoid those lookups. Defaults are not cached across creations, so later room changes do not leave a stale cached value.
+
+When upgrading an existing installation, publish and run the new migration before using this version:
+
+```bash
+php artisan vendor:publish --tag="le-chat-migrations"
+php artisan migrate
+```
+
+The migration initializes existing rooms and memberships, including soft-deleted records, from `chat.can_see_messages_before_joined` as configured when the migration runs. Keep that configuration at its existing value during the upgrade to preserve history access. Existing join/leave timestamps and read markers are unchanged.
+
+#### Reading messages
+
+Message visibility uses only the requesting membership's stored setting. It does not look up a room default or global configuration to decide history access.
+
+For example, a room starts with history disabled. Its first membership copies `false`. You then enable history on the room. A second membership copies `true`, while the first remains `false`. Change the first membership explicitly if it should also see earlier messages.
+
+These rules apply separately to each membership when a query includes several rooms. You can pass either a chat-capable model, such as a user, or a `ChatParticipant` record to `visibleTo()`.
+
+#### Membership lifecycle
+
+Adding or synchronizing the same participant again preserves their history setting. Removing and restoring their membership also preserves it. Do not change their join timestamp to grant history access.
+
+#### What history access changes
+
+History settings apply to participant-visible message lists, individual messages, parent and reply content, shared files, latest-message previews, unread counts, and participant-scoped AI history. Raw queries such as `ChatMessage::get()` and `$chatroom->messages()` are not filtered for a viewer; use `visibleTo()` when serving messages to a participant.
+
+Changes to a membership's setting take effect on subsequent reads, including reads of existing messages. They do not mark messages as read, reset `read_at`, or retract content someone has already downloaded.
+
+History access does not add members, change roles, grant posting or editing permissions, authorize AI tool approvals, or expose private AI metadata. Deleted messages and file shares keep their existing visibility rules.
+
+Participants still cannot see messages sent after they left, even with history enabled. Messages exactly at the join or leave timestamp are included. `includeLeftChatrooms: false` excludes rooms the participant has left entirely. Restoring a membership uses its original join time, so messages sent during the absence become visible again under the existing restoration behavior.
+
+#### Keep settings under server control
+
+Your application must authorize changes to room and membership settings. The setters do not perform application-specific authorization, add or restore memberships, or change roles. There are no dedicated HTTP endpoints for changing these settings.
+
+An explicit `includeBeforeJoined: true` or `false` overrides even a membership's setting. Only use this argument in trusted server code; do not copy it from a request parameter. Use the same override for message and file queries so attachments follow the history shown to the participant.
 
 ### Getting messages for a participant
 This will return all messages in the chat application. Of course, you most often need to get messages for a specific participant, which you can do by using the `getMessages` method on the participant model.
@@ -30,7 +134,7 @@ This will return all messages that are visible to the specified participant, e.g
 ```php
 $messages = ChatMessage::visibleTo($participant, includeBeforeJoined: true)->get();
 ```
-Passing `includeBeforeJoined: false` explicitly excludes earlier history even when the application setting is enabled. Omitting the argument, or passing `null`, inherits the application setting.
+Passing `includeBeforeJoined: false` explicitly excludes earlier history even when the membership enables it. Omitting the argument, or passing `null`, uses the membership's stored setting. These query overrides do not change any stored setting.
 Sometimes, you may want to NOT get messages that are in chatrooms that the participant has left. You can do this by passing `false` as the second parameter:
 
 ```php

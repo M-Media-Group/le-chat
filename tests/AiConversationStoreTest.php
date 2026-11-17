@@ -58,6 +58,7 @@ use Mmedia\LeChat\Contracts\ChatParticipantInterface;
 use Mmedia\LeChat\Contracts\IncludesDelegatedToolResults;
 use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\Events\MessageUpdated;
+use Mmedia\LeChat\Events\ParticipantCreated;
 use Mmedia\LeChat\Features;
 use Mmedia\LeChat\Http\Resources\ChatParticipantResource;
 use Mmedia\LeChat\LeChatServiceProvider;
@@ -227,6 +228,26 @@ it('replays visible chat files as AI attachments without storing paths in metada
         ->and($fileTurns[0]->attachments[0]->content())->toBe('private contents')
         ->and($message->fresh()->metadata)->toBeNull();
 });
+
+it('uses the agent membership history setting instead of later room or global defaults', function (bool $includeHistory) {
+    Event::fake([MessageCreated::class, ParticipantCreated::class]);
+    config(['chat.create_system_messages' => false, 'chat.can_see_messages_before_joined' => false]);
+    $room = Chatroom::create();
+    $sender = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'sender']);
+    $agent = $room->addAgent(AiStoreEchoAgent::class);
+    $agent->forceFill(['created_at' => now()->subMinute()])->saveQuietly();
+    $agent->setCanSeeMessagesBeforeJoined($includeHistory);
+    $old = $room->sendMessageAs($sender, 'Earlier context');
+    $old->forceFill(['created_at' => now()->subMinutes(2)])->saveQuietly();
+    $current = $room->sendMessageAs($sender, 'Current question');
+    $room->setCanSeeMessagesBeforeJoined(! $includeHistory);
+    config(['chat.can_see_messages_before_joined' => ! $includeHistory]);
+
+    $history = aiStoreTestStore()->answering($current, AiStoreEchoAgent::class,
+        fn () => aiStoreTestStore()->getLatestConversationMessages((string) $room->id, 10));
+
+    expect($history)->toHaveCount($includeHistory ? 1 : 0);
+})->with([false, true]);
 
 it('preserves native SDK attachments in conversation history', function () {
     $owner = aiStoreTestOwner();

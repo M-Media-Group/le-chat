@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute as CastsAttribute;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
@@ -17,6 +18,7 @@ use Mmedia\LeChat\Events\ParticipantCreated;
 use Mmedia\LeChat\Events\ParticipantDeleted;
 use Mmedia\LeChat\Events\ParticipantTyping;
 use Mmedia\LeChat\Features;
+use Mmedia\LeChat\Support\MembershipMessages;
 use Mmedia\LeChat\Traits\BelongsToChatroom;
 use Mmedia\LeChat\Traits\ConnectsToBroadcast;
 use Mmedia\LeChat\Traits\IsChatParticipant;
@@ -34,6 +36,7 @@ use Mmedia\LeChat\Traits\IsChatParticipant;
  * @property string|null $reference_id
  * @property string|null $avatar_url
  * @property array<string, mixed>|null $metadata
+ * @property bool $can_see_messages_before_joined
  * @property Carbon|null $deleted_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -64,6 +67,7 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
         'avatar_url',
         'reference_id',
         'metadata',
+        'can_see_messages_before_joined',
 
         'read_at',
     ];
@@ -73,6 +77,7 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
     protected $casts = [
         'read_at' => 'datetime',
         'metadata' => 'array',
+        'can_see_messages_before_joined' => 'boolean',
     ];
 
     /** @var array<string, class-string> */
@@ -88,6 +93,11 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
 
     protected static function booted(): void
     {
+        self::creating(function (ChatParticipant $participant): void {
+            $participant->can_see_messages_before_joined ??= (bool) Chatroom::on($participant->getConnectionName())->withTrashed()
+                ->whereKey($participant->chatroom_id)->value('can_see_messages_before_joined');
+        });
+
         self::deleting(function (ChatParticipant $participant): void {
             if ($participant->isForceDeleting() && Features::enabled(Features::files())) {
                 $participant->sentMessages()->whereHas('files')->chunkById(100, function ($messages): void {
@@ -102,6 +112,11 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
     public function mentionToken(): string
     {
         return '<@'.$this->getKey().'>';
+    }
+
+    public function setCanSeeMessagesBeforeJoined(bool $value): void
+    {
+        $this->update(['can_see_messages_before_joined' => $value]);
     }
 
     public function isAgent(): bool
@@ -182,28 +197,32 @@ final class ChatParticipant extends Model implements ChatParticipantInterface
     /**
      * All the messages in the chatroom this participant is in
      *
-     * @return HasMany<ChatMessage, $this>
+     * @return HasManyThrough<ChatMessage, ChatParticipant, $this>
      */
-    public function messages(): HasMany
+    public function messages(): HasManyThrough
     {
-        $chatMessageInstance = new ChatMessage;
+        $chatMessageInstance = (new ChatMessage)->setConnection($this->getConnectionName());
+        $throughParticipant = (new self)->setConnection($this->getConnectionName());
+        $relation = new MembershipMessages($chatMessageInstance->newQuery(), $this, $throughParticipant, 'id', 'chatroom_id', 'id', 'chatroom_id');
 
-        return $this->hasMany(ChatMessage::class, 'chatroom_id', 'chatroom_id')
-            // where created_at is after the time this participant was created at
-            ->whereColumn(
-                $chatMessageInstance->getQualifiedCreatedAtColumn(),
-                '>=',
-                'created_at'
-            )
-            // And where deleted_at is null or created_at is before deleted_at
-            ->where(function ($query) use ($chatMessageInstance) {
-                $query->whereNull('deleted_at')
+        // Existence queries alias the through row and correlate its id to the outer participant.
+        // Participant-qualified columns intentionally reference that outer row; this relies on
+        // the through parent being the same membership, not another participant in the room.
+        $relation->getQuery()
+            ->where(function (Builder $query) use ($chatMessageInstance): void {
+                $query->where($this->qualifyColumn('can_see_messages_before_joined'), true)
+                    ->orWhereColumn($chatMessageInstance->getQualifiedCreatedAtColumn(), '>=', $this->getQualifiedCreatedAtColumn());
+            })
+            ->where(function (Builder $query) use ($chatMessageInstance): void {
+                $query->whereNull($this->getQualifiedDeletedAtColumn())
                     ->orWhereColumn(
                         $chatMessageInstance->getQualifiedCreatedAtColumn(),
-                        '<',
-                        'deleted_at'
+                        '<=',
+                        $this->getQualifiedDeletedAtColumn()
                     );
             });
+
+        return $relation;
     }
 
     /**

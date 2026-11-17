@@ -66,6 +66,15 @@ When building multi-user chat applications, it is common not to show messages to
 
 By default, only messages from between the time a participant joins the chatroom and potentially leaves it are visible to that participant. This means that if a participant joins a chatroom after messages have been sent, they will not see those previous messages.
 
+Each new `ChatParticipant` membership copies the room's history default into its own `can_see_messages_before_joined` boolean column. Later room or global configuration changes do not affect that membership. To allow earlier history for one membership:
+
+```php
+$membership = $chatroom->addParticipant($teacher);
+$membership->setCanSeeMessagesBeforeJoined(true);
+```
+
+This saves immediately and changes access only in this room. Use `false` to hide pre-join messages again. Adding, synchronizing, or restoring the same membership preserves its value. See [history access](/messages#history-access-per-room-and-participant) for details.
+
 If you want to include messages that were sent before the participant joined the chatroom, you can use the `getMessages` method with an additional parameter:
 
 ```php
@@ -97,6 +106,44 @@ $messages = $teacher->visibleMessages()->get(); // Will return all messages visi
 
 $messages = $teacher->visibleMessages(includeBeforeJoined: true)->get(); // Will return all messages visible to the teacher in all chatrooms
 ```
+
+### Reading messages through a membership
+
+`ChatParticipant::messages()` is a read relationship for messages visible to one membership. Departed memberships retain messages up to and including `deleted_at`; enabling earlier history does not remove that leave-time boundary. Lazy reads, eager loading, `has()`, `whereHas()`, and `withCount()` apply the same membership rules.
+
+```php
+$membership = $chatroom->participant($teacher);
+$messages = $membership->messages()->orderByDesc('chat_messages.created_at')->limit(50)->get();
+```
+
+Avoid unbounded `with('messages')` on participant lists. If several memberships share a room, each receives its own visible message collection; messages visible to several memberships are returned and hydrated separately. Prefer `withCount('messages')` for counts, or fetch a page for the membership being viewed. Laravel 11 and later support per-parent eager limits:
+
+```php
+$memberships = ChatParticipant::with([
+    'messages' => fn ($relation) => $relation->orderByDesc('chat_messages.created_at')->orderByDesc('chat_messages.id')->limit(20),
+])->get();
+```
+
+Package migrations provide a `chat_messages (chatroom_id, created_at)` index. Its presence does not guarantee a timestamp range scan: the engine, query shape, data distribution, and join order determine whether timestamps become index bounds or are filtered after a room lookup. Check `EXPLAIN` on the deployed database for both single-membership and batch queries. An execution plan alone is not a latency benchmark.
+
+Use the relationship for reads. Calling `create()`, `save()`, or `saveMany()` throws `LogicException` before writing any messages. These guards are not a database read-only or authorization boundary; other builder write paths remain unsupported, not universally blocked. Send through `sendMessage()`, `sendMessageTo()`, or `Chatroom::sendMessageAs()` so sender assignment, authorization checks in the chosen API, and message handling are preserved.
+
+For a single viewer, the existing message scope is also available:
+
+```php
+use Mmedia\LeChat\Models\ChatMessage;
+
+$messages = ChatMessage::on($membership->getConnectionName())
+    ->where('chatroom_id', $membership->chatroom_id)
+    ->visibleTo($membership)
+    ->orderByDesc('created_at')
+    ->orderByDesc('id')
+    ->paginate(50);
+```
+
+The scope binds membership join/leave timestamps as values and checks the stored history permission. It does not replace the relationship for eager loading or aggregate queries across multiple memberships.
+
+Join and leave boundaries use inclusive timestamp comparisons. Records sharing the same stored timestamp cannot be ordered relative to the membership change by these comparisons alone; do not rely on them to decide whether a same-second system message preceded or followed a join or leave.
 
 ### Retrieving sent messages
 If you want to retrieve only the messages sent by a participant, you can use the `sentMessages` method:

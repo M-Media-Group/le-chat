@@ -1,19 +1,25 @@
 <?php
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Events\CallQueuedListener;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Mmedia\LeChat\Contracts\ChatParticipantInterface;
+use Mmedia\LeChat\Events\MessageCreated;
 use Mmedia\LeChat\Events\ParticipantCreated;
+use Mmedia\LeChat\Events\ParticipantDeleted;
 use Mmedia\LeChat\Http\Resources\ChatParticipantResource;
 use Mmedia\LeChat\Listeners\SendParticipantCreatedNotification;
 use Mmedia\LeChat\Models\ChatMessage;
 use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
+use Mmedia\LeChat\Support\ParticipantMessages;
 use Mmedia\LeChat\Traits\IsChatParticipant;
 
 /** @implements ChatParticipantInterface<ChatParticipantTestOwner> */
@@ -26,6 +32,25 @@ class ChatParticipantTestOwner extends Model implements ChatParticipantInterface
     protected $guarded = [];
 }
 
+/** @implements ChatParticipantInterface<ChatParticipantTestMessageOwner> */
+class ChatParticipantTestMessageOwner extends Model implements ChatParticipantInterface
+{
+    use IsChatParticipant;
+
+    protected $table = 'chat_messages';
+
+    protected $guarded = [];
+}
+
+class ChatParticipantTestCustomLeaveMembership extends Model
+{
+    use SoftDeletes;
+
+    public const DELETED_AT = 'left_at';
+
+    protected $table = 'chat_participants';
+}
+
 beforeEach(function () {
     Schema::create('chat_participant_test_owners', function (Blueprint $table): void {
         $table->id();
@@ -33,6 +58,379 @@ beforeEach(function () {
         $table->string('email')->nullable();
         $table->timestamps();
     });
+});
+
+it('uses a custom soft-delete column for the through membership leave boundary', function () {
+    Event::fake([MessageCreated::class, ParticipantCreated::class, ParticipantDeleted::class]);
+    $this->freezeSecond();
+    Schema::table('chat_participants', fn (Blueprint $table) => $table->timestamp('left_at')->nullable());
+    $room = Chatroom::create(['can_see_messages_before_joined' => false]);
+    $owner = ChatParticipantTestOwner::create();
+    $membership = $room->addParticipant($owner);
+    $membership->forceFill(['created_at' => now()->subMinutes(2)])->saveQuietly();
+    DB::table('chat_participants')->where('id', $membership->id)->update(['left_at' => now()]);
+    $before = $room->sendMessage('Before leaving', ['created_at' => now()->subMinute()]);
+    $atLeave = $room->sendMessage('At leaving');
+    $room->sendMessage('After leaving', ['created_at' => now()->addSecond()]);
+    $source = $owner->messages();
+
+    $relation = new ParticipantMessages(
+        $source->getRelated()->newQuery(),
+        $owner,
+        [new ChatParticipantTestCustomLeaveMembership],
+        $source->getForeignKeys(),
+        $source->getLocalKeys(),
+    );
+
+    expect($relation->withTrashed('chat_participants.left_at')->orderBy('chat_messages.id')->pluck('chat_messages.id')->all())
+        ->toBe([$before->id, $atLeave->id]);
+});
+
+it('keeps membership history defaults and message relations on the participant connection', function (bool $tenantHistory) {
+    Event::fake([MessageCreated::class, ParticipantCreated::class, ParticipantDeleted::class]);
+    $this->freezeSecond();
+    config(['chat.can_see_messages_before_joined' => false]);
+    $defaultRoom = Chatroom::create(['can_see_messages_before_joined' => ! $tenantHistory]);
+    ChatParticipant::create(['chatroom_id' => $defaultRoom->id, 'reference_id' => 'default-reader']);
+    $defaultRoom->sendMessage('Default database message');
+    config(['database.connections.history_tenant' => [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+        'foreign_key_constraints' => true,
+    ]]);
+    $defaultConnection = DB::getDefaultConnection();
+
+    try {
+        DB::setDefaultConnection('history_tenant');
+        Schema::clearResolvedInstance('db.schema');
+        try {
+            foreach (glob(__DIR__.'/../database/migrations/*.stub') as $migrationFile) {
+                (require $migrationFile)->up();
+            }
+            $room = Chatroom::on('history_tenant')->create(['can_see_messages_before_joined' => $tenantHistory]);
+            $room->sendMessage('Tenant database message');
+        } finally {
+            DB::setDefaultConnection($defaultConnection);
+            Schema::clearResolvedInstance('db.schema');
+        }
+
+        $membership = ChatParticipant::on('history_tenant')->create(['chatroom_id' => $room->id, 'reference_id' => 'tenant-reader']);
+        $explicit = ChatParticipant::on('history_tenant')->create([
+            'chatroom_id' => $room->id,
+            'reference_id' => 'explicit-reader',
+            'can_see_messages_before_joined' => ! $tenantHistory,
+        ]);
+
+        expect($membership->fresh()->can_see_messages_before_joined)->toBe($tenantHistory)
+            ->and($explicit->fresh()->can_see_messages_before_joined)->toBe(! $tenantHistory)
+            ->and($membership->messages()->get()->pluck('message')->all())->toBe(['Tenant database message']);
+        $loaded = ChatParticipant::on('history_tenant')->with('messages')->withCount('messages')->findOrFail($membership->id);
+        expect($loaded->messages->pluck('message')->all())->toBe(['Tenant database message'])
+            ->and($loaded->messages_count)->toBe(1)
+            ->and($loaded->messages->first()->getConnectionName())->toBe('history_tenant')
+            ->and(ChatMessage::query()->pluck('message')->all())->toBe(['Default database message']);
+    } finally {
+        DB::purge('history_tenant');
+    }
+})->with([false, true]);
+
+it('uses message relation aliases for history constraints in self-relation queries', function (bool $includeHistory) {
+    Event::fake([MessageCreated::class, ParticipantCreated::class, ParticipantDeleted::class]);
+    $this->freezeSecond();
+    $room = Chatroom::create(['can_see_messages_before_joined' => $includeHistory]);
+    $owner = ChatParticipantTestMessageOwner::create([
+        'chatroom_id' => $room->id,
+        'message' => 'Owning record',
+        'created_at' => now()->subMinutes(3),
+    ]);
+    $membership = $room->addParticipant($owner);
+    $membership->forceFill(['created_at' => now()->subMinute()])->saveQuietly();
+    $old = $room->sendMessage('Earlier history', ['created_at' => now()->subMinutes(2)]);
+    $visible = $room->sendMessage('Visible message');
+    $expectedIds = $includeHistory ? [$owner->id, $old->id, $visible->id] : [$visible->id];
+
+    expect($owner->messages()->orderBy('chat_messages.id')->pluck('chat_messages.id')->all())->toBe($expectedIds);
+    $loaded = ChatParticipantTestMessageOwner::with('messages')->withCount('messages')->findOrFail($owner->id);
+    expect($loaded->messages->modelKeys())->toBe($expectedIds)
+        ->and($loaded->messages_count)->toBe(count($expectedIds))
+        ->and(ChatParticipantTestMessageOwner::whereKey($owner->id)->whereHas('messages')->exists())->toBeTrue();
+
+    $connection = DB::connection();
+    $prefix = $connection->getTablePrefix();
+    try {
+        $connection->setTablePrefix('visibility_');
+        expect($owner->messages()->toSql())->toContain('visibility_chat_messages', 'visibility_chat_participants');
+    } finally {
+        $connection->setTablePrefix($prefix);
+    }
+})->with([false, true]);
+
+it('reuses the room history default when adding multiple memberships', function (string $method, bool $default) {
+    Event::fake([ParticipantCreated::class, ParticipantDeleted::class]);
+    $room = Chatroom::create(['can_see_messages_before_joined' => $default]);
+    $owners = [ChatParticipantTestOwner::create(), ChatParticipantTestOwner::create(), ChatParticipantTestOwner::create()];
+    DB::enableQueryLog();
+    DB::flushQueryLog();
+
+    try {
+        $room->{$method}($owners);
+        $roomLookups = collect(DB::getQueryLog())->filter(
+            fn (array $query): bool => preg_match('/from ["`]?chatrooms["`]?/i', $query['query']) === 1,
+        );
+        expect($roomLookups)->toBeEmpty();
+    } finally {
+        DB::disableQueryLog();
+    }
+
+    expect($room->participants()->pluck('can_see_messages_before_joined')->all())->toBe([$default, $default, $default]);
+})->with(['add' => ['addParticipants'], 'sync' => ['syncParticipants']])->with([false, true]);
+
+it('avoids history default lookups when creation already has a room', function (string $path, bool $default) {
+    Event::fake([ParticipantCreated::class, ParticipantDeleted::class]);
+    config(['chat.can_see_messages_before_joined' => ! $default]);
+    $room = Chatroom::create(['can_see_messages_before_joined' => $default]);
+    $owner = ChatParticipantTestOwner::create();
+    $recipients = [ChatParticipantTestOwner::create(), ChatParticipantTestOwner::create()];
+    DB::enableQueryLog();
+    DB::flushQueryLog();
+
+    try {
+        if ($path === 'relation') {
+            $room->participants()->createMany([
+                ['reference_id' => 'first'],
+                ['reference_id' => 'second'],
+                ['reference_id' => 'explicit', 'can_see_messages_before_joined' => ! $default],
+            ]);
+        } elseif ($path === 'personal') {
+            $room = $owner->getOrCreatePersonalChatroom(['can_see_messages_before_joined' => $default]);
+        } else {
+            $message = $owner->sendMessageTo(
+                $recipients,
+                'Hello',
+                forceNewChannel: true,
+                newChannelConfiguration: ['can_see_messages_before_joined' => $default],
+                asParticipantConfiguration: $path === 'message override' ? ['can_see_messages_before_joined' => ! $default] : [],
+            );
+            $room = $message->chatroom;
+        }
+        $lookups = collect(DB::getQueryLog())->filter(
+            fn (array $query): bool => preg_match('/select ["`]?can_see_messages_before_joined["`]? from/i', $query['query']) === 1,
+        );
+        expect($lookups)->toBeEmpty();
+    } finally {
+        DB::disableQueryLog();
+    }
+
+    $expected = match ($path) {
+        'relation' => [$default, $default, ! $default],
+        'personal' => [$default],
+        'message override' => [! $default, $default, $default],
+        default => [$default, $default, $default],
+    };
+    expect($room->participants()->orderBy('id')->pluck('can_see_messages_before_joined')->all())->toBe($expected);
+})->with(['relation', 'personal', 'message', 'message override'])->with([false, true]);
+
+it('does not default existing membership settings when saving a partially loaded model', function () {
+    Event::fake([ParticipantCreated::class]);
+    $room = Chatroom::create(['can_see_messages_before_joined' => false]);
+    $membership = $room->participants()->create(['reference_id' => 'reader', 'can_see_messages_before_joined' => true]);
+    $partial = ChatParticipant::select(['id', 'chatroom_id', 'reference_id'])->findOrFail($membership->id);
+
+    $room->participants()->save($partial);
+
+    expect($membership->fresh()->can_see_messages_before_joined)->toBeTrue();
+});
+
+it('copies the persisted room history default only for new memberships', function (bool $default) {
+    $room = Chatroom::create(['can_see_messages_before_joined' => $default]);
+    $owner = ChatParticipantTestOwner::create();
+    $membership = $room->addParticipant($owner);
+    $explicit = ChatParticipant::create([
+        'chatroom_id' => $room->id,
+        'reference_id' => 'explicit',
+        'can_see_messages_before_joined' => ! $default,
+    ]);
+    $originalJoinedAt = $membership->created_at;
+
+    $room->setCanSeeMessagesBeforeJoined(! $default);
+    $membership->delete();
+    $restored = $room->addParticipant($owner);
+    $room->syncParticipants([$owner]);
+
+    expect($restored->fresh()->can_see_messages_before_joined)->toBe($default)
+        ->and($restored->fresh()->created_at->equalTo($originalJoinedAt))->toBeTrue()
+        ->and($explicit->fresh()->can_see_messages_before_joined)->toBe(! $default);
+})->with([false, true]);
+
+it('saves membership history independently without changing other attributes', function (bool $value) {
+    $room = Chatroom::create();
+    $membership = ChatParticipant::create([
+        'chatroom_id' => $room->id,
+        'reference_id' => 'reader',
+        'role' => 'admin',
+        'metadata' => ['custom' => 'keep'],
+        'read_at' => now()->subMinute(),
+    ]);
+    $original = $membership->getAttributes();
+    $membership->delete();
+    $deletedAt = $membership->deleted_at;
+
+    $membership->setCanSeeMessagesBeforeJoined($value);
+    $fresh = $membership->fresh();
+
+    expect($fresh->can_see_messages_before_joined)->toBe($value)
+        ->and($fresh->metadata)->toBe(['custom' => 'keep'])
+        ->and($fresh->role)->toBe('admin')
+        ->and($fresh->getRawOriginal('created_at'))->toBe($original['created_at'])
+        ->and($fresh->getRawOriginal('read_at'))->toBe($original['read_at'])
+        ->and($fresh->deleted_at->equalTo($deletedAt))->toBeTrue();
+})->with([false, true]);
+
+it('rejects direct writes through membership messages without persisting anything', function (string $method) {
+    Event::fake([MessageCreated::class, ParticipantCreated::class]);
+    $room = Chatroom::create();
+    $membership = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'reader']);
+    $attributes = ['chatroom_id' => $room->id, 'sender_id' => $membership->id, 'message' => 'Do not persist'];
+    $message = new ChatMessage($attributes);
+    $argument = match ($method) {
+        'create' => $attributes,
+        'save' => $message,
+        'saveMany' => [$message, new ChatMessage($attributes)],
+    };
+
+    expect(fn () => $membership->messages()->{$method}($argument))->toThrow(LogicException::class, 'read-only');
+
+    expect(ChatMessage::count())->toBe(0)->and($message->exists)->toBeFalse();
+    Event::assertNotDispatched(MessageCreated::class);
+})->with(['create', 'save', 'saveMany']);
+
+it('filters membership messages consistently when lazy and eager loaded', function () {
+    Event::fake([ParticipantCreated::class, ParticipantDeleted::class]);
+    $this->freezeSecond();
+    $room = Chatroom::create(['can_see_messages_before_joined' => false]);
+    $restricted = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'restricted']);
+    $allowed = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'allowed', 'can_see_messages_before_joined' => true]);
+    foreach ([$restricted, $allowed] as $membership) {
+        $membership->forceFill(['created_at' => now()->subMinute(), 'deleted_at' => now()])->saveQuietly();
+    }
+    $old = $room->sendMessage('Before joining');
+    $old->forceFill(['created_at' => now()->subMinutes(2)])->saveQuietly();
+    $during = $room->sendMessage('At leaving');
+    $after = $room->sendMessage('After leaving');
+    $after->forceFill(['created_at' => now()->addSecond()])->saveQuietly();
+
+    expect($restricted->messages()->orderBy('chat_messages.id')->pluck('chat_messages.id')->all())->toBe([$during->id])
+        ->and($allowed->messages()->orderBy('chat_messages.id')->pluck('chat_messages.id')->all())->toBe([$old->id, $during->id]);
+    $memberships = ChatParticipant::withTrashed()->with('messages')->get()->keyBy('id');
+    expect($memberships[$restricted->id]->messages->modelKeys())->toBe([$during->id])
+        ->and($memberships[$allowed->id]->messages->modelKeys())->toBe([$old->id, $during->id]);
+});
+
+it('supports membership message existence and count queries without alias collisions', function () {
+    Event::fake([ParticipantCreated::class, ParticipantDeleted::class]);
+    $this->freezeSecond();
+    $room = Chatroom::create(['can_see_messages_before_joined' => false]);
+    $restricted = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'restricted']);
+    $allowed = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'allowed', 'can_see_messages_before_joined' => true]);
+    $emptyRoom = Chatroom::create(['name' => 'Empty room']);
+    $empty = ChatParticipant::create(['chatroom_id' => $emptyRoom->id, 'reference_id' => 'empty', 'can_see_messages_before_joined' => true]);
+    foreach ([$restricted, $allowed] as $membership) {
+        $membership->forceFill(['created_at' => now()->subMinute()])->saveQuietly();
+    }
+    $old = $room->sendMessage('Earlier history', ['created_at' => now()->subMinutes(2)]);
+    $atLeave = $room->sendMessage('At leaving');
+
+    $memberships = ChatParticipant::withCount('messages')->get()->keyBy('id');
+    expect($memberships[$restricted->id]->messages_count)->toBe(1)
+        ->and($memberships[$allowed->id]->messages_count)->toBe(2)
+        ->and($memberships[$empty->id]->messages_count)->toBe(0)
+        ->and(ChatParticipant::has('messages')->orderBy('id')->pluck('id')->all())->toBe([$restricted->id, $allowed->id])
+        ->and(ChatParticipant::doesntHave('messages')->pluck('id')->all())->toBe([$empty->id])
+        ->and(ChatParticipant::has('messages', '>=', 2)->pluck('id')->all())->toBe([$allowed->id])
+        ->and(ChatParticipant::whereHas('messages', fn (Builder $query) => $query->whereKey($old->id))->pluck('id')->all())->toBe([$allowed->id]);
+
+    foreach ([$restricted, $allowed] as $membership) {
+        $membership->forceFill(['deleted_at' => now()])->saveQuietly();
+    }
+    $room->sendMessage('After leaving', ['created_at' => now()->addSecond()]);
+    $memberships = ChatParticipant::withTrashed()->withCount('messages')->get()->keyBy('id');
+    expect($memberships[$restricted->id]->messages_count)->toBe(1)
+        ->and($memberships[$allowed->id]->messages_count)->toBe(2)
+        ->and($memberships[$empty->id]->messages_count)->toBe(0)
+        ->and(ChatParticipant::withTrashed()->whereHas('messages', fn (Builder $query) => $query->whereKey($atLeave->id))->count())->toBe(2);
+});
+
+it('limits eager membership messages separately for each parent', function () {
+    if (! method_exists(Illuminate\Database\Query\Builder::class, 'groupLimit')) {
+        $this->markTestSkipped('Native per-parent eager limits require Laravel 11 or later.');
+    }
+    Event::fake([MessageCreated::class, ParticipantCreated::class, ParticipantDeleted::class]);
+    $this->freezeSecond();
+    $room = Chatroom::create(['can_see_messages_before_joined' => false]);
+    $earlierReader = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'earlier']);
+    $laterReader = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'later']);
+    $earlierReader->forceFill(['created_at' => now()->subMinutes(3), 'deleted_at' => now()->subMinute()])->saveQuietly();
+    $laterReader->forceFill(['created_at' => now()->subMinute()])->saveQuietly();
+    $room->sendMessage('Earlier message', ['created_at' => now()->subMinutes(2)]);
+    $earlierLatest = $room->sendMessage('Earlier latest', ['created_at' => now()->subMinute()]);
+    $laterLatest = $room->sendMessage('Later latest');
+
+    $memberships = ChatParticipant::withTrashed()->with([
+        'messages' => fn ($relation) => $relation->orderByDesc('chat_messages.created_at')->orderByDesc('chat_messages.id')->limit(1),
+    ])->get()->keyBy('id');
+
+    expect($memberships[$earlierReader->id]->messages->modelKeys())->toBe([$earlierLatest->id])
+        ->and($memberships[$laterReader->id]->messages->modelKeys())->toBe([$laterLatest->id]);
+});
+
+it('limits model message relations to the leave time when including departed memberships', function (bool $includeHistory) {
+    Event::fake([ParticipantCreated::class, ParticipantDeleted::class]);
+    $this->freezeSecond();
+    $room = Chatroom::create(['can_see_messages_before_joined' => $includeHistory]);
+    $owner = ChatParticipantTestOwner::create();
+    $membership = $room->addParticipant($owner);
+    $joinedAt = now()->subMinute();
+    $membership->forceFill(['created_at' => $joinedAt, 'deleted_at' => now()])->saveQuietly();
+    $before = $room->sendMessage('Before joining', ['created_at' => $joinedAt->copy()->subSecond()]);
+    $atJoin = $room->sendMessage('At joining', ['created_at' => $joinedAt]);
+    $atLeave = $room->sendMessage('At leaving');
+    $room->sendMessage('After leaving', ['created_at' => now()->addSecond()]);
+    $expectedIds = $includeHistory ? [$before->id, $atJoin->id, $atLeave->id] : [$atJoin->id, $atLeave->id];
+
+    expect($owner->messages()->count())->toBe(0)
+        ->and($owner->messages()->withTrashed('chat_participants.deleted_at')
+            ->orderBy('chat_messages.id')->pluck('chat_messages.id')->all())->toBe($expectedIds);
+
+    $owner->load(['messages' => fn ($relation) => $relation->withTrashed('chat_participants.deleted_at')->orderBy('chat_messages.id')]);
+    expect($owner->messages->modelKeys())->toBe($expectedIds);
+
+    $membership->restore();
+    expect($owner->messages()->count())->toBe($includeHistory ? 4 : 3);
+})->with([false, true]);
+
+it('applies viewer history settings and overrides to loaded parents and replies', function () {
+    Event::fake([ParticipantCreated::class, ParticipantDeleted::class]);
+    $this->freezeSecond();
+    $room = Chatroom::create(['can_see_messages_before_joined' => false]);
+    $owner = ChatParticipantTestOwner::create();
+    $membership = $room->addParticipant($owner);
+    $membership->forceFill(['created_at' => now()->subMinute(), 'deleted_at' => now()])->saveQuietly();
+    $old = $room->sendMessage('Hidden parent');
+    $old->forceFill(['created_at' => now()->subMinutes(2)])->saveQuietly();
+    $visible = $room->sendMessage('Visible reply', ['reply_to_id' => $old->id]);
+    $future = $room->sendMessage('Hidden reply', ['reply_to_id' => $visible->id]);
+    $future->forceFill(['created_at' => now()->addSecond()])->saveQuietly();
+
+    $message = $owner->getMessages(withReplies: true, withParentMessage: true)->sole();
+    expect($message->id)->toBe($visible->id)
+        ->and($message->parentMessage)->toBeNull()
+        ->and($message->replies)->toBeEmpty();
+
+    $membership->setCanSeeMessagesBeforeJoined(true);
+    $message = $owner->getMessages(withParentMessage: true)->firstWhere('id', $visible->id);
+    expect($message->parentMessage->id)->toBe($old->id);
+    $message = $owner->getMessages(includeBeforeJoined: false, withParentMessage: true)->sole();
+    expect($message->parentMessage)->toBeNull();
 });
 
 it('sends a message as the participant to its chatroom', function () {
@@ -310,3 +708,21 @@ it('tracks unread messages and never moves the read marker backwards', function 
     $reader->loadUnreadMessagesCount(includeSystemMessages: true);
     expect($reader->unread_messages_count)->toBe(1);
 });
+
+it('uses membership history for model message relations and unread owner queries', function (bool $includeHistory) {
+    Event::fake([ParticipantCreated::class]);
+    $room = Chatroom::create(['can_see_messages_before_joined' => ! $includeHistory]);
+    $reader = ChatParticipantTestOwner::create();
+    $sender = ChatParticipantTestOwner::create();
+    $membership = $room->addParticipant($reader);
+    $room->addParticipant($sender);
+    $membership->setCanSeeMessagesBeforeJoined($includeHistory);
+    $membership->forceFill(['created_at' => now()->subMinute()])->saveQuietly();
+    $old = $sender->sendMessageTo($room, 'Earlier unread message');
+    $old->forceFill(['created_at' => now()->subMinutes(2)])->saveQuietly();
+
+    expect(ChatParticipantTestOwner::whereKey($reader->id)->whereHasUnreadMessages()->exists())->toBe($includeHistory)
+        ->and($reader->messages()->pluck('chat_messages.id')->all())->toBe($includeHistory ? [$old->id] : []);
+    $reader->loadUnreadMessagesCount();
+    expect($reader->unread_messages_count)->toBe($includeHistory ? 1 : 0);
+})->with([false, true]);

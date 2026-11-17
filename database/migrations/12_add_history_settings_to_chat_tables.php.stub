@@ -1,0 +1,48 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        foreach (['chatrooms', 'chat_participants'] as $tableName) {
+            Schema::table($tableName, function (Blueprint $table): void {
+                $table->boolean('can_see_messages_before_joined')->default(false);
+            });
+
+            if (config('chat.can_see_messages_before_joined', false)) {
+                DB::table($tableName)->update(['can_see_messages_before_joined' => true]);
+            }
+        }
+
+        Schema::table('chat_participants', function (Blueprint $table): void {
+            $table->index(
+                ['participant_type', 'participant_id', 'can_see_messages_before_joined', 'chatroom_id'],
+                'chat_participants_history_lookup',
+            );
+        });
+    }
+
+    public function down(): void
+    {
+        $indexName = 'chat_participants_history_lookup';
+
+        if (Schema::hasIndex('chat_participants', $indexName)) {
+            Schema::table('chat_participants', function (Blueprint $table) use ($indexName): void {
+                $table->dropIndex($indexName);
+            });
+        }
+
+        foreach (['chat_participants', 'chatrooms'] as $tableName) {
+            if (Schema::hasColumn($tableName, 'can_see_messages_before_joined')) {
+                Schema::table($tableName, function (Blueprint $table): void {
+                    $table->dropColumn('can_see_messages_before_joined');
+                });
+            }
+        }
+    }
+};

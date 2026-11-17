@@ -196,6 +196,70 @@ it('limits visible messages to the participant membership period', function () {
         ->and($afterLeaving->exists)->toBeTrue();
 });
 
+it('uses only persisted membership history settings across rooms', function (bool $asMembership) {
+    Schema::create('chat_message_test_participants', function (Blueprint $table): void {
+        $table->id();
+        $table->timestamps();
+    });
+    config(['chat.can_see_messages_before_joined' => false]);
+    $owner = ChatMessageTestParticipant::create();
+    $allowedRoom = Chatroom::create(['can_see_messages_before_joined' => false]);
+    $hiddenRoom = Chatroom::create(['can_see_messages_before_joined' => true]);
+    $allowed = $allowedRoom->addParticipant($owner);
+    $hidden = $hiddenRoom->addParticipant($owner);
+    $allowed->setCanSeeMessagesBeforeJoined(true);
+    $hidden->setCanSeeMessagesBeforeJoined(false);
+    $allowed->forceFill(['created_at' => now()->subMinute()])->saveQuietly();
+    $hidden->forceFill(['created_at' => now()->subMinute()])->saveQuietly();
+    $allowedMessage = $allowedRoom->sendMessage('Allowed history');
+    $hiddenMessage = $hiddenRoom->sendMessage('Hidden history');
+    ChatMessage::query()->update(['created_at' => now()->subMinutes(2)]);
+    $actor = $asMembership ? $allowed : $owner;
+    $staleActor = $asMembership ? $allowed->fresh() : $owner;
+
+    expect(ChatMessage::query()->visibleTo($actor)->pluck('id')->all())->toBe([$allowedMessage->id])
+        ->and($actor->getMessages()->pluck('id')->all())->toBe([$allowedMessage->id])
+        ->and(ChatMessage::query()->visibleTo($actor, includeBeforeJoined: false)->count())->toBe(0);
+
+    config(['chat.can_see_messages_before_joined' => true]);
+    $allowedRoom->setCanSeeMessagesBeforeJoined(true);
+    $hiddenRoom->setCanSeeMessagesBeforeJoined(true);
+    expect(ChatMessage::query()->visibleTo($actor)->pluck('id')->all())->toBe([$allowedMessage->id]);
+
+    $allowed->setCanSeeMessagesBeforeJoined(false);
+    expect(ChatMessage::query()->visibleTo($staleActor)->count())->toBe(0);
+    $expectedIds = $asMembership ? [$allowedMessage->id] : [$allowedMessage->id, $hiddenMessage->id];
+    expect(ChatMessage::query()->visibleTo($actor, includeBeforeJoined: true)->orderBy('id')->pluck('id')->all())->toBe($expectedIds);
+})->with(['underlying model' => false, 'membership record' => true]);
+
+it('reads history across multiple rooms in one query', function () {
+    Schema::create('chat_message_test_participants', function (Blueprint $table): void {
+        $table->id();
+        $table->timestamps();
+    });
+    $owner = ChatMessageTestParticipant::create();
+    $expectedIds = [];
+    foreach ([true, false, true, false] as $includeHistory) {
+        $room = Chatroom::create(['can_see_messages_before_joined' => $includeHistory]);
+        $membership = $room->addParticipant($owner);
+        $membership->forceFill(['created_at' => now()->subMinute()])->saveQuietly();
+        $message = $room->sendMessage('Earlier history');
+        $message->forceFill(['created_at' => now()->subMinutes(2)])->saveQuietly();
+        if ($includeHistory) {
+            $expectedIds[] = $message->id;
+        }
+    }
+    DB::enableQueryLog();
+    DB::flushQueryLog();
+
+    try {
+        $ids = $owner->visibleMessages()->reorder('id')->pluck('id')->all();
+        expect($ids)->toBe($expectedIds)->and(DB::getQueryLog())->toHaveCount(1);
+    } finally {
+        DB::disableQueryLog();
+    }
+});
+
 it('returns unread messages after the participant read timestamp', function () {
     $room = Chatroom::create(['name' => 'Unread messages']);
     $reader = ChatParticipant::create([
