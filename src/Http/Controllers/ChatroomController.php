@@ -3,6 +3,7 @@
 namespace Mmedia\LeChat\Http\Controllers;
 
 use Dedoc\Scramble\Attributes\BodyParameter;
+use Dedoc\Scramble\Attributes\WithRelations;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,8 +29,11 @@ class ChatroomController extends Controller
 {
     /**
      * Display a listing of the chatrooms.
+     *
+     * @return AnonymousResourceCollection<ChatroomResource>
      */
-    public function index(Request $request): AnonymousResourceCollection|JsonResponse
+    #[WithRelations(ChatroomResource::class, ['participants'])]
+    public function index(Request $request): AnonymousResourceCollection
     {
         $user = $this->participantUser($request);
 

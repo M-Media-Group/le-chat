@@ -69,6 +69,17 @@ it('resolves a sender and its direct replies', function () {
         ->and($reply->parentMessage->getKey())->toBe($original->getKey());
 });
 
+it('omits replies unless the relation is loaded', function () {
+    $room = Chatroom::create(['name' => 'Messages']);
+    $message = $room->sendMessage('Original message');
+
+    $unloadedPayload = MessageResource::make($message)->response()->getData(true)['data'];
+    $loadedPayload = MessageResource::make($message->load('replies'))->response()->getData(true)['data'];
+
+    expect($unloadedPayload)->not->toHaveKey('replies')
+        ->and($loadedPayload['replies'])->toBe([]);
+});
+
 it('validates mention IDs against active membership in this room rather than model IDs', function (string $invalidTarget) {
     $room = Chatroom::create(['name' => 'Mentions']);
     $sender = ChatParticipant::create(['chatroom_id' => $room->id, 'reference_id' => 'sender']);

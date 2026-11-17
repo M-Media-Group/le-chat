@@ -32,7 +32,11 @@ it('exports typed schemas for the chat API', function () {
 
     $schemas = $spec['components']['schemas'];
     $chatroomListSchema = $spec['paths']['/chatrooms']['get']['responses']['200']['content']['application/json']['schema'];
-    $chatroomListSchemaJson = json_encode($chatroomListSchema, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+    $chatroomListItems = $chatroomListSchema['items']
+        ?? $chatroomListSchema['properties']['data']['items']
+        ?? null;
+    $chatroomListItemReference = $chatroomListItems['$ref'] ?? $chatroomListItems['allOf'][0]['$ref'] ?? null;
+    $chatroomListItemRequired = $chatroomListItems['allOf'][1]['required'] ?? [];
 
     expect($spec['paths'])->toHaveKeys([
         '/chatrooms',
@@ -41,12 +45,16 @@ it('exports typed schemas for the chat API', function () {
         '/interactions',
         '/messages',
     ])
-        ->and($chatroomListSchemaJson)
-        ->toContain('#/components/schemas/ChatroomResource')
+        ->and($chatroomListItemReference)
+        ->toBe('#/components/schemas/ChatroomResource')
+        ->and($chatroomListItemRequired)
+        ->toContain('participants')
         ->and($schemas['ChatroomResource']['properties']['messages']['items']['$ref'])
         ->toBe('#/components/schemas/MessageResource')
         ->and($schemas['ChatroomResource']['properties']['participants']['items']['$ref'])
         ->toBe('#/components/schemas/ChatParticipantResource')
+        ->and($schemas['MessageResource']['required'])
+        ->not->toContain('replies')
         ->and($schemas['ChatParticipantResource']['properties']['ai_response_mode']['enum'])
         ->toBe(['all', 'mentions', 'off'])
         ->and($schemas['ChatParticipantResource']['required'])

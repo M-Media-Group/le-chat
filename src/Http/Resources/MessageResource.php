@@ -3,6 +3,7 @@
 namespace Mmedia\LeChat\Http\Resources;
 
 use Illuminate\Database\Eloquent\Casts\ArrayObject;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -47,7 +48,10 @@ class MessageResource extends JsonResource
             'updated_at' => $this->updated_at,
             'deleted_at' => $this->deleted_at,
             'sender' => new ChatParticipantResource($this->whenLoaded('sender')),
-            'replies' => MessageResource::collection($this->whenLoaded('replies')),
+            'replies' => $this->whenLoaded(
+                'replies',
+                fn (EloquentCollection $replies): AnonymousResourceCollection => $this->replyCollection($replies),
+            ),
             'parent_message' => new MessageResource($this->whenLoaded('parentMessage')),
             'files' => $this->when(Features::enabled(Features::files()) && $this->resource->relationLoaded('files'), fn () => $this->files->map(fn (ChatFile $file): array => [
                 'id' => $file->id, 'name' => $file->name, 'mime_type' => $file->mime_type, 'size' => $file->size,
@@ -82,6 +86,15 @@ class MessageResource extends JsonResource
         }
 
         return $message."\nReason: ".$batch->failure_reason;
+    }
+
+    /**
+     * @param  EloquentCollection<int, ChatMessage>  $replies
+     * @return AnonymousResourceCollection<MessageResource>
+     */
+    private function replyCollection(EloquentCollection $replies): AnonymousResourceCollection
+    {
+        return MessageResource::collection($replies);
     }
 
     /**

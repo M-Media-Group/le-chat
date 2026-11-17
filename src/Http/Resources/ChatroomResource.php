@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Mmedia\LeChat\Models\ChatMessage;
+use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
 
 /** @mixin Chatroom */
@@ -32,7 +33,7 @@ class ChatroomResource extends JsonResource
             'name' => $this->name,
             'messages' => $this->whenLoaded(
                 'messages',
-                fn (EloquentCollection $messages): AnonymousResourceCollection => MessageResource::collection($messages),
+                fn (EloquentCollection $messages): AnonymousResourceCollection => $this->messageCollection($messages),
             ),
             'latest_message' => $this->whenLoaded(
                 'latestMessage',
@@ -43,9 +44,27 @@ class ChatroomResource extends JsonResource
             'description' => $this->description,
             'participants' => $this->whenLoaded(
                 'participants',
-                fn (EloquentCollection $participants): AnonymousResourceCollection => ChatParticipantResource::collection($participants),
+                fn (EloquentCollection $participants): AnonymousResourceCollection => $this->participantCollection($participants),
             ),
             'unread_messages_count' => $this->whenCounted('unread_messages_count'),
         ];
+    }
+
+    /**
+     * @param  EloquentCollection<int, ChatMessage>  $messages
+     * @return AnonymousResourceCollection<MessageResource>
+     */
+    private function messageCollection(EloquentCollection $messages): AnonymousResourceCollection
+    {
+        return MessageResource::collection($messages);
+    }
+
+    /**
+     * @param  EloquentCollection<int, ChatParticipant>  $participants
+     * @return AnonymousResourceCollection<ChatParticipantResource>
+     */
+    private function participantCollection(EloquentCollection $participants): AnonymousResourceCollection
+    {
+        return ChatParticipantResource::collection($participants);
     }
 }
