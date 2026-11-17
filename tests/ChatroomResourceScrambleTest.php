@@ -11,10 +11,12 @@ it('exports typed schemas for the chat API', function () {
 
     try {
         $output = new BufferedOutput;
-        $exitCode = Artisan::call('scramble:export', [
-            '--path' => $path,
-            '--fail-on-unknown' => true,
-        ], $output);
+        $options = ['--path' => $path];
+        $exportCommand = Artisan::all()['scramble:export'];
+        if ($exportCommand->getDefinition()->hasOption('fail-on-unknown')) {
+            $options['--fail-on-unknown'] = true;
+        }
+        $exitCode = Artisan::call('scramble:export', $options, $output);
         if ($exitCode !== 0) {
             throw new RuntimeException($output->fetch());
         }
