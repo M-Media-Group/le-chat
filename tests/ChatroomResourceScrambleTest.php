@@ -53,6 +53,8 @@ it('exports typed schemas for the chat API', function () {
         ->toBe('#/components/schemas/MessageResource')
         ->and($schemas['ChatroomResource']['properties']['participants']['items']['$ref'])
         ->toBe('#/components/schemas/ChatParticipantResource')
+        ->and($schemas['ChatParticipantResource']['properties']['mention_aliases']['items']['type'])
+        ->toBe('string')
         ->and($schemas['MessageResource']['required'])
         ->not->toContain('replies')
         ->and($schemas['ChatParticipantResource']['properties']['ai_response_mode']['enum'])
