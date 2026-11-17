@@ -1,7 +1,7 @@
 {
     "name": "mmedia/le-chat",
     "type": "library",
-    "version": "0.6.2",
+    "version": "0.6.3",
     "description": "Add chat functionality to your Laravel application.",
     "keywords": [
         "Michal",
@@ -24,6 +24,7 @@
         "staudenmeir/eloquent-has-many-deep": "^1.7"
     },
     "require-dev": {
+        "dedoc/scramble": "^0.13",
         "larastan/larastan": "^2.9||^3.0",
         "laravel/ai": "^1.2",
         "laravel/pint": "^1.14",

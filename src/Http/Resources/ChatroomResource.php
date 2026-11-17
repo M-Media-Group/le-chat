@@ -2,9 +2,12 @@
 
 namespace Mmedia\LeChat\Http\Resources;
 
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Mmedia\LeChat\Models\ChatMessage;
+use Mmedia\LeChat\Models\ChatParticipant;
 use Mmedia\LeChat\Models\Chatroom;
 
 /** @mixin Chatroom */
@@ -20,7 +23,10 @@ class ChatroomResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'messages' => MessageResource::collection($this->whenLoaded('messages')),
+            'messages' => $this->whenLoaded(
+                'messages',
+                fn (EloquentCollection $messages): AnonymousResourceCollection => MessageResource::collection($messages),
+            ),
             'latest_message' => $this->whenLoaded(
                 'latestMessage',
                 fn (?ChatMessage $message): ?MessageResource => $message === null ? null : new MessageResource($message),
@@ -28,7 +34,10 @@ class ChatroomResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'description' => $this->description,
-            'participants' => ChatParticipantResource::collection($this->whenLoaded('participants')),
+            'participants' => $this->whenLoaded(
+                'participants',
+                fn (EloquentCollection $participants): AnonymousResourceCollection => ChatParticipantResource::collection($participants),
+            ),
             'unread_messages_count' => $this->whenCounted('unread_messages_count'),
         ];
     }

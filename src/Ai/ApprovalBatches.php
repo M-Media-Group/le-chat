@@ -266,6 +266,7 @@ class ApprovalBatches
         }
     }
 
+    /** @return list<array{id: string, tool: string, arguments: array<string, mixed>, reason: string|null}> */
     public function details(ChatApprovalBatch $batch, ChatParticipantInterface $actor): array
     {
         $requester = $batch->requesterMessage;

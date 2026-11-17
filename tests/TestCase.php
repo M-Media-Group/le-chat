@@ -2,6 +2,7 @@
 
 namespace Mmedia\LeChat\Tests;
 
+use Dedoc\Scramble\ScrambleServiceProvider;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Mmedia\LeChat\Features;
 use Mmedia\LeChat\LeChatServiceProvider;
@@ -26,6 +27,7 @@ class TestCase extends Orchestra
     {
         return [
             LeChatServiceProvider::class,
+            ScrambleServiceProvider::class,
         ];
     }
 

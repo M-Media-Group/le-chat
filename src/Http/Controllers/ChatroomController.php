@@ -2,6 +2,7 @@
 
 namespace Mmedia\LeChat\Http\Controllers;
 
+use Dedoc\Scramble\Attributes\BodyParameter;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -104,6 +105,8 @@ class ChatroomController extends Controller
 
     /**
      * Store a message in the chatroom.
+     *
+     * @response JsonResponse<array{error: string, message: string}, 400>
      */
     public function storeMessage(Request $request): JsonResponse
     {
@@ -201,6 +204,9 @@ class ChatroomController extends Controller
         return response()->json(new MessageResource($found));
     }
 
+    /**
+     * @response JsonResponse<array{id: int, status: string, approvals: list<array{id: string, tool: string, arguments: array<string, mixed>, reason: string|null}>}, 200>
+     */
     public function showApproval(Request $request, ChatApprovalBatch $batch): JsonResponse
     {
         $user = $this->participantUser($request);
@@ -214,7 +220,7 @@ class ChatroomController extends Controller
         $validated = $request->validate([
             'idempotency_key' => 'required|string|max:255',
             'decisions' => 'required|array|min:1',
-            'decisions.*.action' => ['required', Rule::in(['approve', 'reject'])],
+            'decisions.*.action' => ['required', 'string', Rule::in(['approve', 'reject'])],
             'decisions.*.result' => 'nullable|string|max:3000',
         ]);
         $result = app(ApprovalBatches::class)->decide($batch, $user, $validated['decisions'], $validated['idempotency_key']);
@@ -226,6 +232,7 @@ class ChatroomController extends Controller
         ]);
     }
 
+    #[BodyParameter('value', type: 'string|int|float|bool|array|object|null', infer: false)]
     public function interactWithMessage(Request $request): Response
     {
         $user = $this->participantUser($request);
