@@ -165,7 +165,9 @@ class DelegatedRuns
         ])->all();
         $run['status'] = $response->hasPendingApprovals() ? 'paused' : 'complete';
         $run['text'] = $response->text;
-        $run['structured'] = $response instanceof StructuredAgentResponse ? $response->toArray() : null;
+        $run['structured'] = ! $response->hasPendingApprovals() && $response instanceof StructuredAgentResponse
+            ? $response->toArray()
+            : null;
         if ($run['includes_tool_results'] ?? false) {
             $toolResults = collect($run['tool_results'] ?? [])->keyBy('id');
             foreach ($response->toolResults as $toolResult) {
