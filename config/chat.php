@@ -45,12 +45,12 @@ return [
     'create_system_messages' => true,
 
     /**
-     * People who join close together share one join message: "Ana, Ben, Cara and 17 others joined the chat."
+     * People who join (or leave) close together share one message: "Ana, Ben, Cara and 17 others joined the chat."
      *
-     * A join is added to the room's join message if it comes within `group_within_seconds` of the previous join
-     * and nobody has posted since. Set `group_within_seconds` to 0 to post one message per join.
+     * A join or leave is added to the room's latest join or leave message if it comes within `group_within_seconds`
+     * of the previous one and nobody has posted since. Set `group_within_seconds` to 0 to post one message per person.
      */
-    'join_messages' => [
+    'join_and_leave_messages' => [
         'group_within_seconds' => 5,
         'names_shown' => 3,
     ],

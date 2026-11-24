@@ -2,28 +2,21 @@
 
 namespace Mmedia\LeChat\Listeners;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Mmedia\LeChat\Events\ParticipantDeleted;
+use Mmedia\LeChat\Support\JoinAndLeaveMessages;
 
-class SendParticipantDeletedNotification implements ShouldQueue
+/**
+ * Posts "Ana has left the chat.", grouped with others who leave close together.
+ *
+ * Runs straight away rather than queued, and dates the message at the moment they left, so the person
+ * who left can still see it.
+ */
+class SendParticipantDeletedNotification
 {
-    /**
-     * Create the event listener.
-     */
-    public function __construct() {}
-
-    /**
-     * Handle the event.
-     */
     public function handle(ParticipantDeleted $event): void
     {
-        if (! config('chat.create_system_messages', true)) {
-            return;
+        if (config('chat.create_system_messages', true)) {
+            JoinAndLeaveMessages::left($event->participant);
         }
-
-        // For each participant in the chatroom, send a notification
-        $chatroom = $event->participant->chatroom;
-
-        $chatroom->sendMessage("{$event->participant->display_name} has left the chat.");
     }
 }

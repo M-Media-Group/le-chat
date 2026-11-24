@@ -28,16 +28,18 @@ Le Chat posts `Ana has joined the chat.` and `Ana has left the chat.` when peopl
 
 Everything else still works: participants are still added and removed, and the `ParticipantCreated` and `ParticipantDeleted` [events](/events) still fire. Messages you send yourself with `$chatroom->sendMessage()` are not affected.
 
-## Join messages
+### Grouping
 
-When people join a chatroom close together, Le Chat groups them into one [join message](/chatrooms#join-messages). Change how in `config/chat.php`:
+When people join or leave a chatroom close together, Le Chat groups them into one [join message](/chatrooms#join-messages) or one [leave message](/chatrooms#leave-messages). Change how in `config/chat.php`:
 
 ```php
-'join_messages' => [
-    'group_within_seconds' => 5, // set to 0 to post one message per join
+'join_and_leave_messages' => [
+    'group_within_seconds' => 5, // set to 0 to post one message per person
     'names_shown' => 3,          // "Ana, Ben, Cara and 17 others joined the chat."
 ],
 ```
+
+The same settings are used for joins and leaves.
 
 ## Scheduled tasks
 

@@ -95,7 +95,7 @@ To build your own text (for example, to translate it), read the message's metada
 $message->metadata['participants_joined']; // ['names' => ['Ana', 'Ben', 'Cara'], 'count' => 20]
 ```
 
-To change the wait or how many names are shown, see [join messages configuration](/package-configuration#join-messages).
+To change the wait or how many names are shown, see [grouping configuration](/package-configuration#grouping).
 
 To turn join and leave messages off, see [join and leave messages configuration](/package-configuration#join-and-leave-messages).
 
@@ -105,7 +105,25 @@ To remove a participant from a chatroom, you can use the `removeParticipant` met
 $chatroom->removeParticipant($student);
 ```
 
-Le Chat posts a system message in the chatroom: `Ana has left the chat.`
+### Leave messages
+When someone leaves, Le Chat posts a system message in the chatroom:
+
+```
+Ana has left the chat.
+```
+
+The person who left can still see this message, so they know they left. (It is dated at the exact moment they left, and people can see messages up to the moment they left.)
+
+Leave messages are grouped the same way as [join messages](#join-messages), with the same settings:
+
+```
+Ana and Ben left the chat.
+Ana, Ben, Cara and 17 others left the chat.
+```
+
+Everyone in the group can see the message, including the people who left.
+
+To build your own text, read `$message->metadata['participants_left']`, which looks the same as `participants_joined`.
 
 ### Removing Multiple Participants
 You can also remove multiple participants at once:

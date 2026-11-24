@@ -2070,7 +2070,7 @@ it('prompts the agents in a chatroom when a person posts, and answers that messa
 
     $room = Chatroom::create(['name' => 'Room']);
     $person = ChatParticipant::create(['chatroom_id' => $room->getKey(), 'participant_type' => aiStoreTestOwner()->getMorphClass(), 'participant_id' => aiStoreTestOwner()->getKey()]);
-    ChatMessage::query()->where('chatroom_id', $room->getKey())->update(['created_at' => now()->subMinute()]);
+    ChatMessage::query()->where('chatroom_id', $room->getKey())->update(['created_at' => now()->subMinute(), 'updated_at' => now()->subMinute()]);
     $agent = ChatParticipant::create(['chatroom_id' => $room->getKey(), 'reference_id' => 'ai-agent:'.AiStoreEchoAgent::class, 'display_name' => 'Echo']);
 
     $message = $room->sendMessageAs($person, 'Hello agent');
