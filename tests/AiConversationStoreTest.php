@@ -171,7 +171,7 @@ it('stores user and assistant turns as chat messages with the extra fields in me
     [$prompt, $response] = aiStoreTurn('Hi there');
     $assistantId = aiStoreTestStore()->storeAssistantMessage($id, $type, aiStoreTestOwner()->getKey(), $prompt, $response);
 
-    $messages = ChatMessage::orderBy('id')->get()->filter(fn ($message) => $message->metadata !== null)->values();
+    $messages = ChatMessage::orderBy('id')->get()->filter(fn ($message) => isset($message->metadata['ai']))->values();
 
     expect($messages)->toHaveCount(2)
         ->and($messages[0]->message)->toBe('Hello')
@@ -200,8 +200,7 @@ it('replays stored messages to the model in order', function () {
 
     expect($messages->map(fn ($message) => [$message->role->value ?? $message->role, $message->content])->all())
         ->toBe([
-            ['user', 'Owner has joined the chat.'],
-            ['user', 'AiStoreAgent has joined the chat.'],
+            ['user', 'Owner and AiStoreAgent joined the chat.'],
             ['user', '<earlier from="Owner">Hello</earlier>'],
             ['assistant', 'Hi there'],
         ]);
@@ -2036,7 +2035,8 @@ it('finds the latest conversation for an owner and agent, and can continue a pla
 
     aiStoreTestStore()->storeUserMessage((string) $plain->getKey(), $type, aiStoreTestOwner()->getKey(), AiStoreAgent::class, new UserMessage('Join in'));
 
-    expect(aiStoreTestStore()->getLatestConversationMessages((string) $plain->getKey(), 10))->toHaveCount(4);
+    // system notice, one grouped join message for the owner and agent, then the user's message
+    expect(aiStoreTestStore()->getLatestConversationMessages((string) $plain->getKey(), 10))->toHaveCount(3);
 });
 
 it('only replaces the SDK store when enabled', function () {

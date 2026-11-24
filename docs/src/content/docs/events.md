@@ -20,6 +20,8 @@ The event contains the following properties:
 ### Message Updated
 This event is fired when a message is updated in a chatroom. You can listen to this event to perform actions such as logging changes or updating the UI.
 
+It is also fired when a [join message](/chatrooms#join-messages) grows to include more people.
+
 ```php
 use Mmedia\LeChat\Events\MessageUpdated;
 ```

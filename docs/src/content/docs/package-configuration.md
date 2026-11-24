@@ -18,6 +18,27 @@ This creates `config/chat.php`. The file contains the defaults; this page explai
 
 `chat.can_see_messages_before_joined` defaults to `false`. Its value is copied to each new room, and each room copies its own value to new participant memberships. Changing this configuration does not update existing rooms or memberships. Visibility reads the membership's stored boolean, not this configuration. See [history access](/messages#history-access-per-room-and-participant) for room and membership setters.
 
+## Join and leave messages
+
+Le Chat posts `Ana has joined the chat.` and `Ana has left the chat.` when people join or leave a chatroom. To stop posting them, set this in `config/chat.php`:
+
+```php
+'create_system_messages' => false,
+```
+
+Everything else still works: participants are still added and removed, and the `ParticipantCreated` and `ParticipantDeleted` [events](/events) still fire. Messages you send yourself with `$chatroom->sendMessage()` are not affected.
+
+## Join messages
+
+When people join a chatroom close together, Le Chat groups them into one [join message](/chatrooms#join-messages). Change how in `config/chat.php`:
+
+```php
+'join_messages' => [
+    'group_within_seconds' => 5, // set to 0 to post one message per join
+    'names_shown' => 3,          // "Ana, Ben, Cara and 17 others joined the chat."
+],
+```
+
 ## Scheduled tasks
 
 Le Chat registers maintenance tasks with Laravel's scheduler when their related features are enabled:

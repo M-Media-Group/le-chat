@@ -38,11 +38,22 @@ return [
     'can_see_messages_before_joined' => false,
 
     /**
-     * If true, system messages will be sent to all participants in the channel on channel events such as participants joining, leaving, etc.
+     * If true, Le Chat posts "Ana has joined the chat." and "Ana has left the chat." when people join or leave.
      *
-     * If false, system messages will not be created automatically.
+     * If false, it posts neither. Participant events still fire, and messages you send yourself are unaffected.
      */
     'create_system_messages' => true,
+
+    /**
+     * People who join close together share one join message: "Ana, Ben, Cara and 17 others joined the chat."
+     *
+     * A join is added to the room's join message if it comes within `group_within_seconds` of the previous join
+     * and nobody has posted since. Set `group_within_seconds` to 0 to post one message per join.
+     */
+    'join_messages' => [
+        'group_within_seconds' => 5,
+        'names_shown' => 3,
+    ],
 
     /**
      * Mark all previous messages as read for a given participant when that participant sends a message.

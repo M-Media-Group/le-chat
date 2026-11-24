@@ -619,12 +619,10 @@ it('creates join messages before the first message without waiting for queued li
 
     expect($recipient->getMessages()->pluck('message')->all())->toBe([
         'First message',
-        'Recipient has joined the chat.',
-        'Sender has joined the chat.',
+        'Sender and Recipient joined the chat.',
     ]);
     expect($message->chatroom->messages()->orderBy('id')->pluck('message')->all())->toBe([
-        'Sender has joined the chat.',
-        'Recipient has joined the chat.',
+        'Sender and Recipient joined the chat.',
         'First message',
     ]);
     Queue::assertNotPushed(CallQueuedListener::class, fn (CallQueuedListener $listener): bool => $listener->class === SendParticipantCreatedNotification::class);

@@ -17,6 +17,9 @@ class SendParticipantDeletedNotification implements ShouldQueue
      */
     public function handle(ParticipantDeleted $event): void
     {
+        if (! config('chat.create_system_messages', true)) {
+            return;
+        }
 
         // For each participant in the chatroom, send a notification
         $chatroom = $event->participant->chatroom;

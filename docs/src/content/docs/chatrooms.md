@@ -62,11 +62,50 @@ $chatroom->addParticipant($teacher, 'admin');
 $chatroom->addParticipant([$studentA, $studentB], 'member'); // Add multiple participants with the same role
 ```
 
+### Join messages
+When someone joins, Le Chat posts a system message in the chatroom:
+
+```
+Ana has joined the chat.
+```
+
+If more people join right after, Le Chat **updates that same message** instead of posting a new one:
+
+```
+Ana and Ben joined the chat.
+Ana, Ben and Cara joined the chat.
+Ana, Ben, Cara and 1 other joined the chat.
+Ana, Ben, Cara and 17 others joined the chat.
+```
+
+So adding 20 people posts one message, not 20. You don't need to do anything, it works out of the box.
+
+A join is added to the message when:
+
+- it happens within 5 seconds of the previous join, and
+- nobody has sent a message in between.
+
+Otherwise the join starts a new message.
+
+The update fires the `MessageUpdated` [event](/events), not `MessageCreated`, so people get one notification instead of one per join. In your frontend, replace the message when you receive `MessageUpdated`, the same way you show an edited message.
+
+To build your own text (for example, to translate it), read the message's metadata:
+
+```php
+$message->metadata['participants_joined']; // ['names' => ['Ana', 'Ben', 'Cara'], 'count' => 20]
+```
+
+To change the wait or how many names are shown, see [join messages configuration](/package-configuration#join-messages).
+
+To turn join and leave messages off, see [join and leave messages configuration](/package-configuration#join-and-leave-messages).
+
 ## Removing a Participant
 To remove a participant from a chatroom, you can use the `removeParticipant` method:
 ```php
 $chatroom->removeParticipant($student);
 ```
+
+Le Chat posts a system message in the chatroom: `Ana has left the chat.`
 
 ### Removing Multiple Participants
 You can also remove multiple participants at once:
