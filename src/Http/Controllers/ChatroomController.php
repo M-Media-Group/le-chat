@@ -38,7 +38,7 @@ class ChatroomController extends Controller
         $user = $this->participantUser($request);
 
         $chatrooms = Chatroom::havingParticipants([$user], true)
-            ->with('participants')
+            ->withParticipantsFor($user)
             ->withLatestMessageFor($user)
             ->withUnreadMessagesCountFor($user)
             ->get();
@@ -55,7 +55,7 @@ class ChatroomController extends Controller
 
         $this->abortUnlessHasOrHadParticipant($chatroom, $user);
 
-        $chatroom->load(['participants', 'messages' => function ($query) use ($user) {
+        $chatroom->loadParticipantsFor($user)->load(['messages' => function ($query) use ($user) {
             $query->visibleTo($user)->with($this->messageRelations());
         }])
             ->loadCount(['messages as unread_messages_count' => function ($query) use ($user) {

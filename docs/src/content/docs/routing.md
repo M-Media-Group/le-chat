@@ -34,6 +34,8 @@ The staged upload flow verifies the stored bytes against the declared size, chec
 
 ### GET /api/chatrooms
 Retrieves a list of all chatrooms that the authenticated user is a participant in or was a participant in previously. This route is useful for displaying a list of chatrooms in your application. It includes the latest_message visible to the user, the participants, and the unread messages count.
+
+`participants` lists the people in the room now. If the authenticated user left the room, their own participant is included too, with `deleted_at` set to when they left. See [showing participants to someone who left](/chatrooms#showing-participants-to-someone-who-left).
 ```json
 [
     {
@@ -100,7 +102,7 @@ Creates a new chatroom with the authenticated user as a participant.
 
 
 ### GET /api/chatrooms/{chatroom}
-Retrieves a specific chatroom by its ID. This route is useful for displaying the details of a chatroom, including its participants and messages.
+Retrieves a specific chatroom by its ID. This route is useful for displaying the details of a chatroom, including its participants and messages. As in the list, `participants` includes the authenticated user's own participant, with `deleted_at` set, if they left.
 
 ```json
 {

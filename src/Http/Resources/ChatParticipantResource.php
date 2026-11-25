@@ -36,6 +36,7 @@ class ChatParticipantResource extends JsonResource
             'ai_response_mode' => $this->when($this->resource->isAgent(), fn () => $this->resource->aiResponseMode()),
             'avatar_url' => $this->avatar_url,
             'created_at' => $this->created_at,
+            /** When this participant left the chatroom; null while they are in it. */
             'deleted_at' => $this->deleted_at,
             'chatroom_id' => $this->chatroom_id,
         ];

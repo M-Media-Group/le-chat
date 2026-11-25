@@ -193,6 +193,33 @@ $participant = $chatroom->participant($teacher);
 
 This returns the `ChatParticipant` model for the specified participant in the chatroom. If the participant is not in the chatroom, it will return `null`. Refer to the [Chat Participant documentation](/participants) for more details on the `ChatParticipant` model.
 
+## Showing participants to someone who left
+`$chatroom->participants` lists only the people in the room now. When Ana leaves, her own chat list would show the room with no sign that she was ever in it.
+
+To list the room's participants for a viewer, use `withParticipantsFor`:
+
+```php
+$chatrooms = Chatroom::havingParticipants([$ana], true)
+    ->withParticipantsFor($ana)
+    ->get();
+```
+
+Or, for a chatroom you already have:
+
+```php
+$chatroom->loadParticipantsFor($ana);
+```
+
+`$chatroom->participants` then holds everyone in the room now, plus Ana's own membership if she left. Ana's membership tells you where she stands:
+
+| Ana's membership | Meaning |
+| --- | --- |
+| `deleted_at` is `null` | Ana is in the room. |
+| `deleted_at` is a date | Ana left the room at that time. |
+| Not in the list | Ana was never in the room. |
+
+Other people who left are not included. Use `participantsWithTrashed` if you need everyone who was ever in the room.
+
 ## Sending Messages as a System User
 If you want to send messages in a chatroom as a system user (e.g., for notifications or automated messages), you can use the `sendMessage` method on the chatroom instance.
 ```php

@@ -130,6 +130,49 @@ final class Chatroom extends Model
     }
 
     /**
+     * Eager load `participants` as the room's current participants plus the viewer's own membership if they left,
+     * so a viewer who left can tell this room apart from one they were never in.
+     *
+     * @param  Builder<static>  $query
+     * @return Builder<static>
+     */
+    public function scopeWithParticipantsFor(Builder $query, ChatParticipantInterface $viewer): Builder
+    {
+        return $query->with(['participants' => self::currentParticipantsAnd($viewer)]);
+    }
+
+    /**
+     * Load `participants` on this room as withParticipantsFor() does.
+     */
+    public function loadParticipantsFor(ChatParticipantInterface $viewer): static
+    {
+        return $this->load(['participants' => self::currentParticipantsAnd($viewer)]);
+    }
+
+    /**
+     * @return \Closure(HasMany<ChatParticipant, Chatroom>): void
+     */
+    private static function currentParticipantsAnd(ChatParticipantInterface $viewer): \Closure
+    {
+        return fn (HasMany $participants) => self::constrainToCurrentParticipantsAnd($participants, $viewer);
+    }
+
+    /**
+     * Adds one OR to the usual participants lookup, which already reads each room's rows through the chatroom_id index.
+     *
+     * @param  HasMany<ChatParticipant, Chatroom>  $participants
+     */
+    private static function constrainToCurrentParticipantsAnd(HasMany $participants, ChatParticipantInterface $viewer): void
+    {
+        $deletedAt = (new ChatParticipant)->getQualifiedDeletedAtColumn();
+        $viewerMembership = ChatParticipant::query()->ofParticipant($viewer)->getQuery();
+
+        $participants->withTrashed()->where(fn ($query) => $query
+            ->whereNull($deletedAt)
+            ->addNestedWhereQuery($viewerMembership, 'or'));
+    }
+
+    /**
      * @param  class-string  $agentClass
      */
     public function addAgent(string $agentClass): ChatParticipant
